@@ -93,6 +93,14 @@ test('perf.font-display-missing covers an inline @font-face and a linked stylesh
   assert.ok(!has(await good(), 'perf.font-display-missing'))
 })
 
+// Regression, from the smoke run: the only two @font-face blocks on a real site without
+// font-display were the metric-adjusted `src: local(Arial)` fallbacks next/font writes beside every
+// real face. Nothing is fetched for them, so no text ever waits — and "text waits for it" was the
+// finding's whole claim.
+test('perf.font-display-missing passes over a face that fetches nothing', async () => {
+  assert.deepEqual(of(await good(), 'perf.font-display-missing'), [])
+})
+
 test('perf.third-party-scripts inventories the outside code by host', async () => {
   const found = of(await bad(), 'perf.third-party-scripts')
   assert.equal(found.length, 1)

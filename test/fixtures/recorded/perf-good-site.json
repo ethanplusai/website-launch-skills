@@ -26,7 +26,7 @@
       "content-type": "text/css",
       "content-length": "180"
     },
-    "body": "@font-face { font-family: \"Ledger\"; src: url(/ledger.woff2) format(\"woff2\"); font-display: swap; }\n.page { max-width: 60rem; }\n"
+    "body": "@font-face { font-family: \"Ledger\"; src: url(/ledger.woff2) format(\"woff2\"); font-display: swap; }\n@font-face { font-family: \"Ledger Fallback\"; src: local(Arial); ascent-override: 95%; size-adjust: 104%; }\n.page { max-width: 60rem; }\n"
   },
   "https://perf-good.test/app.js": {
     "status": 200,

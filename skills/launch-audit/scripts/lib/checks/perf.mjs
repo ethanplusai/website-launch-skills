@@ -124,6 +124,11 @@ function fontFacesWithoutDisplay(css) {
   while ((match = FONT_FACE.exec(css)) !== null) {
     const block = match[1]
     if (/font-display\s*:/i.test(block)) continue
+    // A face that fetches nothing cannot keep anybody waiting. `src: local(Arial)` with
+    // ascent-override and size-adjust is the metric-matched fallback every modern font pipeline
+    // writes beside the real face; font-display has nothing to govern on it, and reporting it says
+    // "text waits for this" about a font already on the machine.
+    if (!/\burl\s*\(/i.test(block)) continue
     const family = FONT_FAMILY.exec(block)
     hits.push(family === null ? '@font-face' : family[1].trim().replace(/^["']|["']$/g, ''))
   }
@@ -259,7 +264,7 @@ export const fontDisplayMissing = define({
   id: 'perf.font-display-missing',
   severity: 'low',
   title: 'A web font has no font-display, so text waits for it',
-  catches: 'An @font-face block with no font-display descriptor — by default the browser hides the text for up to three seconds while the font loads.',
+  catches: 'An @font-face block that fetches a font file and declares no font-display — by default the browser hides the text for up to three seconds while it loads.',
   run(ctx) {
     const out = []
     const seenSheets = new Set()
