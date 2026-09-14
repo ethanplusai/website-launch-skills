@@ -15,7 +15,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { sortFindings } from '../skills/launch-audit/scripts/lib/findings.mjs'
 import { CUTOVER_ORDER } from '../skills/post-launch/scripts/lib/checks/cutover.mjs'
-import { parseExpectDns } from '../skills/post-launch/scripts/lib/cutover.mjs'
+import { parseExpectDns, cutoverNotCovered } from '../skills/post-launch/scripts/lib/cutover.mjs'
 import {
   GOOD, BAD, PRODUCTION, BASELINE_BEFORE, REDIRECTS_BEFORE, PROPAGATED, EXPECT_DNS,
   cutoverCtx, cutoverFindings, cutoverChecks, has, of, allEvidence, evidenceText,
@@ -588,4 +588,59 @@ test('cutover.human-items lists the six things a person has to do on the day', a
 test('cutover.human-items ships on a bad cutover too, because the day still has to be worked', async () => {
   const { findings } = await bad()
   assert.ok(has(findings, 'cutover.human-items'))
+})
+
+// ------------------------------------------------------- what a cutover run is not
+
+// I3: cutover mode runs 21 checks; a full audit runs 176. The report it produces is the one read
+// immediately before a launch is announced, and nothing in it said how narrow it was — so a clean
+// cutover report read like a clean site. The smoke run found this the hard way: day 1 of the watch
+// surfaced two high findings the cutover the evening before had not.
+test('cutoverNotCovered always says the run checked the cutover conditions only', async () => {
+  const ctx = await cutoverCtx(GOOD, FULL)
+  const lines = cutoverNotCovered(ctx, { tier: { available: false, reason: 'test' } })
+  const scope = lines.filter((line) => line.startsWith('This run checked the '))
+  assert.equal(scope.length, 1, `expected exactly one scope line, got:\n${lines.join('\n')}`)
+  assert.equal(
+    scope[0],
+    'This run checked the 21 cutover conditions only; the full audit’s links, head, indexability and inventory dimensions were not re-run — use --mode watch for those.',
+  )
+  // The count is the registry's, not a number typed into a string.
+  assert.equal(cutoverChecks.filter((c) => c.dimension === 'cutover').length, 21)
+})
+
+// A watch day does re-run those four dimensions, so the same sentence there would be false.
+test('the scope line names only the dimensions the registry actually left out', async () => {
+  const ctx = await cutoverCtx(GOOD, FULL)
+  const { cutoverRegistry } = await import('../skills/post-launch/scripts/lib/cutover.mjs')
+  const { WATCH_MODULES } = await import('../skills/post-launch/scripts/lib/watch.mjs')
+  const lines = cutoverNotCovered(ctx, {
+    tier: { available: false, reason: 'test' },
+    registry: cutoverRegistry(WATCH_MODULES),
+  })
+  assert.deepEqual(lines.filter((line) => line.startsWith('This run checked the ')), [])
+})
+
+// P1: a check that tried to declare a coverage gap and got the shape wrong had the gap silently
+// deleted — the one failure mode the `{findings, notCovered}` shape exists to prevent.
+test('a check whose notCovered is not an array of strings is a crash, not an empty array', async () => {
+  const ctx = await cutoverCtx(GOOD, FULL)
+  const { cutoverRegistry, runChecksOver } = await import('../skills/post-launch/scripts/lib/cutover.mjs')
+  const { createRegistry, defineCheck } = await import('../skills/launch-audit/scripts/lib/registry.mjs')
+  const registry = createRegistry()
+  registry.add(defineCheck({
+    id: 'cutover.bad-shape', phase: 'post-launch', dimension: 'cutover', severity: 'info', tier: 'http',
+    title: 'bad shape', catches: 'a stub whose notCovered is a string',
+    run: () => ({ findings: [], notCovered: 'the certificate was never read' }),
+  }))
+  registry.add(defineCheck({
+    id: 'cutover.bad-entries', phase: 'post-launch', dimension: 'cutover', severity: 'info', tier: 'http',
+    title: 'bad entries', catches: 'a stub whose notCovered holds a non-string',
+    run: () => ({ findings: [], notCovered: ['fine', { reason: 'not a string' }] }),
+  }))
+  const { lines } = await runChecksOver(ctx, registry)
+  assert.ok(lines.includes('cutover.bad-shape: check crashed — malformed notCovered'), lines.join(' | '))
+  assert.ok(lines.includes('cutover.bad-entries: check crashed — malformed notCovered'), lines.join(' | '))
+  // The half-good line is not kept: a malformed return is not partly trustworthy.
+  assert.ok(!lines.includes('fine'))
 })

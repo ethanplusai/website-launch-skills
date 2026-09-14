@@ -169,7 +169,7 @@ test('Not covered names the browser tier, the caps and the two things no crawl c
     assert.match(text, /Copy vs\. source documents: not run/)
     assert.match(text, /Pages vs\. agreed scope: not run/)
     assert.match(text, /PageSpeed Insights: skipped — no --psi-key/)
-    assert.match(text, /Dropped by robots: https:\/\/small\.test\/private/)
+    assert.match(text, /Dropped by robots: 1 url not fetched — all listed in crawl\.json under "dropped"; first 20: https:\/\/small\.test\/private/)
     // The two fixed lines are last, always.
     assert.match(result.notCovered.at(-2), /^Copy vs\. source documents/)
     assert.match(result.notCovered.at(-1), /^Pages vs\. agreed scope/)

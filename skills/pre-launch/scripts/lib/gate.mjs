@@ -64,15 +64,26 @@ const worstSeverity = (findings) => findings
   .map((f) => f.severity)
   .sort((a, b) => SEVERITIES.indexOf(a) - SEVERITIES.indexOf(b))[0]
 
-// Unwraps whichever of the two return shapes a check used. `null` means the check returned
-// something that is neither, which is a bug in the check.
+// Unwraps whichever of the two return shapes a check used, or reports which way it was malformed.
+//
+// A `notCovered` that is not an array of strings used to be filtered down to `[]`. That deleted
+// the one thing this shape exists to carry, silently, in the one runner whose contract is that a
+// check which cannot answer has not cleared the launch — so the coverage gap vanished and the
+// check passed. A check that tried to declare a bound and got the shape wrong has not declared
+// nothing; it has failed to declare something. An omitted `notCovered` is the third case and a
+// legitimate one: the check had no bound to report.
+const MALFORMED_NOT_COVERED = { malformed: 'malformed notCovered' }
+const MALFORMED_SHAPE = { malformed: 'run() returned neither an array of findings nor { findings, notCovered }' }
+
 function unwrap(produced) {
   if (Array.isArray(produced)) return { findings: produced, notCovered: [] }
   if (produced !== null && typeof produced === 'object' && Array.isArray(produced.findings)) {
-    const notCovered = Array.isArray(produced.notCovered) ? produced.notCovered.filter((l) => typeof l === 'string' && l !== '') : []
-    return { findings: produced.findings, notCovered }
+    const declared = produced.notCovered
+    if (declared === undefined || declared === null) return { findings: produced.findings, notCovered: [] }
+    if (!Array.isArray(declared) || !declared.every((l) => typeof l === 'string')) return MALFORMED_NOT_COVERED
+    return { findings: produced.findings, notCovered: declared.filter((l) => l !== '') }
   }
-  return null
+  return MALFORMED_SHAPE
 }
 
 // One check, run and interpreted. `check.run` is called as a method so a check body can use
@@ -98,11 +109,11 @@ async function runOne(check, ctx) {
   }
 
   const unwrapped = unwrap(produced)
-  if (unwrapped === null) {
+  if (unwrapped.malformed !== undefined) {
     return {
       ...base,
       status: 'fail',
-      detail: 'check crashed — run() returned neither an array of findings nor { findings, notCovered }',
+      detail: `check crashed — ${unwrapped.malformed}`,
       evidence: [{ type: 'text', value: `${check.id} returned ${typeof produced}` }],
       notCovered: [],
       findings: [],

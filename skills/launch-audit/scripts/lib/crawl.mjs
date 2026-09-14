@@ -68,9 +68,12 @@ export async function crawlSite(net, opts) {
   const startOrigin = originOf(startUrl)
 
   const dropped = new Map()
-  function recordDrop(u, reason) {
+  // `cap` is the bound that refused this url, when the reason has one. A drop that names its own
+  // cap lets the report collapse a thousand of them into one line that still says what the limit
+  // was, instead of printing a thousand urls to get the number across.
+  function recordDrop(u, reason, cap = null) {
     if (dropped.has(u)) return
-    dropped.set(u, { url: u, reason })
+    dropped.set(u, cap === null ? { url: u, reason } : { url: u, reason, cap })
   }
 
   // Off-origin sitemap URLs are never fetched — the crawl only ever touches the start origin.
@@ -139,7 +142,7 @@ export async function crawlSite(net, opts) {
     for (const u of currentWave) {
       const depth = depthOf.get(u)
       if (depth > maxDepth) {
-        recordDrop(u, 'max-depth')
+        recordDrop(u, 'max-depth', maxDepth)
         continue
       }
       if (!ignoreRobots && robots) {
@@ -154,7 +157,7 @@ export async function crawlSite(net, opts) {
 
     const budget = Math.max(0, maxPages - fetchedCount)
     const willFetch = eligible.slice(0, budget)
-    for (const u of eligible.slice(budget)) recordDrop(u, 'max-pages')
+    for (const u of eligible.slice(budget)) recordDrop(u, 'max-pages', maxPages)
 
     const results = await net.map(willFetch, (u) => net.get(u))
     fetchedCount += willFetch.length

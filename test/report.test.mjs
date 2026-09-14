@@ -27,21 +27,59 @@ test('buildNotCovered always ends with the two fixed lines', () => {
   ])
 })
 
-test('buildNotCovered groups dropped urls by reason with the right labels', () => {
+test('buildNotCovered collapses dropped urls into one line per reason, with the count and the cap', () => {
   const lines = buildNotCovered({
     dropped: [
-      { url: 'https://x.test/a', reason: 'max-pages' },
+      { url: 'https://x.test/a', reason: 'max-pages', cap: 200 },
       { url: 'https://x.test/b', reason: 'robots' },
-      { url: 'https://x.test/c', reason: 'max-pages' },
+      { url: 'https://x.test/c', reason: 'max-pages', cap: 200 },
       { url: 'https://other.test/d', reason: 'off-origin' },
     ],
   })
-  assert.deepEqual(lines.slice(0, 4), [
-    'Dropped by max-pages: https://x.test/a',
-    'Dropped by max-pages: https://x.test/c',
-    'Dropped by robots: https://x.test/b',
-    'Off-origin sitemap entry not fetched: https://other.test/d',
+  assert.deepEqual(lines.slice(0, 3), [
+    'Dropped by max-pages: 2 urls not fetched (cap 200) — all listed in crawl.json under "dropped"; first 20: https://x.test/a, https://x.test/c',
+    'Dropped by robots: 1 url not fetched — all listed in crawl.json under "dropped"; first 20: https://x.test/b',
+    'Off-origin sitemap entry not fetched: 1 url — all listed in crawl.json under "dropped"; first 20: https://other.test/d',
   ])
+})
+
+// I2: a 200-page cap on a 1000-page site used to print 800 lines into the section a person is
+// told to read verbatim, which is how a coverage list stops being read.
+test('buildNotCovered stays one line per reason at 800 drops and lists only the first 20', () => {
+  const dropped = Array.from({ length: 800 }, (_, i) => ({
+    url: `https://big.test/p${i}`, reason: i % 2 === 0 ? 'max-pages' : 'max-depth', cap: i % 2 === 0 ? 200 : 4,
+  }))
+  const lines = buildNotCovered({ dropped })
+  const dropLines = lines.filter((line) => line.startsWith('Dropped by'))
+  assert.equal(dropLines.length, 2)
+  assert.match(dropLines[0], /^Dropped by max-pages: 400 urls not fetched \(cap 200\) — all listed in crawl\.json under "dropped"; first 20: /)
+  assert.match(dropLines[1], /^Dropped by max-depth: 400 urls not fetched \(cap 4\) — /)
+  assert.equal(dropLines[0].split('first 20: ')[1].split(', ').length, 20)
+  assert.ok(!dropLines[0].includes('https://big.test/p40,'), 'the 21st url must not be listed')
+
+  const report = renderReport({
+    phase: 'launch-audit',
+    target: 'https://big.test/',
+    generatedAt: '2026-09-14T00:00:00.000Z',
+    findings: [],
+    notCovered: lines,
+    summary: { pages: 200, blockers: 0, high: 0, medium: 0, low: 0, info: 0 },
+  })
+  assert.ok(report.split('\n').length < 300, `report was ${report.split('\n').length} lines`)
+})
+
+// Two orchestrators feed this section and both of them append; a line that arrives from two
+// sources is one fact, and printing it twice makes the section look longer than it is.
+test('buildNotCovered de-duplicates repeated lines', () => {
+  const lines = buildNotCovered({
+    skipped: [
+      { check: 'perf.lcp', reason: 'browser tier unavailable' },
+      { check: 'perf.lcp', reason: 'browser tier unavailable' },
+    ],
+    unverifiableExternals: ['https://ext.test/', 'https://ext.test/'],
+  })
+  assert.equal(lines.filter((l) => l === 'perf.lcp: skipped — browser tier unavailable').length, 1)
+  assert.equal(lines.filter((l) => l.includes('https://ext.test/')).length, 1)
 })
 
 test('buildNotCovered reports browser tier, skipped checks, unverifiable externals, ignored robots, and PSI in order', () => {

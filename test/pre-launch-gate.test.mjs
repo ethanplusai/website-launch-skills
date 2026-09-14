@@ -264,3 +264,38 @@ test('every registered pre-launch check is unique, prefixed by its group, and bl
     assert.ok(typeof check.catches === 'string' && check.catches.length > 10, `${check.id} does not say what it catches`)
   }
 })
+
+// P1: the gate's unwrap coerced a malformed `notCovered` to `[]`, which deleted the one thing the
+// `{findings, notCovered}` shape exists to carry — and did it silently, on a gate whose whole
+// contract is that a check which cannot answer has not cleared the launch.
+test('a check whose notCovered is not an array of strings fails closed', async () => {
+  const stringNotCovered = defineCheck({
+    id: 'hygiene.bad-shape', phase: 'pre-launch', dimension: 'hygiene', severity: 'blocker', tier: 'repo',
+    title: 'bad shape', catches: 'a stub whose notCovered is a string',
+    run: () => ({ findings: [], notCovered: 'three files were skipped' }),
+  })
+  const [broken] = await runChecks([stringNotCovered], {})
+  assert.equal(broken.status, 'fail')
+  assert.equal(broken.detail, 'check crashed — malformed notCovered')
+  assert.deepEqual(broken.notCovered, [])
+
+  const badEntries = defineCheck({
+    id: 'hygiene.bad-entries', phase: 'pre-launch', dimension: 'hygiene', severity: 'blocker', tier: 'repo',
+    title: 'bad entries', catches: 'a stub whose notCovered holds a non-string',
+    run: () => ({ findings: [], notCovered: ['fine', 42] }),
+  })
+  const [mixed] = await runChecks([badEntries], {})
+  assert.equal(mixed.status, 'fail')
+  assert.equal(mixed.detail, 'check crashed — malformed notCovered')
+  assert.deepEqual(mixed.notCovered, [])
+
+  // An omitted notCovered is not malformed: the check simply had nothing to declare.
+  const absent = defineCheck({
+    id: 'hygiene.no-not-covered', phase: 'pre-launch', dimension: 'hygiene', severity: 'blocker', tier: 'repo',
+    title: 'no notCovered', catches: 'a stub that declares no bound at all',
+    run: () => ({ findings: [] }),
+  })
+  const [fine] = await runChecks([absent], {})
+  assert.equal(fine.status, 'pass')
+  assert.deepEqual(fine.notCovered, [])
+})

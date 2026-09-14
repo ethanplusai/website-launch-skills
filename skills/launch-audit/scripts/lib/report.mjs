@@ -50,6 +50,26 @@ const DROP_LABEL = {
   robots: 'Dropped by robots',
 }
 
+// How many dropped urls a line names before it stops naming them. Twenty is enough to recognise a
+// pattern — one directory, one query parameter, one paginated archive — and short enough that the
+// line is still a line.
+const DROP_SAMPLE = 20
+
+// One line per reason, not one per url. A 200-page cap on a thousand-page site produced eight
+// hundred lines in the section a person is told to repeat verbatim, and a coverage list that long
+// is a coverage list nobody reads — which costs exactly the honesty the section exists for. The
+// count, the cap and a sample carry the same fact in one line, and `crawl.json` still holds every
+// url, named here so a reader knows where the rest went.
+function dropLine(reason, urls, cap) {
+  const label = reason === 'off-origin'
+    ? 'Off-origin sitemap entry not fetched'
+    : DROP_LABEL[reason] ?? `Dropped by ${reason}`
+  const count = `${urls.length} url${urls.length === 1 ? '' : 's'}${reason === 'off-origin' ? '' : ' not fetched'}`
+  const capPart = typeof cap === 'number' ? ` (cap ${cap})` : ''
+  const sample = urls.slice(0, DROP_SAMPLE).join(', ')
+  return `${label}: ${count}${capPart} — all listed in crawl.json under "dropped"; first ${DROP_SAMPLE}: ${sample}`
+}
+
 // Builds the `## Not covered` lines. This section always ships, even when nothing was skipped,
 // because the two fixed lines at the end are unconditional — a launch-audit report never implies
 // copy or scope were checked unless they actually were.
@@ -66,15 +86,12 @@ export function buildNotCovered({
 
   const byReason = new Map()
   for (const d of dropped) {
-    if (!byReason.has(d.reason)) byReason.set(d.reason, [])
-    byReason.get(d.reason).push(d.url)
+    if (!byReason.has(d.reason)) byReason.set(d.reason, { urls: [], cap: null })
+    const group = byReason.get(d.reason)
+    group.urls.push(d.url)
+    if (typeof d.cap === 'number') group.cap = d.cap
   }
-  for (const [reason, urls] of byReason) {
-    for (const url of urls) {
-      if (reason === 'off-origin') lines.push(`Off-origin sitemap entry not fetched: ${url}`)
-      else lines.push(`${DROP_LABEL[reason] ?? `Dropped by ${reason}`}: ${url}`)
-    }
-  }
+  for (const [reason, group] of byReason) lines.push(dropLine(reason, group.urls, group.cap))
 
   if (!browserAvailable) lines.push(`Browser tier not run: ${browserReason}`)
 
@@ -87,7 +104,11 @@ export function buildNotCovered({
   if (psiSkipped) lines.push(`PageSpeed Insights: skipped — ${psiSkipped}`)
 
   lines.push(...NOT_COVERED_FIXED)
-  return lines
+  // Two orchestrators and a dozen checks feed this section, and more than one of them can reach
+  // the same conclusion about the same gap. A line repeated is one fact stated twice, which makes
+  // the section look longer than the coverage gap actually is. First occurrence wins, so the
+  // order above — and the two fixed trailing lines with it — is untouched.
+  return [...new Set(lines)]
 }
 
 function renderOps(ops) {

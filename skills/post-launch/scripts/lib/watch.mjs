@@ -107,7 +107,7 @@ export async function runWatch({ net, dns, browser = null, options = {}, now = n
     const registry = options.registry ?? cutoverRegistry(WATCH_MODULES)
     const { findings, lines, skipped } = await runChecksOver(ctx, registry)
     const sorted = sortFindings(findings)
-    const notCovered = cutoverNotCovered(ctx, { tier, skipped, ownLines: lines, browserLines })
+    const notCovered = cutoverNotCovered(ctx, { tier, skipped, ownLines: lines, browserLines, registry })
     const summary = summaryOf(sorted, ctx.crawl.pages.length)
     const plan = watchPlan(day, previous)
 

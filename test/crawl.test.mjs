@@ -195,9 +195,11 @@ test('crawlSite names a max-depth drop when maxDepth is capped (pure BFS, no sit
   assert.ok(faq && faq.depth === 3)
   assert.ok(!result.pages.some((p) => p.url === 'https://small.test/deep'))
 
+  // The drop names the bound that refused it, so the report can collapse a thousand of these
+  // into one line that still says what the limit was.
   assert.deepEqual(
     result.dropped.find((d) => d.url === 'https://small.test/deep'),
-    { url: 'https://small.test/deep', reason: 'max-depth' },
+    { url: 'https://small.test/deep', reason: 'max-depth', cap: 3 },
   )
 })
 

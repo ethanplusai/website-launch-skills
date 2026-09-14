@@ -322,15 +322,23 @@ export function cutoverRegistry(extraModules = []) {
 // into the report's Not covered section: "the certificate was never read" and "the certificate is
 // fine" are different answers, and only the first one has somewhere honest to go.
 // `null` means the check returned neither, which is a bug in the check.
+// A `notCovered` that is not an array of strings used to be filtered down to `[]`, which deleted
+// the one thing this shape exists to carry and did it without a word. A check that tried to
+// declare a coverage gap and got the shape wrong has not declared nothing — it has failed to
+// declare something, and those are opposite facts. An omitted `notCovered` is neither: the check
+// simply had no bound to report.
+const MALFORMED_NOT_COVERED = { malformed: 'malformed notCovered' }
+const MALFORMED_SHAPE = { malformed: 'run() returned neither an array of findings nor { findings, notCovered }' }
+
 function unwrap(produced) {
   if (Array.isArray(produced)) return { findings: produced, notCovered: [] }
   if (produced !== null && typeof produced === 'object' && Array.isArray(produced.findings)) {
-    const notCovered = Array.isArray(produced.notCovered)
-      ? produced.notCovered.filter((line) => typeof line === 'string' && line !== '')
-      : []
-    return { findings: produced.findings, notCovered }
+    const declared = produced.notCovered
+    if (declared === undefined || declared === null) return { findings: produced.findings, notCovered: [] }
+    if (!Array.isArray(declared) || !declared.every((line) => typeof line === 'string')) return MALFORMED_NOT_COVERED
+    return { findings: produced.findings, notCovered: declared.filter((line) => line !== '') }
   }
-  return null
+  return MALFORMED_SHAPE
 }
 
 // Runs every check in `registry` over `ctx`. A check that throws costs that check and says so; a
@@ -351,8 +359,8 @@ export async function runChecksOver(ctx, registry) {
       continue
     }
     const unwrapped = unwrap(produced)
-    if (unwrapped === null) {
-      lines.push(`${check.id}: check crashed — run() returned neither an array of findings nor { findings, notCovered }`)
+    if (unwrapped.malformed !== undefined) {
+      lines.push(`${check.id}: check crashed — ${unwrapped.malformed}`)
       continue
     }
     lines.push(...unwrapped.notCovered)
@@ -481,9 +489,33 @@ export function summaryOf(findings, pages) {
   }
 }
 
+// The four dimensions a full launch-audit has that cutover day does not re-run. `--mode watch`
+// adds exactly these back (watch.mjs WATCH_MODULES), which is why the line below names that mode
+// as the way to get them.
+const AUDIT_DIMENSIONS_A_WATCH_ADDS = ['links', 'head', 'indexability', 'inventory']
+
+const andList = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`)
+
+// How narrow this run was, in one sentence, computed from the registry that actually ran.
+//
+// A cutover report is the one a person reads immediately before announcing a launch, and nothing
+// in it said that it covers 21 conditions out of a full audit's 176. A clean cutover report
+// therefore read like a clean site. The smoke run found this from the other end: day 1 of the
+// watch surfaced two high findings the cutover the evening before had not, because the cutover
+// never looked. A watch day does re-run those dimensions, so it gets no such line — the sentence
+// is about what was left out, and on a watch day nothing was.
+export function scopeLine(registry = null) {
+  const checks = registry === null ? cutoverChecks : registry.list()
+  const conditions = checks.filter((check) => check.dimension === 'cutover').length
+  const present = new Set(checks.map((check) => check.dimension))
+  const missing = AUDIT_DIMENSIONS_A_WATCH_ADDS.filter((dimension) => !present.has(dimension))
+  if (missing.length === 0) return null
+  return `This run checked the ${conditions} cutover conditions only; the full audit’s ${andList(missing)} dimensions were not re-run — use --mode watch for those.`
+}
+
 // The "Not covered" section for a post-launch run: the engine's standard lines, then everything
 // this run could not do, then the two things no crawl can ever see.
-export function cutoverNotCovered(ctx, { tier, skipped = [], ownLines = [], browserLines = [] }) {
+export function cutoverNotCovered(ctx, { tier, skipped = [], ownLines = [], browserLines = [], registry = null }) {
   let notCovered = buildNotCovered({
     dropped: ctx.crawl.dropped ?? [],
     browserAvailable: tier.available,
@@ -492,7 +524,11 @@ export function cutoverNotCovered(ctx, { tier, skipped = [], ownLines = [], brow
     ignoredRobots: ctx.options.ignoreRobots === true,
     psiSkipped: null,
   })
-  return insertBeforeFixed(notCovered, [...ownLines, ...(ctx.gaps ?? []), ...capLines(ctx.probes.caps), ...browserLines])
+  const scope = scopeLine(registry)
+  return insertBeforeFixed(notCovered, [
+    ...ownLines, ...(ctx.gaps ?? []), ...capLines(ctx.probes.caps), ...browserLines,
+    ...(scope === null ? [] : [scope]),
+  ])
 }
 
 // ------------------------------------------------------------------------------------ the run
@@ -517,7 +553,7 @@ export async function runCutover({ net, dns, browser = null, options = {}, now =
     const registry = options.registry ?? cutoverRegistry()
     const { findings, lines, skipped } = await runChecksOver(ctx, registry)
     const sorted = sortFindings(findings)
-    const notCovered = cutoverNotCovered(ctx, { tier, skipped, ownLines: lines, browserLines })
+    const notCovered = cutoverNotCovered(ctx, { tier, skipped, ownLines: lines, browserLines, registry })
     const summary = summaryOf(sorted, ctx.crawl.pages.length)
 
     const report = renderCutoverReport({
