@@ -33,6 +33,9 @@ test('every check is registrable and in the ops dimension', async () => {
     assert.ok(check.id.startsWith('ops.'))
     assert.ok(check.title && check.catches)
   }
+  // The checklist is the one finding no request produces: it is the human tier by definition.
+  assert.deepEqual(checks.filter((c) => c.tier === 'human').map((c) => c.id), ['ops.checklist'])
+  for (const check of checks) assert.ok(check.tier === 'http' || check.tier === 'human')
   assert.equal(new Set(checks.map((c) => c.id)).size, checks.length)
 })
 

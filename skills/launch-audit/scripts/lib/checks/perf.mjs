@@ -141,7 +141,8 @@ export const pageWeight = define({
     for (const entry of htmlPages(ctx)) {
       const referenced = referencedAssets(entry.page)
       const all = [...referenced.images, ...referenced.scripts, ...referenced.styles]
-      let total = htmlBytes(entry)
+      const documentBytes = htmlBytes(entry)
+      let total = documentBytes
       let unknown = 0
       const heaviest = []
       for (const assetUrl of all) {
@@ -157,11 +158,11 @@ export const pageWeight = define({
       heaviest.sort((a, b) => b.bytes - a.bytes)
       out.push(emit(pageWeight, {
         page: entry.url,
-        detail: `${entry.url} weighs at least ${mb(total)}: ${size(htmlBytes(entry))} of HTML plus ${all.length - unknown} sized ${plural(all.length - unknown, 'asset', 'assets')}. ${unknown === 0 ? 'Everything it references was sized.' : `${unknown} further ${plural(unknown, 'asset', 'assets')} could not be sized — the audit samples stylesheets and scripts rather than downloading all of them — so the real figure is higher.`} On a mid-range phone that is several seconds of staring at nothing.`,
+        detail: `${entry.url} weighs at least ${mb(total)}: ${size(documentBytes)} of HTML plus ${all.length - unknown} sized ${plural(all.length - unknown, 'asset', 'assets')}. ${unknown === 0 ? 'Everything it references was sized.' : `${unknown} further ${plural(unknown, 'asset', 'assets')} could not be sized — the audit samples stylesheets and scripts rather than downloading all of them — so the real figure is higher.`} On a mid-range phone that is several seconds of staring at nothing.`,
         evidence: [
           url(entry.url),
           metric(`${mb(total)} estimated, against a 3 MB budget`),
-          metric(`${size(htmlBytes(entry))} of HTML, ${all.length} referenced asset${plural(all.length, '', 's')}, ${unknown} of them unknown`),
+          metric(`${size(documentBytes)} of HTML, ${all.length} referenced asset${plural(all.length, '', 's')}, ${unknown} of them unknown`),
           ...heaviest.slice(0, EVIDENCE_LIMIT).map((hit) => metric(`${hit.url} — ${size(hit.bytes)}`)),
         ],
         fix: 'Compress and resize the heaviest assets first — the list above is in order — and serve images in a modern format at the size they are displayed.',
@@ -302,8 +303,9 @@ export const thirdPartyScripts = define({
   catches: 'Every script served from a host that is not this site, grouped by host — each one a connection, a dependency and a privacy question.',
   run(ctx) {
     const own = ownHosts(ctx)
+    const pages = htmlPages(ctx)
     const byHost = new Map()
-    for (const entry of htmlPages(ctx)) {
+    for (const entry of pages) {
       for (const script of entry.page.scripts) {
         if (script.src === null) continue
         const host = hostOf(script.src)
@@ -318,7 +320,7 @@ export const thirdPartyScripts = define({
     const hosts = [...byHost.entries()].sort((a, b) => b[1].urls.size - a[1].urls.size || a[0].localeCompare(b[0]))
     const scripts = hosts.reduce((sum, [, group]) => sum + group.urls.size, 0)
     return [emit(thirdPartyScripts, {
-      page: htmlPages(ctx)[0]?.url,
+      page: pages[0]?.url ?? null,
       detail: `This site loads ${scripts} ${plural(scripts, 'script', 'scripts')} from ${hosts.length} outside ${plural(hosts.length, 'host', 'hosts')}: ${hosts.map(([host, group]) => `${host} (${group.urls.size} on ${group.pages.size} ${plural(group.pages.size, 'page', 'pages')})`).join('; ')}. Each host is a fresh connection before anything downloads, code you do not control running on your pages, and — usually — a record of your visitors kept somewhere else.`,
       evidence: hosts.slice(0, EVIDENCE_LIMIT).map(([host, group]) => text(
         `${host} — ${group.urls.size} script${plural(group.urls.size, '', 's')} on ${group.pages.size} page${plural(group.pages.size, '', 's')}`,

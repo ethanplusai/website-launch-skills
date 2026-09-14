@@ -133,6 +133,9 @@ export const legalPages = define({
 export const checklist = define({
   id: 'ops.checklist',
   severity: 'info',
+  // Nothing produced this over HTTP: it is the list of jobs a person has to walk, which is what
+  // the human tier means.
+  tier: 'human',
   title: 'Launch readiness: the jobs that are not in the markup',
   catches: 'The thirteen ops and access items every launch needs, each marked with the check that verifies it or as somebody\'s job.',
   run() {

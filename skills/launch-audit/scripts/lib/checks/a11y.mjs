@@ -169,13 +169,14 @@ export const mainLandmarkMissing = define({
   title: 'Pages with no main region',
   catches: 'A page with no <main> and no role="main" — nothing for "skip to content" to skip to.',
   run(ctx) {
-    const pages = htmlPages(ctx).filter((entry) => entry.page.hasMain === false)
+    const all = htmlPages(ctx)
+    const pages = all.filter((entry) => entry.page.hasMain === false)
     if (pages.length === 0) return []
     return [emit(mainLandmarkMissing, {
       page: pages[0].url,
       detail: `${pages.length} ${plural(pages.length, 'page has', 'pages have')} no <main> region. Screen-reader users navigate by landmark before they navigate by anything else, and without one they have to tab through the header and the navigation on every page to reach the content.`,
       evidence: [
-        metric(`${pages.length} of ${htmlPages(ctx).length} crawled pages have no main landmark`),
+        metric(`${pages.length} of ${all.length} crawled pages have no main landmark`),
         ...pages.slice(0, EVIDENCE_LIMIT).map((entry) => url(entry.url)),
       ],
       fix: 'Wrap the page content in <main> in the layout template. It is one element, and it fixes every page at once.',
@@ -206,9 +207,10 @@ export const imageAltCoverage = define({
   title: 'How much of this site is described for screen readers',
   catches: 'The share of images across the crawled pages that carry an alt attribute at all.',
   run(ctx) {
+    const pages = htmlPages(ctx)
     let total = 0
     let described = 0
-    for (const entry of htmlPages(ctx)) {
+    for (const entry of pages) {
       for (const image of entry.page.images) {
         total++
         if (image.alt !== null) described++
@@ -218,7 +220,7 @@ export const imageAltCoverage = define({
     const percent = Math.round((described / total) * 100)
     const missing = total - described
     return [emit(imageAltCoverage, {
-      detail: `${described} of ${total} images across ${htmlPages(ctx).length} crawled pages carry an alt attribute — ${percent}%. ${missing === 0 ? 'Every image is described or deliberately marked decorative; whether the descriptions are any good is a judgement no tool makes.' : `${missing} ${plural(missing, 'image is', 'images are')} announced as a filename, or skipped entirely.`}`,
+      detail: `${described} of ${total} images across ${pages.length} crawled pages carry an alt attribute — ${percent}%. ${missing === 0 ? 'Every image is described or deliberately marked decorative; whether the descriptions are any good is a judgement no tool makes.' : `${missing} ${plural(missing, 'image is', 'images are')} announced as a filename, or skipped entirely.`}`,
       evidence: [
         metric(`${percent}% alt coverage (${described} of ${total} images)`),
         text(missing === 0 ? 'no image is missing an alt attribute' : `${missing} image${plural(missing, '', 's')} with no alt attribute — see images.alt-missing for which`),
