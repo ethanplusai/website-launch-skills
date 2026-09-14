@@ -62,6 +62,18 @@ test('an external that times out is unverifiable, never broken', async () => {
   assert.ok(!allEvidence(of(findings, 'links.external-broken')).includes('blocked.test'))
 })
 
+test('a net that reports a timeout produces info, not a broken link', async () => {
+  const findings = await run('links-site.json', {
+    url: 'https://links.test/',
+    cacheTag: 'timeout',
+    records: { 'https://out.test/blog': { status: 0, timedOut: true, error: 'timeout after 10000ms' } },
+  })
+  const unverifiable = of(findings, 'links.external-unverifiable')
+  assert.match(allEvidence(unverifiable), /out\.test\/blog/)
+  assert.match(allEvidence(unverifiable), /timed out/)
+  assert.ok(!allEvidence(of(findings, 'links.external-broken')).includes('out.test/blog'))
+})
+
 test('links.to-dev-host blocks a production launch and is merely high on staging', async () => {
   const found = of(await bad(), 'links.to-dev-host')
   assert.equal(found.length, 1)
