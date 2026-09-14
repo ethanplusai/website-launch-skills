@@ -257,3 +257,36 @@ test('resolveAcross reports a CNAME host the way a real resolver does: the CNAME
   assert.equal(answer.cname, 'new.test')
   assert.equal(answer.error, null)
 })
+
+// P3 (M4): giving up on a resolver without cancelling it leaves node's own query timers — 5s a
+// try, two tries — alive behind the deadline that has already answered, holding the process open
+// past the point the run has finished with them.
+test('resolveAcross cancels a resolver it gave up on', async () => {
+  let cancelled = 0
+  const dns = createDns({
+    resolveAcrossDeadlineMs: 20,
+    makeResolver: async () => ({
+      cancel() { cancelled++ },
+      resolve4: () => new Promise(() => {}),
+      resolve6: () => new Promise(() => {}),
+      resolveCname: () => new Promise(() => {}),
+    }),
+  })
+  const answers = await dns.resolveAcross('example.test', ['8.8.8.8'])
+  assert.equal(answers[0].error, 'timeout')
+  assert.equal(cancelled, 1)
+})
+
+// A resolver that answered in time is never cancelled, and one with no cancel() at all is fine.
+test('resolveAcross leaves a resolver that answered alone, and tolerates one with no cancel()', async () => {
+  let cancelled = 0
+  const dns = createDns({
+    resolveAcrossDeadlineMs: 500,
+    makeResolver: async (ip) => (ip === '8.8.8.8'
+      ? { cancel() { cancelled++ }, resolve4: async () => ['203.0.113.10'], resolve6: async () => [], resolveCname: async () => [] }
+      : { resolve4: async () => ['203.0.113.10'], resolve6: async () => [], resolveCname: async () => [] }),
+  })
+  const answers = await dns.resolveAcross('example.test', ['8.8.8.8', '1.1.1.1'])
+  assert.equal(cancelled, 0)
+  assert.equal(answers[1].error, null)
+})

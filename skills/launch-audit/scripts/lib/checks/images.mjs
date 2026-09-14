@@ -168,12 +168,17 @@ export const oversized = define({
         if (response === undefined || response.status !== 200) continue
         const bytes = weightOf(response)
         if (bytes === null || bytes <= OVERSIZED_BYTES) continue
-        hits.push({ image, bytes })
+        hits.push({ image, bytes, truncated: response.truncated === true })
       }
       return hits
     }, (hits, entry) => ({
       detail: `${hits.length} ${plural(hits.length, 'image on this page weighs', 'images on this page weigh')} more than ${kb(OVERSIZED_BYTES)}. On a phone connection that is seconds of waiting for one picture.`,
-      evidence: [url(entry.url), ...hits.slice(0, EVIDENCE_LIMIT).map((hit) => metric(`${hit.image.src} — ${hit.bytes} bytes (${kb(hit.bytes)})`))],
+      // A body over the read cap is never downloaded, so its size is the server's word and not a
+      // measurement. "declared" is the difference between a number this audit counted and a number
+      // it was told.
+      evidence: [url(entry.url), ...hits.slice(0, EVIDENCE_LIMIT).map((hit) => metric(
+        `${hit.image.src} — ${hit.truncated ? 'declared ' : ''}${hit.bytes} bytes (${kb(hit.bytes)})`,
+      ))],
       fix: 'Resize each one to the largest size it is ever displayed at, then compress it; a modern format usually halves it again.',
     }))
   },

@@ -124,3 +124,117 @@ test('cert() destroys the socket when reading the peer certificate throws', asyn
   assert.equal(destroyed, true)
   assert.equal(ended, false)
 })
+
+// A Response-shaped object whose body is a stream the test controls, so a test can say whether the
+// body was read at all — which is the whole question `maxBytes` asks.
+function streamed({ status = 200, headers = {}, chunks = [], onRead = null }) {
+  const encoder = new TextEncoder()
+  const queue = chunks.map((c) => (typeof c === 'string' ? encoder.encode(c) : c))
+  let i = 0
+  let cancelled = false
+  const reader = {
+    async read() {
+      if (onRead) onRead()
+      if (i >= queue.length) return { done: true, value: undefined }
+      return { done: false, value: queue[i++] }
+    },
+    async cancel() { cancelled = true },
+  }
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    headers: new Headers(headers),
+    body: { getReader: () => reader, cancel: async () => { cancelled = true } },
+    async arrayBuffer() { throw new Error('arrayBuffer must not be used when a stream is available') },
+    get cancelled() { return cancelled },
+  }
+}
+
+// I5: a TLS handshake that never completes left cert() pending forever, and with it every caller.
+test('cert() settles as a timeout when the TLS handshake never completes', async () => {
+  let destroyed = false
+  const fakeTls = () => ({
+    getPeerCertificate: () => ({}),
+    authorized: false,
+    end() {},
+    destroy() { destroyed = true },
+    on() {},
+    setTimeout() {},
+  })
+  const net = createNet({ tlsConnect: fakeTls, timeoutMs: 25 })
+  const c = await net.cert('stalled.test')
+  assert.equal(c.valid, false)
+  assert.equal(c.error, 'timeout')
+  assert.equal(destroyed, true)
+})
+
+// The socket's own idle timer settles it too, for a handshake that connects and then goes quiet.
+test('cert() settles as a timeout when the socket reports its own timeout', async () => {
+  let destroyed = false
+  const fakeTls = () => {
+    const sock = {
+      getPeerCertificate: () => ({}),
+      authorized: false,
+      end() {},
+      destroy() { destroyed = true },
+      on() {},
+      setTimeout(ms, handler) { setTimeout(handler, 5) },
+    }
+    return sock
+  }
+  const net = createNet({ tlsConnect: fakeTls, timeoutMs: 60_000 })
+  const c = await net.cert('quiet.test')
+  assert.equal(c.error, 'timeout')
+  assert.equal(destroyed, true)
+})
+
+// I6: a declared content-length over the cap means the body is never read at all. Downloading
+// fifty megabytes in order to throw away all but five is not what a cap is for.
+test('a content-length over maxBytes is not read, and reports the declared size', async () => {
+  let readCalled = false
+  const response = streamed({
+    headers: { 'content-type': 'image/jpeg', 'content-length': '9000000' },
+    chunks: ['never read'],
+    onRead: () => { readCalled = true },
+  })
+  const net = createNet({ fetchImpl: async () => response })
+  const r = await net.get('https://huge.test/photo.jpg', { maxBytes: 5_000 })
+  assert.equal(readCalled, false, 'the body must not be read when content-length already exceeds the cap')
+  assert.equal(r.body, null)
+  assert.equal(r.bodyBytes, null)
+  assert.equal(r.truncated, true)
+  assert.equal(r.bytes, 9_000_000)
+})
+
+// No content-length: the only way to know the size is to read, so read — and stop at the cap.
+test('an undeclared body is streamed and stops at maxBytes', async () => {
+  const response = streamed({
+    headers: { 'content-type': 'text/plain' },
+    chunks: ['aaaa', 'bbbb', 'cccc'],
+  })
+  const net = createNet({ fetchImpl: async () => response })
+  const r = await net.get('https://stream.test/', { maxBytes: 6 })
+  assert.equal(r.truncated, true)
+  assert.equal(r.bytes, 6)
+  assert.equal(r.body, 'aaaabb')
+})
+
+test('a body that fits is streamed whole and is not truncated', async () => {
+  const response = streamed({ headers: { 'content-type': 'text/plain' }, chunks: ['aaaa', 'bb'] })
+  const net = createNet({ fetchImpl: async () => response })
+  const r = await net.get('https://small-stream.test/', { maxBytes: 100 })
+  assert.equal(r.truncated, false)
+  assert.equal(r.body, 'aaaabb')
+  assert.equal(r.bytes, 6)
+})
+
+// P2 (M3): an undrained redirect body keeps the socket in limbo. Every hop is drained before the
+// next one is fetched.
+test('a redirect hop body is cancelled before the next hop is fetched', async () => {
+  const hop = streamed({ status: 301, headers: { location: 'https://drain.test/end' }, chunks: ['ignored'] })
+  const end = streamed({ status: 200, headers: { 'content-type': 'text/plain' }, chunks: ['done'] })
+  const net = createNet({ fetchImpl: async (url) => (url === 'https://drain.test/start' ? hop : end) })
+  const r = await net.get('https://drain.test/start')
+  assert.equal(r.status, 200)
+  assert.equal(hop.cancelled, true, 'the redirect hop body was never drained')
+})

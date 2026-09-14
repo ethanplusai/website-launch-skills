@@ -129,3 +129,25 @@ test('images.video-captions-missing fires on a video with no track', async () =>
   assert.match(allEvidence(found), /loud\.mp4/)
   assert.ok(!has(await good(), 'images.video-captions-missing'))
 })
+
+// I6: a response whose declared content-length was over the read cap is never downloaded, so its
+// size is the server's word rather than a measurement. Saying "912345 bytes" of bytes nobody
+// counted is a claim about a file this audit did not read.
+test('images.oversized says "declared" when the body was never read', async () => {
+  const found = of(await run('images-site.json', {
+    url: 'https://images.test/',
+    records: {
+      'https://images.test/big.png': {
+        status: 200,
+        headers: { 'content-type': 'image/png', 'content-length': '9000000' },
+        bytes: 9000000,
+        truncated: true,
+      },
+    },
+  }), 'images.oversized')
+  assert.equal(found.length, 1)
+  assert.match(evidenceText(found[0]), /declared 9000000 bytes/)
+  // The measured wording is what a fully-read image still gets.
+  assert.match(evidenceText(of(await bad(), 'images.oversized')[0]), /912345 bytes/)
+  assert.ok(!/declared/.test(evidenceText(of(await bad(), 'images.oversized')[0])))
+})

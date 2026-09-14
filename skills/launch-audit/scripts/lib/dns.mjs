@@ -141,7 +141,11 @@ export function createDns({
   // never a rejection. Mid-propagation the interesting result is precisely the one where two
   // entries differ, so nothing here merges or de-duplicates the answers.
   async function resolveAcross(host, resolvers = PUBLIC_RESOLVERS) {
-    const ask = async (ip) => {
+    // `held` is how the deadline path reaches the resolver the lookup opened. Giving up without
+    // cancelling leaves node's own per-query timers — 5s a try, two tries — running behind a
+    // deadline that has already answered, which keeps the process alive past the point the run is
+    // done with them. A resolver that answered in time is never cancelled.
+    const ask = async (ip, held) => {
       const absent = { resolver: ip, a: [], aaaa: [], cname: null, error: null }
       let resolver
       try {
@@ -149,6 +153,7 @@ export function createDns({
       } catch (error) {
         return { ...absent, error: error?.code ?? String(error?.message ?? error) }
       }
+      held.resolver = resolver
 
       const codes = []
       const attempt = async (fn) => {
@@ -172,8 +177,12 @@ export function createDns({
     }
 
     return Promise.all(resolvers.map(async (ip) => {
-      const { timedOut, value } = await withDeadline(ask(ip), resolveAcrossDeadlineMs)
-      if (timedOut) return { resolver: ip, a: [], aaaa: [], cname: null, error: 'timeout' }
+      const held = { resolver: null }
+      const { timedOut, value } = await withDeadline(ask(ip, held), resolveAcrossDeadlineMs)
+      if (timedOut) {
+        try { held.resolver?.cancel?.() } catch { /* a resolver that will not cancel is still abandoned */ }
+        return { resolver: ip, a: [], aaaa: [], cname: null, error: 'timeout' }
+      }
       return value ?? { resolver: ip, a: [], aaaa: [], cname: null, error: 'no answer' }
     }))
   }
