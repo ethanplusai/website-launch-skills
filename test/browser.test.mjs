@@ -29,13 +29,14 @@ function stubChromium(script = {}) {
     const handlers = new Map()
     const fire = (event, payload) => { for (const fn of handlers.get(event) ?? []) fn(payload) }
     let gotos = 0
+    let lastWidth = null
     const page = {
       on(event, fn) {
         calls.push({ call: 'on', event })
         if (!handlers.has(event)) handlers.set(event, [])
         handlers.get(event).push(fn)
       },
-      async setViewportSize({ width, height }) { calls.push({ call: 'viewport', width, height }) },
+      async setViewportSize({ width, height }) { lastWidth = width; calls.push({ call: 'viewport', width, height }) },
       async goto(url, options = {}) {
         calls.push({ call: 'goto', url, waitUntil: options.waitUntil })
         if ((script.gotoThrow ?? []).includes(options.waitUntil)) throw new Error(`Timeout ${options.waitUntil}`)
@@ -67,13 +68,14 @@ function stubChromium(script = {}) {
       async evaluate(source) {
         const text = String(source)
         const marker = Object.keys(script.evaluate ?? {}).find((key) => text.includes(key))
-        calls.push({ call: 'evaluate', marker: marker ?? text.slice(0, 40) })
+        calls.push({ call: 'evaluate', marker: marker ?? text.slice(0, 40), source: text })
         const value = marker === undefined ? null : script.evaluate[marker]
         return typeof value === 'function' ? value(gotos) : value
       },
       async addScriptTag({ content }) { calls.push({ call: 'addScriptTag', bytes: content.length }) },
       async screenshot({ path, fullPage }) {
-        calls.push({ call: 'screenshot', path, fullPage })
+        calls.push({ call: 'screenshot', path, fullPage, width: lastWidth })
+        if ((script.screenshotThrow ?? []).includes(lastWidth)) throw new Error(`screenshot failed at ${lastWidth}`)
         writeFileSync(path, '')
       },
       async close() { calls.push({ call: 'page.close' }) },
@@ -86,7 +88,6 @@ function stubChromium(script = {}) {
       calls.push({ call: 'launch', args: options.args ?? [], headless: options.headless })
       if (script.launchError !== undefined) throw new Error(script.launchError)
       const browser = {
-        wsEndpoint: () => script.wsEndpoint ?? 'ws://127.0.0.1:45123/devtools/browser/abc',
         async newContext(contextOptions = {}) {
           calls.push({ call: 'newContext', userAgent: contextOptions.userAgent })
           return {
@@ -329,8 +330,8 @@ test('lighthouse() is unavailable, with the install line, when lighthouse cannot
   assert.deepEqual(result, { available: false, reason: LIGHTHOUSE_MISSING })
 })
 
-test('lighthouse() runs against a second chromium and parses its debugging port from wsEndpoint()', async () => {
-  const stub = stubChromium({ wsEndpoint: 'ws://127.0.0.1:45123/devtools/browser/abc' })
+test('lighthouse() launches a second chromium on the port this side picked, and hands lighthouse the same one', async () => {
+  const stub = stubChromium({})
   const runs = []
   const loader = loaderFor(stub)
   loader.lighthouse = async (url, flags) => {
@@ -353,8 +354,10 @@ test('lighthouse() runs against a second chromium and parses its debugging port 
       },
     }
   }
-  const browser = createBrowser({ loader })
+  let picked = 0
+  const browser = createBrowser({ loader, pickPort: async () => { picked++; return 45123 } })
   const result = await browser.lighthouse('https://render.test/', { formFactor: 'mobile' })
+  assert.equal(picked, 1)
 
   assert.equal(runs.length, 1)
   assert.equal(runs[0].url, 'https://render.test/')
@@ -371,11 +374,80 @@ test('lighthouse() runs against a second chromium and parses its debugging port 
   // The lighthouse chromium is a second launch, asked for a debugging port.
   const launches = stub.calls.filter((c) => c.call === 'launch')
   assert.equal(launches.length, 2)
-  assert.ok(launches[1].args.includes('--remote-debugging-port=0'))
+  assert.ok(launches[1].args.includes('--remote-debugging-port=45123'))
 
   await browser.close()
   const closes = stub.calls.filter((c) => c.call === 'browser.close')
   assert.equal(closes.length, 2)
+})
+
+test('a width that fails does not cost the other widths their screenshots', async () => {
+  const tmp = tmpDir('browser-width-failure')
+  const stub = stubChromium({ evaluate: RENDER_EVALUATE, screenshotThrow: [1440] })
+  const browser = createBrowser({ loader: loaderFor(stub) })
+  const result = await browser.render('https://render.test/', { outDir: tmp.dir })
+  assert.equal(result.screenshots.desktop, null)
+  assert.ok(existsSync(result.screenshots.tablet))
+  assert.ok(existsSync(result.screenshots.mobile))
+  assert.match(result.error, /desktop: screenshot failed at 1440/)
+  // The widths after the failure were still measured.
+  assert.equal(result.horizontalOverflow.mobile, true)
+  await browser.close()
+  tmp.cleanup()
+})
+
+test('a render after close() opens a fresh browser', async () => {
+  const tmp = tmpDir('browser-reopen')
+  const stub = stubChromium({ evaluate: RENDER_EVALUATE })
+  const browser = createBrowser({ loader: loaderFor(stub) })
+  await browser.render('https://render.test/', { outDir: tmp.dir })
+  await browser.close()
+  assert.equal(browser.available, false)
+  const second = await browser.render('https://render.test/other', { outDir: tmp.dir })
+  assert.equal(browser.available, true)
+  assert.equal(second.error, null)
+  assert.ok(existsSync(second.screenshots.desktop))
+  assert.equal(stub.calls.filter((c) => c.call === 'launch').length, 2)
+  await browser.close()
+  tmp.cleanup()
+})
+
+test('close() on a browser that never became available keeps the reason it failed for', async () => {
+  let loads = 0
+  const browser = createBrowser({ loader: () => { loads++; throw new Error('missing') } })
+  await browser.open()
+  await browser.close()
+  await browser.open()
+  assert.equal(browser.reason, PLAYWRIGHT_MISSING)
+  assert.equal(loads, 1)
+})
+
+test('the nav script looks at every link in the nav, not only its direct children', async () => {
+  const tmp = tmpDir('browser-nav-links')
+  const stub = stubChromium({ evaluate: RENDER_EVALUATE })
+  const browser = createBrowser({ loader: loaderFor(stub) })
+  await browser.render('https://render.test/', { outDir: tmp.dir })
+  const evaluated = stub.calls.find((c) => c.call === 'evaluate' && c.marker === 'nav-collapsed').source
+  assert.match(evaluated, /querySelectorAll\('ul, ol'\)/)
+  assert.match(evaluated, /querySelectorAll\('a'\)/)
+  assert.ok(!/nav\.children/.test(evaluated))
+  await browser.close()
+  tmp.cleanup()
+})
+
+test('axe() reports a page that never loaded as unavailable rather than as clean', async () => {
+  // axe-core resolves fine here, so the failed navigation is what decides the result.
+  const tmp = tmpDir('browser-axe-nav')
+  const axeFile = join(tmp.dir, 'axe.min.js')
+  writeFileSync(axeFile, 'window.axe = {}')
+  const stub = stubChromium({ gotoThrow: ['networkidle', 'load'], evaluate: { 'axe-run': { violations: [] } } })
+  const browser = createBrowser({ loader: loaderFor(stub), resolveAxe: () => axeFile })
+  const result = await browser.axe('https://render.test/')
+  assert.equal(result.available, false)
+  assert.match(result.reason, /^navigation failed: /)
+  assert.ok(!stub.calls.some((c) => c.call === 'evaluate' && c.marker === 'axe-run'))
+  await browser.close()
+  tmp.cleanup()
 })
 
 test('close() is safe when nothing was ever launched', async () => {

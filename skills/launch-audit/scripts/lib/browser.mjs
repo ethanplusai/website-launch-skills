@@ -26,6 +26,7 @@
 // what makes `cookiesBeforeInteraction` mean what it says, and it is why nothing here can put a
 // site into a state its own visitors would not reach by loading a url.
 
+import { createServer } from 'node:net'
 import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -92,7 +93,9 @@ const NAV_COLLAPSED = `(() => {
   if (!nav) return null
   const toggle = Array.from(nav.querySelectorAll('button, [aria-expanded]')).some(visible)
   const lists = Array.from(nav.querySelectorAll('ul, ol'))
-  const targets = lists.length > 0 ? lists : Array.from(nav.children).filter((el) => el.tagName === 'A')
+  // A nav with no list still has links; they are just not wrapped. Looking only at direct children
+  // would miss every nav that puts its anchors in a div.
+  const targets = lists.length > 0 ? lists : Array.from(nav.querySelectorAll('a'))
   const linksShowing = targets.some(visible)
   return toggle && !linksShowing
 })()`
@@ -158,6 +161,24 @@ function defaultResolveAxe() {
   }
 }
 
+// Lighthouse talks to Chromium over CDP, so it needs a browser started with a known debugging
+// port. Playwright's Browser has no wsEndpoint() (that is Puppeteer), and
+// `--remote-debugging-port=0` gives Chromium a port nothing on this side can read back — so the
+// port is chosen here first: bind :0, read what the OS handed out, let it go, and pass the same
+// number to both Chromium and lighthouse. The window between close and launch is a race in
+// theory; in practice nothing else on the machine is racing for this port, and a launch that
+// loses it fails loudly rather than silently measuring the wrong thing.
+function pickFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = createServer()
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address()
+      server.close(() => resolve(port))
+    })
+  })
+}
+
 const messageOf = (error) => (error?.message === undefined || error.message === '' ? String(error) : error.message)
 
 export function createBrowser(options = {}) {
@@ -169,6 +190,7 @@ export function createBrowser(options = {}) {
     outDir = process.cwd(),
     widths = DEFAULT_WIDTHS,
     resolveAxe = defaultResolveAxe,
+    pickPort = pickFreePort,
   } = options
 
   let available = mode === 'off' ? false : null
@@ -176,6 +198,7 @@ export function createBrowser(options = {}) {
   let chromium = null
   let instance = null
   let lighthouseBrowser = null
+  let lighthousePort = null
   let opening = null
 
   // One slug per url, claimed on first use, so a second url that slugifies the same way gets its
@@ -295,38 +318,44 @@ export function createBrowser(options = {}) {
 
     const problems = []
     let firstLoad = true
+    // The try is inside the loop on purpose: a screenshot that fails at desktop must not cost the
+    // tablet and mobile evidence. Each width fails on its own and says so in `error`.
     try {
       for (const [name, width] of Object.entries(usedWidths)) {
-        await page.setViewportSize({ width, height: VIEWPORT_HEIGHTS[name] ?? VIEWPORT_HEIGHTS.desktop })
-        const { response, error } = await navigate(page, url)
-        if (error !== null) problems.push(`${name}: ${error}`)
-        // Both navigation attempts failed at this width: there is nothing on screen worth
-        // screenshotting, and `error` already carries why.
-        if (response === null) continue
+        try {
+          await page.setViewportSize({ width, height: VIEWPORT_HEIGHTS[name] ?? VIEWPORT_HEIGHTS.desktop })
+          const { response, error } = await navigate(page, url)
+          if (error !== null) problems.push(`${name}: ${error}`)
+          // Both navigation attempts failed at this width: there is nothing on screen worth
+          // screenshotting, and `error` already carries why.
+          if (response === null) continue
 
-        if (firstLoad) {
-          firstLoad = false
-          result.status = typeof response?.status === 'function' ? response.status() : null
-          result.finalUrl = typeof page.url === 'function' ? page.url() : url
-          result.renderedHead = (await page.evaluate(RENDERED_HEAD)) ?? result.renderedHead
-          result.consentBannerVisible = (await page.evaluate(CONSENT_BANNER)) === true
-          // After load, before any click: these are the cookies a visitor gets for doing nothing.
-          const cookies = await context.cookies()
-          result.cookiesBeforeInteraction = (cookies ?? []).map((cookie) => ({ name: cookie.name, domain: cookie.domain }))
-        }
+          if (firstLoad) {
+            firstLoad = false
+            result.status = typeof response?.status === 'function' ? response.status() : null
+            result.finalUrl = typeof page.url === 'function' ? page.url() : url
+            result.renderedHead = (await page.evaluate(RENDERED_HEAD)) ?? result.renderedHead
+            result.consentBannerVisible = (await page.evaluate(CONSENT_BANNER)) === true
+            // After load, before any click: these are the cookies a visitor gets for doing nothing.
+            const cookies = await context.cookies()
+            result.cookiesBeforeInteraction = (cookies ?? []).map((cookie) => ({ name: cookie.name, domain: cookie.domain }))
+          }
 
-        // Scroll first. A full-page screenshot taken before this is a picture of the placeholders
-        // every lazy-loading site ships.
-        await page.evaluate(SCROLL_STEPS)
-        result.horizontalOverflow[name] = (await page.evaluate(HORIZONTAL_OVERFLOW)) === true
-        if (name === 'mobile') {
-          const collapsed = await page.evaluate(NAV_COLLAPSED)
-          result.navCollapsed = collapsed === null || collapsed === undefined ? null : collapsed === true
+          // Scroll first. A full-page screenshot taken before this is a picture of the placeholders
+          // every lazy-loading site ships.
+          await page.evaluate(SCROLL_STEPS)
+          result.horizontalOverflow[name] = (await page.evaluate(HORIZONTAL_OVERFLOW)) === true
+          if (name === 'mobile') {
+            const collapsed = await page.evaluate(NAV_COLLAPSED)
+            result.navCollapsed = collapsed === null || collapsed === undefined ? null : collapsed === true
+          }
+          const path = join(dir, 'screenshots', slugFor(url), `${name}.png`)
+          mkdirSync(dirname(path), { recursive: true })
+          await page.screenshot({ path, fullPage: true })
+          result.screenshots[name] = path
+        } catch (error) {
+          problems.push(`${name}: ${messageOf(error)}`)
         }
-        const path = join(dir, 'screenshots', slugFor(url), `${name}.png`)
-        mkdirSync(dirname(path), { recursive: true })
-        await page.screenshot({ path, fullPage: true })
-        result.screenshots[name] = path
       }
     } catch (error) {
       problems.push(messageOf(error))
@@ -353,7 +382,10 @@ export function createBrowser(options = {}) {
 
     const { context, page } = await newPage()
     try {
-      await navigate(page, url)
+      const { response, error } = await navigate(page, url)
+      // axe on a page that never loaded reports zero violations, which reads as a clean page. It
+      // is the opposite: nothing was examined at all.
+      if (response === null) return { available: false, reason: `navigation failed: ${error}` }
       await page.addScriptTag({ content: source })
       const report = await page.evaluate(AXE_RUN)
       const violations = (report?.violations ?? []).map((violation) => ({
@@ -372,18 +404,16 @@ export function createBrowser(options = {}) {
     }
   }
 
-  // Lighthouse drives Chromium over CDP rather than over Playwright's protocol, so it needs a
-  // browser with a debugging port. Port 0 means "pick a free one", and the port it picked is in
-  // the websocket endpoint Playwright hands back: ws://127.0.0.1:<port>/devtools/browser/<id>.
-  // One extra browser per run, launched only if lighthouse is actually installed.
-  async function lighthousePort() {
+  // One extra browser per run, launched only if lighthouse is actually installed, on a port this
+  // side picked so both ends agree on it.
+  async function lighthouseChromium() {
     if (lighthouseBrowser === null) {
-      lighthouseBrowser = await chromium.launch({ headless: true, args: ['--remote-debugging-port=0'] })
+      const port = await pickPort()
+      if (!Number.isInteger(port) || port <= 0) throw new Error(`could not pick a debugging port (got ${port})`)
+      lighthouseBrowser = await chromium.launch({ headless: true, args: [`--remote-debugging-port=${port}`] })
+      lighthousePort = port
     }
-    const endpoint = String(typeof lighthouseBrowser.wsEndpoint === 'function' ? lighthouseBrowser.wsEndpoint() : '')
-    const found = /:(\d+)\//.exec(endpoint)
-    if (found === null) throw new Error(`could not read a debugging port from "${endpoint}"`)
-    return Number(found[1])
+    return lighthousePort
   }
 
   async function lighthouse(url, lighthouseOptions = {}) {
@@ -401,7 +431,7 @@ export function createBrowser(options = {}) {
     if (!(await open())) return { available: false, reason }
 
     try {
-      const port = await lighthousePort()
+      const port = await lighthouseChromium()
       const raw = await run(url, {
         port,
         output: 'json',
@@ -453,6 +483,15 @@ export function createBrowser(options = {}) {
     }
     instance = null
     lighthouseBrowser = null
+    lighthousePort = null
+    // A closed browser is not an unavailable one: clearing the memo lets a later render open a
+    // fresh chromium. A tier that never became available keeps its reason, so a missing package
+    // is not re-probed on every call.
+    if (available === true) {
+      available = null
+      reason = null
+      opening = null
+    }
   }
 
   return {

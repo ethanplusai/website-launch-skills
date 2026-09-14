@@ -61,21 +61,28 @@ export function detectAnalytics(html) {
 // GA4 snippet in the markup with no request to google-analytics.com/g/collect is a tag that is
 // installed and not working, and neither list alone can say that.
 //
-// Each entry is matched as a plain substring of the request url, not as a host: several of these
-// are only a collector at one path (`googletagmanager.com/gtag` is the library, `/gtm.js` is too,
-// but `googletagmanager.com/g/collect` is a GA4 hit proxied through it), and Umami's endpoint is
-// a path on the site's own host, which has no fixed hostname at all.
+// Every entry names a url a *hit* is sent to, never a url a library is loaded from, and the
+// difference is the whole point: `googletagmanager.com/gtag/js?id=G-1` is gtag.js downloading and
+// proves nothing about measurement, while `googletagmanager.com/g/collect` is a GA4 event going
+// out. Same for Hotjar — `static.hotjar.com/c/hotjar-1.js` is the script, `in.hotjar.com` is where
+// the recording data goes. A library url in this list would make `browser.analytics-not-firing`
+// unfireable on exactly the sites it exists for.
+//
+// Each entry is matched as a plain substring of the request url rather than as a host, because
+// several of these are only a collector at one path, and Umami's endpoint is a path on the site's
+// own host, which has no fixed hostname at all.
 export const COLLECTOR_HOSTS = [
   'google-analytics.com/g/collect',
   'analytics.google.com',
-  'googletagmanager.com/gtag',
+  'googletagmanager.com/g/collect',
   'plausible.io/api/event',
   'api.usefathom.com',
   'posthog.com/e',
   '/api/collect',
   'matomo.php',
   'facebook.com/tr',
-  'hotjar.com',
+  'in.hotjar.com',
+  'hotjar.com/api/v2/client',
   'clarity.ms/collect',
 ]
 

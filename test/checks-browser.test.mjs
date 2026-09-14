@@ -164,6 +164,20 @@ test('browser.embed-console-error singles out an error thrown by a form embed', 
   assert.ok(!has(await run(own), 'browser.embed-console-error'))
 })
 
+test('a console error with no message is still reported, with its absence spelled out', async () => {
+  const ctx = ctxWith({
+    embeds: ['https://forms.test/embed.js'],
+    renders: [[PAGE, render({ consoleErrors: [{ text: '', url: 'https://forms.test/embed.js' }] })]],
+  })
+  const found = await run(ctx)
+  const logged = of(found, 'browser.console-errors')
+  assert.equal(logged.length, 1)
+  assert.match(evidenceText(logged[0]), /\(no message\)/)
+  const embed = of(found, 'browser.embed-console-error')
+  assert.equal(embed.length, 1)
+  assert.match(evidenceText(embed[0]), /\(no message\)/)
+})
+
 test('browser.failed-requests skips collector hosts and requests the http tier already could not verify', async () => {
   const ctx = ctxWith({
     externals: [['https://unverifiable.test/logo.png', { status: 0, error: 'connect ECONNREFUSED' }]],

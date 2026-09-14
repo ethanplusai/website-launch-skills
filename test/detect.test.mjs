@@ -155,18 +155,35 @@ test('isCollectorUrl recognises a hit to each collector the browser tier watches
   const hits = [
     'https://www.google-analytics.com/g/collect?v=2&tid=G-ABC',
     'https://analytics.google.com/g/collect?v=2',
-    'https://www.googletagmanager.com/gtag/js?id=G-ABC',
+    'https://www.googletagmanager.com/g/collect?v=2&tid=G-1',
     'https://plausible.io/api/event',
     'https://api.usefathom.com/',
     'https://eu.posthog.com/e/?ip=1',
     'https://site.test/api/collect',
     'https://analytics.site.test/matomo.php?idsite=1',
     'https://www.facebook.com/tr/?id=1&ev=PageView',
-    'https://script.hotjar.com/modules.js',
+    'https://in.hotjar.com/api/v2/client/sites/1/data',
+    'https://vc.hotjar.com/api/v2/client/ping',
     'https://c.clarity.ms/collect',
   ]
   for (const hit of hits) assert.ok(isCollectorUrl(hit), `${hit} should read as a collector hit`)
   assert.equal(COLLECTOR_HOSTS.length, hits.length)
+})
+
+// The distinction the whole browser.analytics-not-firing check rests on: loading the library is
+// not sending a hit. A list that matched gtag.js or the hotjar script would call every GA4 site
+// instrumented, including the ones whose tag never fires.
+test('isCollectorUrl does not mistake a library url for a hit', () => {
+  const libraries = [
+    'https://www.googletagmanager.com/gtag/js?id=G-1',
+    'https://www.googletagmanager.com/gtm.js?id=GTM-1',
+    'https://www.google-analytics.com/analytics.js',
+    'https://static.hotjar.com/c/hotjar-1.js',
+    'https://cdn.usefathom.com/script.js',
+    'https://plausible.io/js/script.js',
+    'https://www.clarity.ms/tag/abc',
+  ]
+  for (const library of libraries) assert.equal(isCollectorUrl(library), false, `${library} is a library, not a hit`)
 })
 
 test('isCollectorUrl leaves ordinary requests alone', () => {

@@ -52,6 +52,11 @@ const emit = (check, overrides) => check.mk({ title: check.title, ...overrides }
 
 const plural = (n, one, many) => (n === 1 ? one : many)
 
+// A console entry can carry an empty message (a bare `console.error()`, or an error object the
+// browser could not stringify). Evidence values may not be empty — findings.mjs rejects one — so
+// the absence is spelled out rather than dropped: an unnamed error is still an error.
+const said = (value) => (typeof value === 'string' && value.trim() !== '' ? value : '(no message)')
+
 // The three result maps are Maps in a real run; an array of pairs or a plain object is accepted
 // too, so a hand-built context never has to be a Map to be read correctly.
 function entriesOf(mapLike) {
@@ -98,7 +103,7 @@ export const consoleErrors = define({
         evidence: [
           url(renderedUrl),
           text(`${errors.length} console ${plural(errors.length, 'error', 'errors')}`),
-          ...errors.slice(0, CONSOLE_QUOTE_LIMIT).map((error) => text(`${error.text}${error.url ? ` — ${error.url}` : ''}`)),
+          ...errors.slice(0, CONSOLE_QUOTE_LIMIT).map((error) => text(`${said(error.text)}${error.url ? ` — ${error.url}` : ''}`)),
         ],
         fix: 'Open the page with the console visible, reproduce each error, and fix it at the source rather than suppressing it.',
       }))
@@ -124,7 +129,7 @@ export const embedConsoleError = define({
         out.push(emit(embedConsoleError, {
           page: renderedUrl,
           detail: `The embedded script at ${embed} threw while this page loaded. An embed that errors is usually an embed that never renders its form — and nobody gets an error page, so the enquiries simply stop.`,
-          evidence: [url(renderedUrl), url(embed), text(error.text)],
+          evidence: [url(renderedUrl), url(embed), text(said(error.text))],
           fix: 'Submit the embedded form yourself on the live site. If it fails, check the embed code, the account it points at, and whether a consent or ad blocker is stopping it loading.',
         }))
       }
