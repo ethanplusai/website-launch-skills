@@ -72,7 +72,18 @@ const REF_ATTRIBUTE = /\b(href|src|poster)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>
 const SRCSET_ATTRIBUTE = /\bsrcset\s*=\s*(?:"([^"]*)"|'([^']*)')/gi
 const CSS_URL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"]+))\s*\)/gi
 
-function* rawReferences(body) {
+// Script bodies are not markup. `window.location.href = d.url;` matches the href pattern, and a
+// `href="${p.u}"` written inside a template literal is a string a browser builds at runtime, not a
+// file that has to exist — the smoke run found both on one real site and the gate blocked the
+// launch over them. `<style>` is left in: the url() references in it are real files.
+// The opening tag is kept — a `<script src>` pointing at a file the build does not contain is a
+// real broken reference — and only the body between the tags is dropped.
+const SCRIPT_BODY = /(<script\b[^>]*>)[\s\S]*?(<\/script\s*>|$)/gi
+
+const withoutScripts = (body) => String(body ?? '').replace(SCRIPT_BODY, '$1$2')
+
+function* rawReferences(source) {
+  const body = withoutScripts(source)
   for (const found of body.matchAll(REF_ATTRIBUTE)) yield found[2] ?? found[3] ?? found[4] ?? ''
   for (const found of body.matchAll(SRCSET_ATTRIBUTE)) {
     const value = found[1] ?? found[2] ?? ''

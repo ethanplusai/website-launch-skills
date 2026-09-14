@@ -71,6 +71,32 @@ test('an internal reference that resolves to nothing fails, in HTML and in CSS',
   assert.equal(/googletagmanager/.test(values), false, 'an external url is not an internal reference')
 })
 
+// Regression, from the smoke run against a real static site: two of the gate's eight blocking
+// failures were `window.location.href = d.url;` and a `href="${p.u}"` inside a template literal,
+// both of them script, neither of them a reference to anything. A gate that blocks a launch on
+// evidence that is not there is worse than one check short.
+test('script bodies are not scanned for references', () => {
+  const found = passing.get('output.internal-refs')
+  assert.ok(found !== undefined, 'output.internal-refs did not run')
+  assert.notEqual(found.status, 'fail', `output.internal-refs — ${found.detail}`)
+})
+
+// The other half of the same fix: dropping script bodies must not drop the script tag itself. A
+// bundle the build never wrote is exactly the reference this check exists for.
+test('a script src pointing at a file the build does not contain still fails', async () => {
+  const { dir, cleanup } = outsideRepoDir('scriptsrc')
+  try {
+    const { mkdirSync } = await import('node:fs')
+    const head = '<meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Home</title>'
+    writeFileSync(join(dir, 'package.json'), '{}')
+    mkdirSync(join(dir, 'dist'))
+    writeFileSync(join(dir, 'dist', 'index.html'), `<!doctype html><html lang="en"><head>${head}</head><body><h1>Home</h1><script src="/missing-bundle.js"></script></body></html>`)
+    const map = await group(checks, await ctxFor(dir))
+    const found = assertStatus(map, 'output.internal-refs', 'fail', assert)
+    assert.match(found.evidence.map((e) => e.value).join(' | '), /missing-bundle\.js/)
+  } finally { cleanup() }
+})
+
 test('an incomplete favicon set fails and names each missing piece', () => {
   const found = assertStatus(failing, 'output.favicon-set', 'fail', assert)
   const values = found.evidence.map((e) => e.value).join(' | ')
