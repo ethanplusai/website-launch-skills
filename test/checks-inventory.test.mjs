@@ -103,7 +103,7 @@ test('inventory.target-unreachable is a blocker when the start url never answere
   assert.equal(found[0].severity, 'blocker')
   assert.equal(found[0].page, 'https://gone.test/')
   assert.match(found[0].detail, /never answered/)
-  assert.match(found[0].detail, /every HTTP-tier check ran against no content/)
+  assert.match(found[0].detail, /[Ee]very HTTP-tier check ran against no content/)
   assert.match(evidenceText(found[0]), /not recorded/)
   assert.ok(!has(await good(), 'inventory.target-unreachable'))
 })
@@ -124,4 +124,57 @@ test('inventory.target-unreachable fires when the start url answers but no HTML 
   }), 'inventory.target-unreachable')
   assert.equal(found.length, 1)
   assert.match(found[0].detail, /parsed no HTML page at all/)
+  // The start url answered 200. Evidence must carry that status, not a hardcoded 0.
+  assert.match(evidenceText(found[0]), /status:200/)
+  assert.ok(!/status:0/.test(evidenceText(found[0])))
+})
+
+// The false positive this check shipped with: `ctx.target.url` keeps a `#fragment`, and the crawl
+// seeds through `normalizeUrl()`, which strips it — so the start page was never found by url
+// equality and a perfectly healthy site was reported as never having answered.
+test('a start url with a fragment still matches the page the crawl fetched', async () => {
+  const found = await run('small-site.json', { url: 'https://small.test/#top' })
+  assert.deepEqual(of(found, 'inventory.target-unreachable'), [])
+  assert.deepEqual(found.filter((f) => f.severity === 'blocker'), [])
+  // …and the same crawl without the fragment is unchanged.
+  assert.deepEqual(of(await run('small-site.json', { url: 'https://small.test/' }), 'inventory.target-unreachable'), [])
+})
+
+// State one of three: the crawl never attempted the start url. "The request failed" would be a
+// claim about a request nobody made, and there is no status to report because nothing answered or
+// declined to — the drop reason is the whole evidence.
+test('a start url robots.txt disallows is a blocker that says so, with no invented status', async () => {
+  const found = of(await run('robots-blocked-site.json', { url: 'https://blocked.test/' }), 'inventory.target-unreachable')
+  assert.equal(found.length, 1)
+  assert.equal(found[0].severity, 'blocker')
+  assert.match(found[0].detail, /the start url was not fetched: robots\.txt disallows it/)
+  assert.ok(!/never answered|request failed|timed out/.test(found[0].detail), found[0].detail)
+  const evidence = evidenceText(found[0])
+  assert.match(evidence, /text:.*robots\.txt disallows it/)
+  assert.ok(!/status:/.test(evidence), `a url nobody requested has no status: ${evidence}`)
+  // Nothing parsed, so the "nothing was read" sentence is earned here.
+  assert.match(found[0].detail, /[Ee]very HTTP-tier check ran against no content/)
+  assert.ok(!has(await good(), 'inventory.target-unreachable'))
+})
+
+// State two: attempted and failed. Other pages did parse (the sitemap seeded them), so the report
+// is narrow rather than empty — and it must not claim nothing was read.
+test('a dead start url with pages the sitemap seeded says the report covers those pages only', async () => {
+  const found = of(await run('half-dead-site.json', { url: 'https://half.test/' }), 'inventory.target-unreachable')
+  assert.equal(found.length, 1)
+  assert.equal(found[0].severity, 'blocker')
+  assert.match(found[0].detail, /the start url never answered/)
+  assert.match(found[0].detail, /2 of 3 crawled urls did parse — findings below reflect those pages only/)
+  assert.ok(
+    !/ran against no content|nothing was read/.test(found[0].detail),
+    `two pages were read; the report must not say nothing was: ${found[0].detail}`,
+  )
+  assert.match(evidenceText(found[0]), /status:0/)
+})
+
+// State three: nothing anywhere. This is the only state the "nothing was read" sentence describes.
+test('a wholly unreachable site is the one case that says nothing was read', async () => {
+  const found = of(await dead(), 'inventory.target-unreachable')
+  assert.match(found[0].detail, /[Ee]very HTTP-tier check ran against no content/)
+  assert.match(found[0].detail, /nothing was read/)
 })

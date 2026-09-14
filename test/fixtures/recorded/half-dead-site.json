@@ -1,0 +1,27 @@
+{
+  "https://half.test/robots.txt": {
+    "status": 200,
+    "headers": { "content-type": "text/plain" },
+    "body": "User-agent: *\nAllow: /\nSitemap: https://half.test/sitemap.xml\n"
+  },
+  "https://half.test/sitemap.xml": {
+    "status": 200,
+    "headers": { "content-type": "application/xml" },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n<url><loc>https://half.test/a</loc></url>\n<url><loc>https://half.test/b</loc></url>\n</urlset>\n"
+  },
+  "https://half.test/a": {
+    "status": 200,
+    "headers": { "content-type": "text/html; charset=utf-8" },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<title>Page A</title>\n<link rel=\"canonical\" href=\"https://half.test/a\">\n</head>\n<body>\n<h1>Page A</h1>\n<a href=\"/b\">B</a>\n</body>\n</html>\n"
+  },
+  "https://half.test/b": {
+    "status": 200,
+    "headers": { "content-type": "text/html; charset=utf-8" },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<title>Page B</title>\n<link rel=\"canonical\" href=\"https://half.test/b\">\n</head>\n<body>\n<h1>Page B</h1>\n<a href=\"/a\">A</a>\n</body>\n</html>\n"
+  },
+  "https://half.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": { "content-type": "text/html" },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Not found</title></head><body><h1>Not found</h1><p>No such page.</p></body></html>"
+  }
+}

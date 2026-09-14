@@ -354,6 +354,26 @@ test('the auditor exits 0 with a report full of blockers', async () => {
   }
 })
 
+// The fragment a person pastes out of a browser's address bar is stripped by the crawl and kept by
+// `ctx.target.url`, and the blocker above compared the two by equality: a healthy site audited at
+// `#top` reported that it had never answered.
+test('a start url with a fragment audits the site rather than reporting it unreachable', async () => {
+  const tmp = tmpDir('audit-cli-fragment')
+  try {
+    const { code, stdout, stderr } = await runScript(
+      [SCRIPT, '--url', 'https://small.test/#top', '--out', tmp.dir, '--browser', 'off', '--json'],
+      { WEBSITE_LAUNCH_RECORDED_FIXTURE: FIXTURE },
+    )
+    assert.equal(code, 0, `expected exit 0, got ${code}: ${stderr}`)
+    const parsed = JSON.parse(stdout)
+    assert.equal(parsed.summary.blockers, 0, `a healthy site must report no blockers: ${stdout}`)
+    assert.ok(parsed.summary.pages > 1)
+    assert.ok(!parsed.notCovered.some((line) => /never answered|ran against no content/.test(line)), parsed.notCovered.join(' | '))
+  } finally {
+    tmp.cleanup()
+  }
+})
+
 // C2: a host that is not there used to produce `blocker 0` and a page of green, which reads
 // exactly like a clean audit. An empty recording is a host that answers nothing.
 test('an audit of a site that never answered exits 0 and reports a blocker', async () => {
@@ -605,6 +625,27 @@ test('--browser on exits 2 with the install hint when the loader fails', async (
         return true
       },
     )
+  } finally {
+    tmp.cleanup()
+  }
+})
+
+// The Not covered line has to make the same distinction the blocker does: a report that covered
+// nothing and a report that covered two of three pages are different narrownesses.
+test('the Not covered line says how much of the site the run actually read', async () => {
+  const tmp = tmpDir('audit-cli-half-dead')
+  try {
+    const { code, stdout } = await runScript(
+      [SCRIPT, '--url', 'https://half.test/', '--out', tmp.dir, '--browser', 'off', '--json'],
+      { WEBSITE_LAUNCH_RECORDED_FIXTURE: fixturePath('recorded/half-dead-site.json') },
+    )
+    assert.equal(code, 0)
+    const parsed = JSON.parse(stdout)
+    assert.ok(parsed.summary.blockers >= 1)
+    const line = parsed.notCovered.find((l) => l.includes('the start url never answered'))
+    assert.ok(line !== undefined, parsed.notCovered.join(' | '))
+    assert.match(line, /2 of 3 crawled urls did parse — findings below reflect those pages only/)
+    assert.ok(!/nothing was read/.test(line), line)
   } finally {
     tmp.cleanup()
   }

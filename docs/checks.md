@@ -94,7 +94,7 @@ Crawls a staging or live url and reports. It always exits 0 — it reports, it d
 | `inventory.deep-page` | low | http | A page buried more than three clicks from the front page | A page the crawl only reached at depth four or deeper — a page nobody browsing the site is likely to find. |
 | `inventory.non-200-page` | high | http | A page of this site answers with an error | A crawled url whose final response is a 4xx or a 5xx — a page that is linked or listed but does not load. |
 | `inventory.orphan-page` | medium | http | A page the sitemap advertises that nothing on the site links to | A sitemap url no crawled page links to — reachable only by typing its address or finding it in search. |
-| `inventory.target-unreachable` | blocker | http | The site being audited never answered | A start url that did not respond, or a crawl that parsed no HTML at all — an audit with no content under it. |
+| `inventory.target-unreachable` | blocker | http | The audit never read the url it was pointed at | A start url that was never fetched, one that never answered, or a crawl that parsed no HTML at all — an audit with no content under it. |
 | `inventory.unlisted-page` | low | http | A page the site links to that the sitemap leaves out | A page the crawl reached by following links that no sitemap entry mentions. |
 | `inventory.unreachable-page` | medium | http | A page of this site never answered at all | A crawled url whose request failed outright — DNS, TLS, a refused connection or a timeout — rather than returning a status. |
 

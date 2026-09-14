@@ -20,6 +20,7 @@
 // the page is broken, only that it could not reach it.
 
 import { defineCheck } from '../registry.mjs'
+import { normalizeUrl } from '../crawl.mjs'
 
 const PHASE = 'launch-audit'
 const DIMENSION = 'inventory'
@@ -149,22 +150,98 @@ export const non200Page = define({
   },
 })
 
-// Why the start url never produced content, or null when it did. Two shapes count as "no
-// content": the start url that did not answer at all, and the one that answered with something
-// that is not a page (a PDF, a JSON body, an empty 200) while nothing else in the crawl parsed as
-// HTML either. Both leave every HTTP-tier check reading an empty context.
+// Which urls count as "the start url" inside the crawl.
+//
+// `ctx.target.url` is what the operator typed; the crawl seeds through `normalizeUrl()`, which
+// strips the fragment. A person who pastes `https://example.com/#top` out of a browser's address
+// bar therefore had the two compared by equality and never matched — and a perfectly healthy site
+// was reported as never having answered, as a blocker. A redirect is the other spelling of the
+// same question: the start url can be the url a page was *asked* for or the url it settled on.
+function startUrls(ctx) {
+  const normalized = normalizeUrl(ctx.target.url, ctx.target.url)
+  return new Set(normalized === null ? [ctx.target.url] : [normalized, ctx.target.url])
+}
+
+// The crawled page for the start url, preferring the url that was requested over one that merely
+// redirected to it, or undefined when the crawl never fetched it at all.
+function startPage(ctx) {
+  const wanted = startUrls(ctx)
+  return ctx.crawl.pages.find((entry) => wanted.has(entry.url))
+    ?? ctx.crawl.pages.find((entry) => wanted.has(entry.finalUrl))
+}
+
+const NOT_FETCHED_REASON = {
+  robots: 'robots.txt disallows it',
+  'max-depth': 'the depth limit dropped it',
+  'max-pages': 'the page budget dropped it',
+  'off-origin': 'it is not on the origin being crawled',
+}
+
+// What went wrong before any check could read anything, or null when nothing did. Three states,
+// and they are three different facts about three different failures:
+//
+//   not-fetched  the crawl never asked. There is no status, because nothing answered *or*
+//                declined to — "the request failed" would describe a request nobody made.
+//   no-answer    the crawl asked and got nothing back. `status` is 0, which is a real recorded
+//                status and belongs in the evidence.
+//   no-html      the start url answered, and nothing the crawl fetched parsed as a page.
+//
+// `parsed`/`total` are carried out because they decide a separate question the states do not:
+// whether this report is *empty* or merely *narrow*. Only a crawl that parsed nothing at all can
+// honestly say every HTTP-tier check ran against no content.
 export function unreachableTarget(ctx) {
-  const start = ctx.crawl.pages.find((entry) => entry.url === ctx.target.url)
-  if (start === undefined || start.status === 0) {
-    const why = start?.response?.timedOut === true
+  const pages = ctx.crawl.pages
+  const parsed = pages.filter((entry) => entry.page !== null).length
+  const total = pages.length
+  const start = startPage(ctx)
+
+  if (start === undefined) {
+    const wanted = startUrls(ctx)
+    const drop = (ctx.crawl.dropped ?? []).find((d) => wanted.has(d.url))
+    const because = drop === undefined
+      ? 'the crawl never reached it'
+      : NOT_FETCHED_REASON[drop.reason] ?? `the crawl dropped it (${drop.reason})`
+    return { state: 'not-fetched', status: null, parsed, total, why: `the start url was not fetched: ${because}` }
+  }
+
+  if (start.status === 0) {
+    const because = start.response?.timedOut === true
       ? 'the request timed out'
-      : `the request failed (${start?.response?.error ?? 'no response'})`
-    return `${ctx.target.url} never answered: ${why}`
+      : `the request failed (${start.response?.error ?? 'no response'})`
+    return { state: 'no-answer', status: 0, parsed, total, why: `the start url never answered: ${because}` }
   }
-  if (!ctx.crawl.pages.some((entry) => entry.page !== null)) {
-    return `${ctx.target.url} answered HTTP ${start.status}, and the crawl parsed no HTML page at all`
+
+  if (parsed === 0) {
+    return {
+      state: 'no-html',
+      status: start.status,
+      parsed,
+      total,
+      why: `${ctx.target.url} answered HTTP ${start.status}, and the crawl parsed no HTML page at all`,
+    }
   }
+
   return null
+}
+
+// What the rest of the report is worth, given that gap: nothing, or only what did parse.
+export function unreachableScope({ parsed, total }) {
+  if (parsed === 0) {
+    return 'Every HTTP-tier check ran against no content, so every one of them found nothing to report. Nothing else in this report is evidence that anything works; it is evidence that nothing was read.'
+  }
+  return `${parsed} of ${total} crawled urls did parse — findings below reflect those pages only, and nothing here covers the start url itself.`
+}
+
+const UNREACHABLE_TITLE = {
+  'not-fetched': 'The start url was never fetched',
+  'no-answer': 'The start url never answered',
+  'no-html': 'The start url answered, and nothing the crawl fetched was a page',
+}
+
+const UNREACHABLE_FIX = {
+  'not-fetched': 'Audit a url the crawl is allowed to fetch, or change the rule that excluded this one — for robots.txt, --ignore-robots re-runs it and says so in Not covered.',
+  'no-answer': 'Check the url, the DNS for its host, and that the host is serving, then run the audit again.',
+  'no-html': 'Point the audit at an HTML page. A url that serves a PDF, a JSON document or an empty body is not a page this tool can read.',
 }
 
 // The one finding that says the rest of the report is empty rather than clean.
@@ -178,21 +255,24 @@ export function unreachableTarget(ctx) {
 export const targetUnreachable = define({
   id: 'inventory.target-unreachable',
   severity: 'blocker',
-  title: 'The site being audited never answered',
-  catches: 'A start url that did not respond, or a crawl that parsed no HTML at all — an audit with no content under it.',
+  title: 'The audit never read the url it was pointed at',
+  catches: 'A start url that was never fetched, one that never answered, or a crawl that parsed no HTML at all — an audit with no content under it.',
   run(ctx) {
-    const why = unreachableTarget(ctx)
-    if (why === null) return []
+    const gap = unreachableTarget(ctx)
+    if (gap === null) return []
     return [emit(targetUnreachable, {
       page: ctx.target.url,
-      detail: `${why}. The site being audited never answered — every HTTP-tier check ran against no content, so every one of them found nothing to report. Nothing else in this report is evidence that anything works; it is evidence that nothing was read.`,
+      title: UNREACHABLE_TITLE[gap.state],
+      detail: `${gap.why}. ${unreachableScope(gap)}`,
       evidence: [
         url(ctx.target.url),
-        status(0),
-        text(why),
-        metric(`${ctx.crawl.pages.filter((entry) => entry.page !== null).length} of ${ctx.crawl.pages.length} crawled urls parsed as HTML`),
+        // A url nobody requested has no status. Printing `0` for it would be inventing the one
+        // piece of evidence this finding is about not having.
+        ...(gap.status === null ? [] : [status(gap.status)]),
+        text(gap.why),
+        metric(`${gap.parsed} of ${gap.total} crawled urls parsed as HTML`),
       ],
-      fix: 'Check the url, the DNS for its host, and that the host is serving, then run the audit again. Treat this report as not run until it is.',
+      fix: UNREACHABLE_FIX[gap.state],
     })]
   },
 })
@@ -204,9 +284,11 @@ export const unreachablePage = define({
   catches: 'A crawled url whose request failed outright — DNS, TLS, a refused connection or a timeout — rather than returning a status.',
   run(ctx) {
     // The start url answering nothing is `inventory.target-unreachable`'s business, and a blocker
-    // and a medium about the same url would read as two separate problems.
+    // and a medium about the same url would read as two separate problems. Both use the same
+    // normalized notion of "the start url", or they would disagree about which url that is.
+    const start = startUrls(ctx)
     return ctx.crawl.pages
-      .filter((entry) => entry.status === 0 && entry.url !== ctx.target.url)
+      .filter((entry) => entry.status === 0 && !start.has(entry.url))
       .map((entry) => {
         const why = entry.response?.timedOut === true
           ? 'the request timed out'

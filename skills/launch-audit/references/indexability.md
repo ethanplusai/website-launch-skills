@@ -17,16 +17,28 @@ matters until it is fixed.
 ## Crawl & inventory
 
 ### `inventory.target-unreachable` — blocker
-**Means.** The url you audited never answered, or it answered with something that is not a page
-and nothing else in the crawl parsed as HTML either. There was no content for the audit to read.
+**Means.** The audit could not read the url it was pointed at. Its title says which of three:
+
+- *The start url was never fetched* — the crawl never asked. Usually `robots.txt` disallows it;
+  the depth limit and the page budget can also do it. There is no status code, because nothing
+  answered and nothing declined to.
+- *The start url never answered* — the crawl asked and got nothing back: DNS, TLS, a refused
+  connection, a timeout.
+- *The start url answered, and nothing the crawl fetched was a page* — a 200 carrying a PDF, a
+  JSON document or an empty body, with no HTML anywhere else in the crawl either.
+
 **At launch.** This is the one finding that says the rest of the report is *empty* rather than
 *clean*. Every HTTP-tier check reads the crawl, and a crawl of nothing gives every one of them
 nothing to object to — so an audit of a host that does not exist otherwise prints `blocker 0` and
-a page of green, which is indistinguishable from a site that passed. Treat the run as not done.
-**Fix.** Check the url for a typo, check DNS for its host, check that the host is actually
-serving, and check that a firewall or WAF is not refusing an unfamiliar user agent. Then run the
-audit again. If the site is behind a VPN or basic auth, this tool cannot reach it at all — that is
-out of scope, and the report says so rather than pretending.
+a page of green, indistinguishable from a site that passed. Read the second sentence of the
+detail: it says whether *nothing* was read, or only some of it. A start url that failed while the
+sitemap seeded pages that did parse leaves a report that is narrow rather than empty, and it says
+which pages it covers.
+**Fix.** Depends on the state. Allow the url in `robots.txt` (or re-run with `--ignore-robots`,
+which is reported in `Not covered`); check the url for a typo, check DNS for its host, check that
+the host is serving and that a firewall or WAF is not refusing an unfamiliar user agent; or point
+the audit at an HTML page. If the site is behind a VPN or basic auth, this tool cannot reach it at
+all — that is out of scope, and the report says so rather than pretending.
 **Cannot say.** Whether the site is down for everyone or only from here. One machine's failure to
 connect is not a global outage, and this check does not claim it is.
 
