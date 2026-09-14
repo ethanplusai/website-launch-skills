@@ -254,7 +254,12 @@ export const certExpiring = define({
   title: 'The TLS certificate expires soon',
   catches: 'A certificate with days left and no renewal in sight.',
   run(ctx) {
-    const days = ctx.cert?.daysLeft
+    // A certificate that did not validate is cert-invalid's finding, not this one's. net.cert()
+    // connects with rejectUnauthorized:false, so an expired or wrong-host certificate still comes
+    // back with daysLeft and altNames filled in — reporting those too would be the same defect
+    // told three times.
+    if (ctx.cert?.valid !== true) return []
+    const days = ctx.cert.daysLeft
     if (days === null || days === undefined || days >= CERT_EXPIRY_DAYS) return []
     return [emit(certExpiring, {
       page: `https://${ctx.target.host}/`,
@@ -274,7 +279,8 @@ export const certMissingSan = define({
   title: 'The certificate does not cover both apex and www',
   catches: 'A certificate issued for one host variant while the other is still reachable.',
   run(ctx) {
-    const names = ctx.cert?.altNames ?? []
+    if (ctx.cert?.valid !== true) return [] // see cert-expiring: an invalid certificate is one finding
+    const names = ctx.cert.altNames ?? []
     if (names.length === 0) return []
     const covers = (host) => names.some((name) => {
       const candidate = String(name).toLowerCase()
@@ -283,7 +289,8 @@ export const certMissingSan = define({
       const suffix = candidate.slice(1) // ".example.test"
       return host.endsWith(suffix) && host.slice(0, -suffix.length).includes('.') === false
     })
-    const uncovered = [ctx.target.apex, ctx.target.www].filter((host) => !covers(host))
+    const expected = ctx.target.hasWwwCounterpart ? [ctx.target.apex, ctx.target.www] : [ctx.target.host]
+    const uncovered = expected.filter((host) => !covers(host))
     if (uncovered.length === 0) return []
     return [emit(certMissingSan, {
       page: `https://${ctx.target.host}/`,
@@ -304,6 +311,7 @@ export const wwwApexSplit = define({
   title: 'Both www and apex serve the site',
   catches: 'Two hosts serving one site, splitting links and rankings between them.',
   run(ctx) {
+    if (!ctx.target.hasWwwCounterpart) return [] // no www counterpart exists for a subdomain target
     const { wwwRoot, apexRoot } = ctx.probes
     if (!ok2xx(wwwRoot) || !ok2xx(apexRoot)) return []
     if (hostOf(wwwRoot.finalUrl) === hostOf(apexRoot.finalUrl)) return []
@@ -326,6 +334,7 @@ export const wwwApexNoRedirect = define({
   title: 'The other host variant does not redirect here',
   catches: 'A www (or apex) host that errors instead of redirecting to the canonical one.',
   run(ctx) {
+    if (!ctx.target.hasWwwCounterpart) return [] // no www counterpart exists for a subdomain target
     const onWww = ctx.target.host === ctx.target.www
     const other = onWww ? ctx.probes.apexRoot : ctx.probes.wwwRoot
     if (!other) return []

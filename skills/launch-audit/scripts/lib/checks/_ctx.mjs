@@ -7,8 +7,10 @@
 //   1. robots.txt          — parsed when it 200s, `parsed: null` otherwise (a 404 is not a parse)
 //   2. sitemaps            — discovery, then one-level expansion of the FIRST sitemap found
 //   3. crawl               — seeded with the start url and every expanded sitemap loc
-//   4. root variants       — http://host/, https://host/, and the www/apex counterparts, plus the
-//                            trailing-slash variant of the start path when it isn't "/"
+//   4. root variants       — http://host/, https://host/, the apex root, the www counterpart when
+//                            the host is one that could have one (`probes.wwwRoot` is null for a
+//                            subdomain target, which is never probed), plus the trailing-slash
+//                            variant of the start path when it isn't "/"
 //   5. notFound            — /this-page-should-not-exist-<random>, for soft-404 detection
 //   6. llms.txt            — presence and shape
 //   7. static asset sample — up to two stylesheets, scripts and images the crawl actually saw
@@ -27,6 +29,23 @@ import { discoverSitemaps, expandSitemap } from '../sitemap.mjs'
 import { crawlSite } from '../crawl.mjs'
 
 const EMPTY_EXPANSION = { urls: [], children: [], errors: [], failedClosed: false }
+
+// Registrable-domain suffixes that occupy two labels, so `example.co.uk` is a site the way
+// `example.test` is. Enough of the common ones to keep the www question honest; this is not a
+// public suffix list and is not trying to be one.
+const TWO_LABEL_SUFFIXES = new Set(['co.uk', 'org.uk', 'com.au', 'co.nz', 'com.br', 'co.jp', 'co.za', 'com.mx'])
+
+// Does a `www.` counterpart of this host even make sense? It does for `example.test` and for
+// `www.example.test`, and it does not for `app.example.test` — nobody serves `www.app.example.test`,
+// so probing it would invent a broken host and then report it.
+function hasWwwCounterpart(host) {
+  if (/^www\./i.test(host)) return true
+  const labels = host.split('.')
+  if (labels.length === 2) return true
+  if (labels.length === 3 && TWO_LABEL_SUFFIXES.has(labels.slice(1).join('.').toLowerCase())) return true
+  return false
+}
+
 const ASSET_SAMPLE_PER_KIND = 2
 
 function sampleAssets(assets, origin) {
@@ -62,12 +81,14 @@ export async function buildAuditContext(net, dns, options = {}) {
   const random = typeof options.random === 'function' ? options.random : () => randomBytes(4).toString('hex')
   const now = options.now === undefined ? new Date() : new Date(options.now)
 
+  const wwwCounterpart = hasWwwCounterpart(host)
   const target = {
     url,
     origin,
     host,
     apex,
     www,
+    hasWwwCounterpart: wwwCounterpart,
     staging: options.staging === true,
     devHosts: [...(options.devHosts ?? [])],
   }
@@ -100,10 +121,11 @@ export async function buildAuditContext(net, dns, options = {}) {
   })
 
   // 4. root variants
+  const wwwUrl = wwwCounterpart ? `${start.protocol}//${www}/` : null
   const variantUrls = [
     `http://${host}/`,
     `https://${host}/`,
-    `${start.protocol}//${www}/`,
+    ...(wwwUrl === null ? [] : [wwwUrl]),
     `${start.protocol}//${apex}/`,
   ]
   const slashPath = start.pathname === '/'
@@ -130,8 +152,8 @@ export async function buildAuditContext(net, dns, options = {}) {
   const probes = {
     httpRoot: at(variantUrls[0]),
     httpsRoot: at(variantUrls[1]),
-    wwwRoot: at(variantUrls[2]),
-    apexRoot: at(variantUrls[3]),
+    wwwRoot: wwwUrl === null ? null : at(wwwUrl),
+    apexRoot: at(`${start.protocol}//${apex}/`),
     slashVariant: slashUrl === null ? null : at(slashUrl),
     notFound: { url: notFoundUrl, response: at(notFoundUrl) },
     llmsTxt: at(llmsUrl),

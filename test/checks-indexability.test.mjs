@@ -190,10 +190,19 @@ test('indexability.canonical-other-host fires on a canonical pointing off-site',
 
 test('indexability.canonical-to-redirect-or-404 fires when the canonical target redirects', async () => {
   const found = of(await run('canonical-site.json', { url: 'https://canon.test/' }), 'indexability.canonical-to-redirect-or-404')
-  assert.equal(found.length, 1)
-  assert.equal(found[0].page, 'https://canon.test/toredirect')
-  assert.match(evidenceText(found[0]), /\/moved/)
+  assert.deepEqual(found.map((f) => f.page).sort(), ['https://canon.test/legacy', 'https://canon.test/toredirect'])
+  assert.match(evidenceText(found.find((f) => f.page === 'https://canon.test/toredirect')), /\/moved/)
+  // /legacy canonicalizes to /blog, and /blog is itself the redirect source.
+  assert.match(evidenceText(found.find((f) => f.page === 'https://canon.test/legacy')), /canon\.test\/blog/)
   assert.ok(!has(await good(), 'indexability.canonical-to-redirect-or-404'))
+})
+
+test('indexability.canonical-to-redirect-or-404 leaves a canonical the crawl reached through a redirect alone', async () => {
+  // The crawl found /blog/ by following /blog → /blog/. A page canonicalizing to /blog/ names the
+  // url that actually serves the content, and the chain on that crawl entry describes how the
+  // crawl got there, not the canonical.
+  const found = of(await run('canonical-site.json', { url: 'https://canon.test/' }), 'indexability.canonical-to-redirect-or-404')
+  assert.ok(!found.some((f) => f.page === 'https://canon.test/blog?page=2'))
 })
 
 test('indexability.canonical-multiple fires on two canonical tags', async () => {

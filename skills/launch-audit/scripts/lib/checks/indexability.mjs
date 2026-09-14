@@ -14,7 +14,9 @@
 // The canonical checks read the raw `href` out of the response body as well as the resolved one,
 // because "the canonical is relative" is invisible once html.mjs has resolved it against the page
 // url. `canonical-to-redirect-or-404` only judges canonical targets the crawl already fetched; a
-// target it never saw is left alone rather than fetched here.
+// target it never saw is left alone rather than fetched here, and a target the crawl reached
+// through a redirect of its own is clean — what matters is whether the canonical url itself
+// redirects.
 
 import { defineCheck } from '../registry.mjs'
 import { aiPolicy, blocksAssets, isAllowed } from '../robots.mjs'
@@ -514,7 +516,10 @@ export const canonicalToRedirectOr404 = define({
       if (canonical === entry.finalUrl) continue
       const target = byUrl.get(canonical)
       if (!target) continue // never fetched by the crawl; not worth a request of its own
-      const redirected = (target.response?.chain?.length ?? 0) > 0
+      // The canonical is only a redirect when the canonical url ITSELF redirects. A crawl entry
+      // whose chain is non-empty may simply be how the crawl reached this url — /blog → /blog/ —
+      // and a canonical naming the /blog/ it landed on is correct, not a redirect.
+      const redirected = target.url === canonical && target.finalUrl !== canonical
       if (target.status === 200 && !redirected) continue
       out.push(emit(canonicalToRedirectOr404, {
         page: entry.url,
@@ -524,7 +529,7 @@ export const canonicalToRedirectOr404 = define({
         evidence: [
           url(entry.url),
           html(`<link rel="canonical" href="${canonical}">`),
-          status(`${canonical} → HTTP ${target.status}${redirected ? ` after ${target.response.chain.length} redirect(s)` : ''}`),
+          status(`${canonical} → HTTP ${target.status}${redirected ? ` after ${target.response?.chain?.length ?? 1} redirect(s), landing on ${target.finalUrl}` : ''}`),
         ],
         fix: 'Point the canonical at the final, 200-answering url.',
       }))

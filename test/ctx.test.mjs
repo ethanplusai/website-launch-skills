@@ -13,6 +13,7 @@ test('buildAuditContext describes the target host, its apex and its www counterp
     host: 'good.test',
     apex: 'good.test',
     www: 'www.good.test',
+    hasWwwCounterpart: true,
     staging: false,
     devHosts: ['old.internal'],
   })
@@ -82,6 +83,37 @@ test('buildAuditContext probes both root schemes and both host variants', async 
   assert.equal(ctx.probes.apexRoot.url, 'https://good.test/')
   assert.equal(ctx.probes.wwwRoot.chain.length, 1)
   assert.equal(ctx.probes.slashVariant, null)
+})
+
+test('buildAuditContext never invents a www counterpart for a subdomain target', async () => {
+  const net = recordedNet({
+    'https://app.example.test/': { status: 200, headers: { 'content-type': 'text/html' }, body: '<html><head><title>App</title></head><body>app</body></html>' },
+  })
+  const asked = []
+  const get = net.get
+  net.get = (url) => { asked.push(url); return get(url) }
+  net.head = (url) => net.get(url)
+  net.cert = async () => ({ valid: true, altNames: ['app.example.test'], daysLeft: 90, error: null })
+  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://app.example.test/', random: () => 'deadbeef' })
+  assert.equal(ctx.target.hasWwwCounterpart, false)
+  assert.equal(ctx.probes.wwwRoot, null)
+  assert.deepEqual(asked.filter((url) => url.includes('www.')), [])
+  assert.equal(ctx.probes.apexRoot.url, 'https://app.example.test/')
+})
+
+test('buildAuditContext still probes www for a host under a two-label public suffix', async () => {
+  const net = recordedNet({
+    'https://example.co.uk/': { status: 200, headers: { 'content-type': 'text/html' }, body: '<html><head><title>UK</title></head><body>uk</body></html>' },
+  })
+  const asked = []
+  const get = net.get
+  net.get = (url) => { asked.push(url); return get(url) }
+  net.head = (url) => net.get(url)
+  net.cert = async () => ({ valid: true, altNames: ['example.co.uk'], daysLeft: 90, error: null })
+  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://example.co.uk/', random: () => 'deadbeef' })
+  assert.equal(ctx.target.hasWwwCounterpart, true)
+  assert.equal(ctx.probes.wwwRoot.url, 'https://www.example.co.uk/')
+  assert.ok(asked.includes('https://www.example.co.uk/'))
 })
 
 test('buildAuditContext probes the trailing-slash variant of a non-root start path', async () => {

@@ -89,6 +89,30 @@ test('host.cert-missing-san fires when apex or www is not covered', async () => 
   assert.ok(!has(await good(), 'host.cert-missing-san'))
 })
 
+test('host.cert-expiring and host.cert-missing-san stay quiet on an expired certificate', async () => {
+  // net.cert() connects with rejectUnauthorized:false, so a handshake against an expired
+  // certificate still reports its dates and names — with valid:false.
+  const found = await run('https-site.json', {
+    url: 'https://good.test/',
+    cacheTag: 'expired-cert',
+    cert: { ...defaultCert('good.test'), valid: false, daysLeft: -5, error: 'certificate has expired' },
+  })
+  assert.equal(of(found, 'host.cert-invalid').length, 1)
+  assert.deepEqual(of(found, 'host.cert-expiring'), [])
+  assert.deepEqual(of(found, 'host.cert-missing-san'), [])
+})
+
+test('host.cert-missing-san stays quiet on a certificate issued for another host', async () => {
+  const found = await run('https-site.json', {
+    url: 'https://good.test/',
+    cacheTag: 'wrong-host-cert',
+    cert: { ...defaultCert('good.test'), valid: false, altNames: ['other.test'], error: 'hostname mismatch' },
+  })
+  assert.equal(of(found, 'host.cert-invalid').length, 1)
+  assert.deepEqual(of(found, 'host.cert-missing-san'), [])
+  assert.deepEqual(of(found, 'host.cert-expiring'), [])
+})
+
 test('host.cert-missing-san accepts a wildcard san', async () => {
   const found = of(await run('https-site.json', {
     url: 'https://good.test/',
@@ -111,6 +135,13 @@ test('host.www-apex-no-redirect fires when the other variant is simply broken', 
   assert.equal(found.length, 1)
   assert.match(evidenceText(found[0]), /www\.bare\.test/)
   assert.ok(!has(await good(), 'host.www-apex-no-redirect'))
+})
+
+test('the www/apex checks stay quiet for a subdomain target', async () => {
+  const found = await run('subdomain-site.json', { url: 'https://app.example.test/' })
+  assert.deepEqual(of(found, 'host.www-apex-split'), [])
+  assert.deepEqual(of(found, 'host.www-apex-no-redirect'), [])
+  assert.deepEqual(of(found, 'host.cert-missing-san'), [])
 })
 
 test('host.trailing-slash-both-200 fires when both path forms serve 200', async () => {
@@ -171,6 +202,13 @@ test('host.security-header-missing accepts CSP frame-ancestors in place of X-Fra
     }),
   }), 'host.security-header-missing')
   const missing = allEvidence(found)
+  // A CSP with frame-ancestors answers for both itself and X-Frame-Options, leaving exactly the
+  // three headers this fixture genuinely does not send.
+  assert.equal(found.length, 3)
+  assert.deepEqual(
+    found.map((f) => f.evidence.find((e) => e.type === 'header').value.split(':')[0]).sort(),
+    ['permissions-policy', 'referrer-policy', 'x-content-type-options'],
+  )
   assert.doesNotMatch(missing, /x-frame-options/i)
   assert.doesNotMatch(missing, /content-security-policy/i)
 })

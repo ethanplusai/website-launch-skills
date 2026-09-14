@@ -4,7 +4,7 @@
     "headers": {
       "content-type": "text/html; charset=utf-8"
     },
-    "body": "<!doctype html><html lang=\"en\"><head><title>Home</title>\n<link rel=\"canonical\" href=\"https://canon.test/\">\n<link rel=\"canonical\" href=\"https://canon.test/home\">\n</head><body><h1>Home</h1><nav>\n<a href=\"/rel\">Rel</a> <a href=\"/other\">Other</a> <a href=\"/toredirect\">To redirect</a>\n<a href=\"/nocanon\">No canonical</a> <a href=\"/hdrmismatch\">Header mismatch</a> <a href=\"/moved\">Moved</a>\n</nav></body></html>"
+    "body": "<!doctype html><html lang=\"en\"><head><title>Home</title>\n<link rel=\"canonical\" href=\"https://canon.test/\">\n<link rel=\"canonical\" href=\"https://canon.test/home\">\n</head><body><h1>Home</h1><nav>\n<a href=\"/rel\">Rel</a> <a href=\"/other\">Other</a> <a href=\"/toredirect\">To redirect</a>\n<a href=\"/nocanon\">No canonical</a> <a href=\"/hdrmismatch\">Header mismatch</a> <a href=\"/moved\">Moved</a> <a href=\"/blog\">Blog</a> <a href=\"/blog?page=2\">Blog page 2</a> <a href=\"/legacy\">Legacy</a>\n</nav></body></html>"
   },
   "https://canon.test/rel": {
     "status": 200,
@@ -70,5 +70,34 @@
       "content-type": "text/html; charset=utf-8"
     },
     "body": "<!doctype html><html lang=\"en\"><head><title>Page not found</title></head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a> <a href=\"/blog\">Blog</a></nav>\n<h1>We could not find that page</h1>\n<p>The address you asked for has moved or never existed. Use the navigation above, or head back to the home page to find what you were after. If a link brought you here, tell us and we will repair it.</p>\n</body></html>"
+  },
+  "https://canon.test/blog": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Blog</title>\n<link rel=\"canonical\" href=\"https://canon.test/blog/\">\n</head><body><h1>Blog</h1></body></html>",
+    "finalUrl": "https://canon.test/blog/",
+    "chain": [
+      {
+        "url": "https://canon.test/blog",
+        "status": 301,
+        "location": "/blog/"
+      }
+    ]
+  },
+  "https://canon.test/blog?page=2": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Blog page 2</title>\n<link rel=\"canonical\" href=\"https://canon.test/blog/\">\n</head><body><h1>Blog page 2</h1></body></html>"
+  },
+  "https://canon.test/legacy": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Legacy</title>\n<link rel=\"canonical\" href=\"https://canon.test/blog\">\n</head><body><h1>Legacy</h1></body></html>"
   }
 }
