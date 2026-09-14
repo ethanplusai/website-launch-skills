@@ -39,9 +39,10 @@ export const DEFAULT_WIDTHS = { desktop: 1440, tablet: 768, mobile: 390 }
 const VIEWPORT_HEIGHTS = { desktop: 900, tablet: 1024, mobile: 844 }
 
 export const OFF_REASON = '--browser off'
-export const PLAYWRIGHT_MISSING = 'Playwright not installed. Optional: npm i -D playwright && npx playwright install chromium'
-export const AXE_MISSING = 'axe-core not installed. Optional: npm i -D axe-core'
-export const LIGHTHOUSE_MISSING = 'lighthouse not installed. Optional: npm i -D lighthouse'
+const WHERE = 'in the website-launch-skill checkout, not the audited site'
+export const PLAYWRIGHT_MISSING = `Playwright not installed. Optional, ${WHERE}: npm i --no-save playwright && npx playwright install chromium`
+export const AXE_MISSING = `axe-core not installed. Optional, ${WHERE}: npm i --no-save axe-core`
+export const LIGHTHOUSE_MISSING = `lighthouse not installed. Optional, ${WHERE}: npm i --no-save lighthouse`
 
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag22aa']
 const LIGHTHOUSE_CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo']

@@ -12,9 +12,10 @@ import { join } from 'node:path'
 import { tmpDir } from './helpers.mjs'
 import { createBrowser } from '../skills/launch-audit/scripts/lib/browser.mjs'
 
-const PLAYWRIGHT_MISSING = 'Playwright not installed. Optional: npm i -D playwright && npx playwright install chromium'
-const AXE_MISSING = 'axe-core not installed. Optional: npm i -D axe-core'
-const LIGHTHOUSE_MISSING = 'lighthouse not installed. Optional: npm i -D lighthouse'
+const WHERE = 'in the website-launch-skill checkout, not the audited site'
+const PLAYWRIGHT_MISSING = `Playwright not installed. Optional, ${WHERE}: npm i --no-save playwright && npx playwright install chromium`
+const AXE_MISSING = `axe-core not installed. Optional, ${WHERE}: npm i --no-save axe-core`
+const LIGHTHOUSE_MISSING = `lighthouse not installed. Optional, ${WHERE}: npm i --no-save lighthouse`
 
 // A stub chromium. `script` is what the fake page should answer:
 //   evaluate: { '<marker found in the evaluated source>': value }  (a function value is called)

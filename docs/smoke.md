@@ -31,8 +31,16 @@ Run each from the skill's own directory. Keep every bundle; you will be comparin
 
     node scripts/launch-audit.mjs --url <site url> --browser off --out ../../smoke/audit-nobrowser
 
-**2. `launch-audit` with the browser tier installed.** Install the optional tier first
-(`npm i -D playwright axe-core lighthouse && npx playwright install chromium`), then:
+**2. `launch-audit` with the browser tier installed.** Install the optional tier first, **at the
+root of this cloned `website-launch-skill` repository** — not in the site being audited; the
+scripts resolve these modules from their own path:
+
+    npm i --no-save playwright axe-core lighthouse && npx playwright install chromium
+
+`--no-save` matters. It leaves `package.json` alone, so `test/invariants.test.mjs` — which asserts
+this repository declares zero dependencies — still passes, and the checklist item below that says
+`npm test` green is still reachable after the smoke run. The packages land in the gitignored
+`node_modules/`. Then, from the skill directory again:
 
     node scripts/launch-audit.mjs --url <site url> --browser on --out ../../smoke/audit-browser
 
@@ -91,6 +99,7 @@ this tool has, because it is the one that makes a clean report a lie.
 - [ ] Every `Not covered` line has a verdict recorded
 - [ ] Zero false positives outstanding — each one has a regression fixture and a fix
 - [ ] Every false negative is either a new check or a new `Not covered` line
-- [ ] `npm test` green after the fixes
+- [ ] `npm test` green after the fixes — including `test/invariants.test.mjs`, which the browser
+      tier's `--no-save` install is what keeps passing
 - [ ] `npm run gen:checks` produces no diff
 - [ ] The run is recorded in the session summary, with the target site and the verdict counts

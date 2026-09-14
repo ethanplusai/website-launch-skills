@@ -21,8 +21,13 @@ import { allChecks } from '../scripts/gen-checks-doc.mjs'
 const MIN_MENTIONS = 2
 const TEST_DIR = join(REPO_ROOT, 'test')
 
+// This file is excluded from its own scan. It is the one test file that mentions check ids without
+// asserting anything about the checks, so counting itself would let a failure-message fixture or a
+// future exemption list stand in for the assertions this test exists to demand.
+const SELF = 'fixture-coverage.test.mjs'
+
 const testSources = () => readdirSync(TEST_DIR)
-  .filter((name) => name.endsWith('.test.mjs'))
+  .filter((name) => name.endsWith('.test.mjs') && name !== SELF)
   .map((name) => readFileSync(join(TEST_DIR, name), 'utf8'))
   .join('\n')
 
@@ -32,9 +37,16 @@ function mentions(source, id) {
   return (source.match(pattern) ?? []).length
 }
 
+// Synthetic ids, so this self-test never accidentally contributes to a real check's count.
 test('the mention counter does not credit an id for a longer id that starts with it', () => {
-  assert.equal(mentions("'head.title' 'head.title-length' 'head.title'", 'head.title'), 2)
-  assert.equal(mentions("'head.title-length'", 'head.title'), 0)
+  assert.equal(mentions("'zz.probe' 'zz.probe-extended' 'zz.probe'", 'zz.probe'), 2)
+  assert.equal(mentions("'zz.probe-extended'", 'zz.probe'), 0)
+  assert.equal(mentions("'zz.probe' and zz.probe.", 'zz.probe'), 2)
+})
+
+test('this file excludes itself from the scan', () => {
+  assert.ok(!readdirSync(TEST_DIR).filter((n) => n.endsWith('.test.mjs') && n !== SELF).includes(SELF))
+  assert.ok(readdirSync(TEST_DIR).includes(SELF), 'the self-exclusion is named after a file that exists')
 })
 
 test('every check id appears at least twice across the test suite', () => {

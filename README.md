@@ -42,7 +42,7 @@ own will not work.
 ### Claude Code
 
     /plugin marketplace add ethanplusai/website-launch-skill
-    /plugin install website-launch
+    /plugin install website-launch@website-launch-skill
 
 ### Codex, GitHub Copilot, Cursor, Gemini CLI, Goose, OpenCode, or any Agent-Skills-compatible tool
 
@@ -58,19 +58,26 @@ agent-specific path or variable, so there is nothing else to configure.
 
 ### Without any agent
 
-The scripts are the whole product; the `SKILL.md` files only tell an agent how to use them. From
-the cloned repository:
+The scripts are the whole product; the `SKILL.md` files only tell an agent how to use them. One
+launch, in order, run from the cloned repository:
 
+    # 1. before the deploy — gate the repository
     node skills/pre-launch/scripts/pre-launch.mjs --dir ../my-site --production-url https://example.com
 
-    node skills/launch-audit/scripts/launch-audit.mjs --url https://staging.example.com --old-url https://old.example.com
+    # 2. against staging — audit it, and build the redirect map while the old site is still up
+    node skills/launch-audit/scripts/launch-audit.mjs \
+      --url https://staging.example.com --old-url https://old.example.com
 
+    # 3. the moment DNS moves — verify the cutover against what step 2 recorded
     node skills/post-launch/scripts/post-launch.mjs --mode cutover --url https://example.com \
-      --baseline website-launch/example-com-launch-audit-2026-09-14/baseline.json \
-      --redirects website-launch/example-com-launch-audit-2026-09-14/redirects.csv
+      --baseline website-launch/staging-example-com-launch-audit-2026-09-14/baseline.json \
+      --redirects website-launch/staging-example-com-launch-audit-2026-09-14/redirects.csv
 
-Paths in flags are resolved against the working directory, so run them from wherever the work
-lives. Every script supports `--help` and `--json`.
+Step 3 reads the bundle step 2 wrote. The folder name is the audited hostname plus the phase and
+the date — audit `https://staging.example.com` on 14 September 2026 and you get
+`website-launch/staging-example-com-launch-audit-2026-09-14/`; the script prints the path when it
+finishes, and `--out` overrides it. Paths in flags resolve against the working directory. Every
+script supports `--help` and `--json`.
 
 ## Requirements
 
@@ -78,13 +85,19 @@ lives. Every script supports `--help` and `--json`.
 
 An optional **browser tier** adds screenshots, axe accessibility scanning, Lighthouse performance
 scoring, and proof that analytics actually fires on a rendered page — 12 of the 175 audit checks
-and one of the 21 post-launch ones, plus the rendered-page evidence behind several others:
+and one of the 21 post-launch ones, plus the rendered-page evidence behind several others. Install
+it **inside the cloned `website-launch-skill` checkout**, not inside the site being audited: the
+scripts resolve these modules from their own path, so an install anywhere else is invisible to them.
 
-    npm i -D playwright axe-core lighthouse && npx playwright install chromium
+    cd website-launch-skill
+    npm i --no-save playwright axe-core lighthouse && npx playwright install chromium
 
-Without it, nothing breaks: the browser-tier checks land in `Not covered` by name, with the install
-line above. The audit's default is `--browser auto` — run it if it is there, say so if it is not.
-Use `--browser on` to make its absence an error and `--browser off` to skip it deliberately.
+`--no-save` keeps `package.json` untouched, which is the point — this repository declares zero
+dependencies and a test enforces that. The packages land in `node_modules/`, which is gitignored.
+
+Without the tier, nothing breaks: the browser-tier checks land in `Not covered` by name, with the
+install line above. The audit's default is `--browser auto` — run it if it is there, say so if it
+is not. Use `--browser on` to make its absence an error and `--browser off` to skip it deliberately.
 
 ## What each phase produces
 
@@ -107,7 +120,8 @@ agreed.
    output, and blocks on uncommitted work, committed secrets, leaked staging hostnames, placeholder
    copy, a missing 404 page, broken internal references, a robots or sitemap that disagrees with
    the production url, and framework config pointing at the wrong domain. Fix, re-run, repeat until
-   it exits 0. Then walk its nine human items one at a time — and take the Search Console export
+   it exits 0. Then walk its human items one at a time — up to nine, two of which are conditional
+   on the site replacing an existing one and on it taking payments. Take the Search Console export
    **before DNS moves**, because after the cutover it cannot be taken at all.
 2. **Against staging**, run `launch-audit`. If the site replaces an existing one, pass `--old-url`
    while both hosts are still reachable: that is the only moment the redirect map can be built
@@ -126,11 +140,17 @@ agreed.
 
 ## What it never does
 
-All three are read-only. Nothing here edits a site, submits a form, clicks a control, flips a
-setting in a dashboard, writes to a provider API, or touches DNS. It never installs anything. It
-never announces anything, and it never tells you a launch is fine — it hands you evidence. It writes
-exactly three kinds of file, all of them your own record: the report bundle, `.launch-progress.json`
-in the repository being gated, and `watch.json` inside the watch bundle.
+All three are read-only with respect to your site. Nothing here edits a site, submits a form, clicks
+a control, flips a setting in a dashboard, writes to a provider API, or touches DNS. It never
+announces anything, and it never tells you a launch is fine — it hands you evidence.
+
+One exception, and it is deliberate: **`pre-launch` runs your project's own build script** (`<your
+package manager> run build`), unless you pass `--skip-build`, so that the output it inspects is
+never stale. Whatever your build writes — `dist/`, a cache, `node_modules` if your build installs —
+gets written, because it is your build. The gate itself adds nothing to that.
+
+Of its own, it writes exactly three kinds of file, all of them your own record: the report bundle,
+`.launch-progress.json` in the repository being gated, and `watch.json` inside the watch bundle.
 
 It also does not fix what it finds, check anything behind a login, compare your copy against a
 source document, know which pages were supposed to exist, integrate with Search Console or an

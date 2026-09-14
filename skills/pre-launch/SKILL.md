@@ -20,11 +20,15 @@ person **before the deploy** that makes them public. Both are unrecoverable if t
 
 ## Read-only
 
-The gate is read-only. It reads the repository, runs the project's own build command, and fetches
-the predecessor site's sitemap when you give it one. It writes exactly two things, both of them the
-operator's own record: the report bundle, and `.launch-progress.json` in the repository being gated
-(only when you pass `--confirm` or `--reset-progress`). It never edits the site, submits a form,
-flips a setting, calls a provider API, or touches DNS.
+The gate is read-only with respect to the site. It reads the repository, runs the project's own
+build command, and fetches the predecessor site's sitemap when you give it one. It writes exactly
+two things of its own, both the operator's record: the report bundle, and `.launch-progress.json`
+in the repository being gated (only when you pass `--confirm` or `--reset-progress`). It never
+edits the site, submits a form, flips a setting, calls a provider API, or touches DNS.
+
+The one exception is deliberate: unless you pass `--skip-build`, the gate runs the project's own
+build script, so whatever that build writes — `dist/`, a cache, packages it installs — is written,
+because it is the project's build. Say so if somebody asks whether the gate is safe to run.
 
 Three rules follow from that, and you restate them when you report:
 

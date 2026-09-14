@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { REPO_ROOT } from './helpers.mjs'
-import { renderChecksDoc } from '../scripts/gen-checks-doc.mjs'
+import { main, renderChecksDoc, USAGE } from '../scripts/gen-checks-doc.mjs'
 
 const read = (rel) => readFileSync(join(REPO_ROOT, rel), 'utf8')
 
@@ -57,4 +57,43 @@ test('the marketplace manifest parses and lists exactly the three skills', () =>
   for (const skill of skills) {
     assert.ok(existsSync(join(REPO_ROOT, skill, 'SKILL.md')), `${skill} has no SKILL.md`)
   }
+})
+
+// The generator's own argument handling. It writes a committed file, so an unrecognised flag has to
+// be a usage error rather than a silent overwrite of the thing somebody was trying to verify.
+const sink = () => {
+  const chunks = []
+  return { write: (text) => chunks.push(text), text: () => chunks.join('') }
+}
+
+test('gen-checks-doc --help prints usage and exits 0 without writing', () => {
+  const out = sink()
+  const err = sink()
+  const before = read('docs/checks.md')
+  assert.equal(main(['--help'], out, err), 0)
+  assert.equal(out.text(), `${USAGE}\n`)
+  assert.equal(err.text(), '')
+  assert.equal(read('docs/checks.md'), before)
+})
+
+test('gen-checks-doc rejects an unknown flag with exit 2 and writes nothing', () => {
+  const out = sink()
+  const err = sink()
+  const before = read('docs/checks.md')
+  assert.equal(main(['--bogus'], out, err), 2)
+  assert.match(err.text(), /unknown argument: --bogus/)
+  assert.equal(out.text(), '')
+  assert.equal(read('docs/checks.md'), before)
+})
+
+test('gen-checks-doc rejects more than one argument', () => {
+  const err = sink()
+  assert.equal(main(['--check', '--check'], sink(), err), 2)
+  assert.match(err.text(), /at most one argument/)
+})
+
+test('gen-checks-doc --check passes against the committed file', () => {
+  const out = sink()
+  assert.equal(main(['--check'], out, sink()), 0)
+  assert.match(out.text(), /up to date/)
 })

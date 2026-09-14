@@ -19,6 +19,10 @@
 //
 //   node scripts/gen-checks-doc.mjs           write docs/checks.md
 //   node scripts/gen-checks-doc.mjs --check   exit 1 if the committed file is stale
+//   node scripts/gen-checks-doc.mjs --help    print usage and exit 0
+//
+// Anything else is a usage error (exit 2) and writes nothing: a generator that guesses what an
+// unrecognised flag meant is one that overwrites the file somebody was only trying to check.
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -113,25 +117,48 @@ export function renderChecksDoc() {
   return `${lines.join('\n').replace(/\n+$/, '')}\n`
 }
 
-function main(argv) {
+export const USAGE = [
+  'gen-checks-doc — render docs/checks.md from the three check registries.',
+  '',
+  '  node scripts/gen-checks-doc.mjs           write docs/checks.md',
+  '  node scripts/gen-checks-doc.mjs --check   exit 1 if the committed file is stale',
+  '  node scripts/gen-checks-doc.mjs --help    print this',
+  '',
+  'Exit codes: 0 written, or up to date, or --help',
+  '            1 docs/checks.md is stale or missing (--check)',
+  '            2 a usage error — an unknown flag, or more than one',
+].join('\n')
+
+// One argument at most, and it is one of two words. A generator that guesses what an unrecognised
+// flag meant is a generator that overwrites a file somebody was checking.
+export function main(argv, out = process.stdout, err = process.stderr) {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    out.write(`${USAGE}\n`)
+    return 0
+  }
+  const unknown = argv.filter((arg) => arg !== '--check')
+  if (unknown.length > 0 || argv.length > 1) {
+    err.write(`${unknown.length > 0 ? `unknown argument: ${unknown[0]}` : 'pass at most one argument'}\n\n${USAGE}\n`)
+    return 2
+  }
   const rendered = renderChecksDoc()
   if (argv.includes('--check')) {
     let committed = null
     try {
       committed = readFileSync(DOC_PATH, 'utf8')
     } catch {
-      process.stderr.write(`docs/checks.md is missing. Run: npm run gen:checks\n`)
+      err.write('docs/checks.md is missing. Run: npm run gen:checks\n')
       return 1
     }
     if (committed !== rendered) {
-      process.stderr.write('docs/checks.md is stale — it no longer matches the check registry. Run: npm run gen:checks\n')
+      err.write('docs/checks.md is stale — it no longer matches the check registry. Run: npm run gen:checks\n')
       return 1
     }
-    process.stdout.write('docs/checks.md is up to date.\n')
+    out.write('docs/checks.md is up to date.\n')
     return 0
   }
   writeFileSync(DOC_PATH, rendered)
-  process.stdout.write(`Wrote docs/checks.md — ${allChecks().length} checks.\n`)
+  out.write(`Wrote docs/checks.md — ${allChecks().length} checks.\n`)
   return 0
 }
 
