@@ -149,14 +149,64 @@ export const non200Page = define({
   },
 })
 
+// Why the start url never produced content, or null when it did. Two shapes count as "no
+// content": the start url that did not answer at all, and the one that answered with something
+// that is not a page (a PDF, a JSON body, an empty 200) while nothing else in the crawl parsed as
+// HTML either. Both leave every HTTP-tier check reading an empty context.
+export function unreachableTarget(ctx) {
+  const start = ctx.crawl.pages.find((entry) => entry.url === ctx.target.url)
+  if (start === undefined || start.status === 0) {
+    const why = start?.response?.timedOut === true
+      ? 'the request timed out'
+      : `the request failed (${start?.response?.error ?? 'no response'})`
+    return `${ctx.target.url} never answered: ${why}`
+  }
+  if (!ctx.crawl.pages.some((entry) => entry.page !== null)) {
+    return `${ctx.target.url} answered HTTP ${start.status}, and the crawl parsed no HTML page at all`
+  }
+  return null
+}
+
+// The one finding that says the rest of the report is empty rather than clean.
+//
+// Every HTTP-tier check in this repository reads `ctx.crawl`, and a crawl that fetched nothing
+// gives every one of them nothing to object to. Without this check, auditing a host that does not
+// exist prints `blocker 0`, a handful of medium findings and a page of green — the single most
+// misleading output this tool can produce, because it is indistinguishable from a site that
+// passed. So the absence of content is itself the blocker, and it is the only blocker the
+// inventory dimension raises.
+export const targetUnreachable = define({
+  id: 'inventory.target-unreachable',
+  severity: 'blocker',
+  title: 'The site being audited never answered',
+  catches: 'A start url that did not respond, or a crawl that parsed no HTML at all — an audit with no content under it.',
+  run(ctx) {
+    const why = unreachableTarget(ctx)
+    if (why === null) return []
+    return [emit(targetUnreachable, {
+      page: ctx.target.url,
+      detail: `${why}. The site being audited never answered — every HTTP-tier check ran against no content, so every one of them found nothing to report. Nothing else in this report is evidence that anything works; it is evidence that nothing was read.`,
+      evidence: [
+        url(ctx.target.url),
+        status(0),
+        text(why),
+        metric(`${ctx.crawl.pages.filter((entry) => entry.page !== null).length} of ${ctx.crawl.pages.length} crawled urls parsed as HTML`),
+      ],
+      fix: 'Check the url, the DNS for its host, and that the host is serving, then run the audit again. Treat this report as not run until it is.',
+    })]
+  },
+})
+
 export const unreachablePage = define({
   id: 'inventory.unreachable-page',
   severity: 'medium',
   title: 'A page of this site never answered at all',
   catches: 'A crawled url whose request failed outright — DNS, TLS, a refused connection or a timeout — rather than returning a status.',
   run(ctx) {
+    // The start url answering nothing is `inventory.target-unreachable`'s business, and a blocker
+    // and a medium about the same url would read as two separate problems.
     return ctx.crawl.pages
-      .filter((entry) => entry.status === 0)
+      .filter((entry) => entry.status === 0 && entry.url !== ctx.target.url)
       .map((entry) => {
         const why = entry.response?.timedOut === true
           ? 'the request timed out'
@@ -172,6 +222,7 @@ export const unreachablePage = define({
 })
 
 export const checks = [
+  targetUnreachable,
   orphanPage,
   unlistedPage,
   deepPage,

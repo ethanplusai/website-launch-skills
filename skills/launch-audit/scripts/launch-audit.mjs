@@ -341,6 +341,15 @@ export async function runAudit({ net, dns, browser = null, options = {}, now = n
     // clean result.
     const unanswered = new Set()
 
+    // If the site never answered, every HTTP-tier check below is about to run over an empty
+    // context and find nothing wrong with it. `inventory.target-unreachable` is the blocker that
+    // says so in the findings; this is the same fact in the section a reader is told to repeat
+    // verbatim, because "no findings" and "nothing was read" have to be distinguishable there too.
+    const targetDead = inventory.unreachableTarget(ctx)
+    if (targetDead !== null) {
+      ownLines.push(`Every HTTP-tier check ran against no content: the site being audited never answered — ${targetDead}`)
+    }
+
     for (const check of registry.byPhase(PHASE)) {
       let produced
       try {

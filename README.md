@@ -8,7 +8,7 @@ accessibility, performance, analytics, content — and always exits 0. **`post-l
 watch: it runs the moment DNS has moved, verifies the cutover against the baseline the earlier
 phases wrote, and then runs a daily check for thirty days.
 
-234 checks in all — 38 in the gate, 175 in the audit, 21 on cutover day — every one listed with its
+235 checks in all — 38 in the gate, 176 in the audit, 21 on cutover day — every one listed with its
 severity and what it catches in [docs/checks.md](docs/checks.md), which is generated from the code
 that runs, so the inventory cannot drift from reality.
 
@@ -84,7 +84,7 @@ script supports `--help` and `--json`.
 **Node 20 or newer. Zero dependencies** for everything above.
 
 An optional **browser tier** adds screenshots, axe accessibility scanning, Lighthouse performance
-scoring, and proof that analytics actually fires on a rendered page — 12 of the 175 audit checks
+scoring, and proof that analytics actually fires on a rendered page — 12 of the 176 audit checks
 and one of the 21 post-launch ones, plus the rendered-page evidence behind several others. Install
 it **inside the cloned `website-launch-skill` checkout**, not inside the site being audited: the
 scripts resolve these modules from their own path, so an install anywhere else is invisible to them.

@@ -297,14 +297,50 @@ test('the human summary prints the bundle path, the counts and the whole Not cov
   }
 })
 
-test('the auditor exits 0 even with blockers', async () => {
+// Spawns the script and returns the exit code as well as the output, whatever the code is.
+// `promisify(execFile)` rejects on a non-zero exit, and a test that only reads the resolved value
+// therefore proves the exit code was 0 by never being able to see any other one — which is how
+// the old version of the test below asserted `blockers + high >= 0`, a tautology, and would have
+// stayed green on an auditor that exited 1 with no findings at all.
+function runScript(argv, env) {
+  return new Promise((resolve) => {
+    execFile(process.execPath, argv, { env: { ...process.env, ...env } }, (error, stdout, stderr) => {
+      resolve({ code: error === null ? 0 : (error.code ?? 1), stdout, stderr })
+    })
+  })
+}
+
+test('the auditor exits 0 with a report full of blockers', async () => {
   const tmp = tmpDir('audit-cli-exit')
   try {
-    const { stdout } = await run(process.execPath, [
-      SCRIPT, '--url', URL_UNDER_TEST, '--out', tmp.dir, '--browser', 'off', '--json',
-    ], { env: { ...process.env, WEBSITE_LAUNCH_RECORDED_FIXTURE: FIXTURE } })
+    // noindex-site is site-wide `noindex` on production, which is the auditor's own blocker.
+    const { code, stdout, stderr } = await runScript(
+      [SCRIPT, '--url', 'https://noindex.test/', '--out', tmp.dir, '--browser', 'off', '--json'],
+      { WEBSITE_LAUNCH_RECORDED_FIXTURE: fixturePath('recorded/noindex-site.json') },
+    )
+    assert.equal(code, 0, `expected exit 0, got ${code}: ${stderr}`)
     const parsed = JSON.parse(stdout)
-    assert.ok(parsed.summary.blockers + parsed.summary.high >= 0)
+    assert.ok(parsed.summary.blockers >= 1, `expected at least one blocker, got ${parsed.summary.blockers}`)
+  } finally {
+    tmp.cleanup()
+  }
+})
+
+// C2: a host that is not there used to produce `blocker 0` and a page of green, which reads
+// exactly like a clean audit. An empty recording is a host that answers nothing.
+test('an audit of a site that never answered exits 0 and reports a blocker', async () => {
+  const tmp = tmpDir('audit-cli-dead')
+  try {
+    const { code, stdout, stderr } = await runScript(
+      [SCRIPT, '--url', 'https://gone.test/', '--out', tmp.dir, '--browser', 'off', '--json'],
+      { WEBSITE_LAUNCH_RECORDED_FIXTURE: fixturePath('recorded/unreachable-site.json') },
+    )
+    assert.equal(code, 0, `expected exit 0, got ${code}: ${stderr}`)
+    const parsed = JSON.parse(stdout)
+    assert.ok(parsed.summary.blockers >= 1, `expected at least one blocker, got ${parsed.summary.blockers}`)
+    assert.ok(parsed.notCovered.some((line) => /never answered/.test(line)))
+    const report = readFileSync(join(tmp.dir, 'report.md'), 'utf8')
+    assert.match(report, /inventory\.target-unreachable|never answered/)
   } finally {
     tmp.cleanup()
   }

@@ -89,3 +89,39 @@ test('a url that never answered is unreachable, never a non-200', async () => {
   assert.ok(!allEvidence(of(findings, 'inventory.non-200-page')).includes('inv.test/unreachable'))
   assert.ok(!has(await good(), 'inventory.unreachable-page'))
 })
+
+// --------------------------------------------------- the audit that has nothing under it
+
+// Nothing recorded at all, so every request answers `status: 0` — an audit of a host that is not
+// there. Before `inventory.target-unreachable` existed, this run produced a report with zero
+// blockers and almost no findings, which reads exactly like a clean site.
+const dead = () => run('unreachable-site.json', { url: 'https://gone.test/' })
+
+test('inventory.target-unreachable is a blocker when the start url never answered', async () => {
+  const found = of(await dead(), 'inventory.target-unreachable')
+  assert.equal(found.length, 1)
+  assert.equal(found[0].severity, 'blocker')
+  assert.equal(found[0].page, 'https://gone.test/')
+  assert.match(found[0].detail, /never answered/)
+  assert.match(found[0].detail, /every HTTP-tier check ran against no content/)
+  assert.match(evidenceText(found[0]), /not recorded/)
+  assert.ok(!has(await good(), 'inventory.target-unreachable'))
+})
+
+test('inventory.unreachable-page leaves the start url to the blocker and keeps its own medium', async () => {
+  const found = of(await dead(), 'inventory.unreachable-page')
+  assert.ok(!found.some((f) => f.page === 'https://gone.test/'))
+  // The other urls a dead host swallows are still reported, one per url, at medium.
+  const others = of(await bad(), 'inventory.unreachable-page')
+  assert.ok(others.length >= 1)
+  for (const finding of others) assert.equal(finding.severity, 'medium')
+})
+
+test('inventory.target-unreachable fires when the start url answers but no HTML parsed', async () => {
+  const found = of(await run('unreachable-site.json', {
+    url: 'https://gone.test/',
+    records: { 'https://gone.test/': { status: 200, headers: { 'content-type': 'application/pdf' }, bodyBase64: 'JVBERi0=' } },
+  }), 'inventory.target-unreachable')
+  assert.equal(found.length, 1)
+  assert.match(found[0].detail, /parsed no HTML page at all/)
+})

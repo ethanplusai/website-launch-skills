@@ -16,6 +16,20 @@ matters until it is fixed.
 
 ## Crawl & inventory
 
+### `inventory.target-unreachable` — blocker
+**Means.** The url you audited never answered, or it answered with something that is not a page
+and nothing else in the crawl parsed as HTML either. There was no content for the audit to read.
+**At launch.** This is the one finding that says the rest of the report is *empty* rather than
+*clean*. Every HTTP-tier check reads the crawl, and a crawl of nothing gives every one of them
+nothing to object to — so an audit of a host that does not exist otherwise prints `blocker 0` and
+a page of green, which is indistinguishable from a site that passed. Treat the run as not done.
+**Fix.** Check the url for a typo, check DNS for its host, check that the host is actually
+serving, and check that a firewall or WAF is not refusing an unfamiliar user agent. Then run the
+audit again. If the site is behind a VPN or basic auth, this tool cannot reach it at all — that is
+out of scope, and the report says so rather than pretending.
+**Cannot say.** Whether the site is down for everyone or only from here. One machine's failure to
+connect is not a global outage, and this check does not claim it is.
+
 ### `inventory.non-200-page` — high
 **Means.** A url the site links to, or lists in its sitemap, answered 4xx or 5xx.
 **At launch.** These are the pages visitors and crawlers will hit on day one. A 404 on a linked
