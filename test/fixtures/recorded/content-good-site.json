@@ -1,0 +1,23 @@
+{
+  "https://good-content.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://good-content.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Widgets and Gadgets, precision tooling</title>\n<meta name=\"description\" content=\"Precision tooling for small workshops, measured before it ships.\">\n</head>\n<body>\n<main>\n<h1>Widgets and Gadgets</h1>\n<p>Every color we stock is measured before it ships.</p>\n<p>Call us on (555) 010-1234 or email hello@good-content.test.</p>\n<p>Our workshop is at 12 Bench Lane, Springfield, IL 62704.</p>\n<a href=\"/about\">About the workshop</a>\n</main>\n<footer><p>&copy; 2026 Acme Widgets. All rights reserved.</p></footer>\n</body>\n</html>\n"
+  },
+  "https://good-content.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the workshop and the people in it</title>\n<meta name=\"description\" content=\"The workshop, the people and the twelve years behind every tool.\">\n</head>\n<body>\n<main>\n<h1>About the workshop</h1>\n<p>Every color we stock is measured twice, in the same building, by the same people.</p>\n<p>Reach us on <a href=\"tel:+15550101234\">(555) 010-1234</a> or at hello@good-content.test.</p>\n<p>We are at 12 Bench Lane, Springfield, IL 62704.</p>\n<a href=\"/\">Home</a>\n</main>\n<footer><p>&copy; 2026 Acme Widgets.</p></footer>\n</body>\n</html>\n"
+  }
+}
