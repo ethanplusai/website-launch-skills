@@ -1,0 +1,51 @@
+{
+  "https://bad-head.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html>\n<head>\n<meta name=\"keywords\" content=\"widgets\">\n<meta name=\"keywords\" content=\"gadgets\">\n</head>\n<body>\n<meta name=\"generator\" content=\"a meta the template put in the body\">\n<div id=\"hero\">Welcome</div>\n<div id=\"hero\">Welcome again</div>\n<h2>We sell widgets</h2>\n<a href=\"/framework\">Framework</a>\n<a href=\"/long\">Long</a>\n<a href=\"/dup-one\">One</a>\n<a href=\"/dup-two\">Two</a>\n</body>\n</html>\n"
+  },
+  "https://bad-head.test/framework": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no\">\n<title>Astro</title>\n<meta name=\"description\" content=\"Built with Vite.\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n</head>\n<body>\n<h1>Welcome to Astro</h1>\n<h1>Second first-level heading</h1>\n<h3>Jumped straight past h2</h3>\n<h2></h2>\n<a href=\"/\">Home</a>\n</body>\n</html>\n"
+  },
+  "https://bad-head.test/long": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Everything You Could Possibly Want To Know About Our Widget Range, In One Very Long Title</title>\n<meta name=\"description\" content=\"This description runs on well past the point a search engine stops showing it, repeating the same claims about quality and service until the snippet is cut off mid-sentence and the rest is simply thrown away.\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n</head>\n<body>\n<h1>The widget range</h1>\n<a href=\"/\">Home</a>\n</body>\n</html>\n"
+  },
+  "https://bad-head.test/dup-one": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Widgets, Gadgets and Sprockets</title>\n<meta name=\"description\" content=\"One description, copied onto two pages, telling a search engine nothing new about either.\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n</head>\n<body>\n<h1>Widgets, Gadgets and Sprockets</h1>\n<a href=\"/\">Home</a>\n</body>\n</html>\n"
+  },
+  "https://bad-head.test/dup-two": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Widgets, Gadgets and Sprockets</title>\n<meta name=\"description\" content=\"One description, copied onto two pages, telling a search engine nothing new about either.\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n</head>\n<body>\n<h1>Widgets, Gadgets and Sprockets</h1>\n<a href=\"/\">Home</a>\n</body>\n</html>\n"
+  },
+  "https://bad-head.test/favicon.ico": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "Not found"
+  },
+  "https://bad-head.test/robots.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "nope"
+  }
+}

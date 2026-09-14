@@ -1,0 +1,86 @@
+{
+  "https://og.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Open Graph Test Home</title>\n<meta name=\"description\" content=\"A page whose Open Graph card is wired up, and wired up wrong in four separate ways at once.\">\n<link rel=\"canonical\" href=\"https://og.test/\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n<meta property=\"og:title\" content=\"Open Graph Test Home\">\n<meta property=\"og:description\" content=\"A page whose Open Graph card is wired up, and wired up wrong in four separate ways at once.\">\n<meta property=\"og:image\" content=\"https://og.test/small.png\">\n<meta property=\"og:image\" content=\"https://og.test/small-alternate.png\">\n<meta property=\"og:locale:alternate\" content=\"fr_FR\">\n<meta property=\"og:locale:alternate\" content=\"de_DE\">\n<meta property=\"og:url\" content=\"https://og.test/somewhere-else\">\n<meta property=\"og:type\" content=\"website\">\n</head>\n<body>\n<h1>Open Graph Test Home</h1>\n<a href=\"/broken\">Broken</a>\n<a href=\"/vector\">Vector</a>\n<a href=\"/junk\">Junk</a>\n<a href=\"/plain\">Plain</a>\n</body>\n</html>\n"
+  },
+  "https://og.test/broken": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Broken Card Page</title>\n<link rel=\"icon\" href=\"/favicon.ico\">\n<meta property=\"og:title\" content=\"Broken Card Page\">\n<meta property=\"og:image\" content=\"https://og.test/missing.png\">\n<meta property=\"og:image:width\" content=\"1200\">\n<meta property=\"og:image:height\" content=\"630\">\n<meta property=\"og:url\" content=\"https://og.test/broken\">\n</head>\n<body><h1>Broken card</h1><a href=\"/\">Home</a></body>\n</html>\n"
+  },
+  "https://og.test/vector": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Vector Card Page</title>\n<link rel=\"icon\" href=\"/favicon.ico\">\n<meta property=\"og:title\" content=\"Vector Card Page\">\n<meta property=\"og:description\" content=\"A card whose image is a vector, which no social network will render.\">\n<meta property=\"og:image\" content=\"https://og.test/card.svg\">\n<meta property=\"og:image:width\" content=\"1200\">\n<meta property=\"og:image:height\" content=\"630\">\n<meta property=\"og:url\" content=\"https://og.test/vector\">\n<meta property=\"og:type\" content=\"website\">\n</head>\n<body><h1>Vector card</h1><a href=\"/\">Home</a></body>\n</html>\n"
+  },
+  "https://og.test/junk": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Junk Card Page</title>\n<link rel=\"icon\" href=\"/favicon.ico\">\n<meta property=\"og:title\" content=\"Junk Card Page\">\n<meta property=\"og:description\" content=\"A card whose image url answers 200 with something that is not an image.\">\n<meta property=\"og:image\" content=\"https://og.test/card.png\">\n<meta property=\"og:image:width\" content=\"1200\">\n<meta property=\"og:image:height\" content=\"630\">\n<meta property=\"og:url\" content=\"https://og.test/junk\">\n<meta property=\"og:type\" content=\"website\">\n</head>\n<body><h1>Junk card</h1><a href=\"/\">Home</a></body>\n</html>\n"
+  },
+  "https://og.test/plain": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>No Social Card Here</title>\n<meta name=\"description\" content=\"A page with no Open Graph tags at all, and no Twitter card either.\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n</head>\n<body><h1>No social card</h1><a href=\"/\">Home</a></body>\n</html>\n"
+  },
+  "https://og.test/small.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAlgAAAE7CAYAAAA="
+  },
+  "https://og.test/small-alternate.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAlgAAAE7CAYAAAA="
+  },
+  "https://og.test/missing.png": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "Not found"
+  },
+  "https://og.test/card.svg": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/svg+xml"
+    },
+    "body": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1200 630\"></svg>"
+  },
+  "https://og.test/card.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "dGhpcyBpcyBhIHRleHQgZmlsZSB3aXRoIGEgcG5nIGV4dGVuc2lvbg=="
+  },
+  "https://og.test/favicon.ico": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/x-icon"
+    },
+    "bodyBase64": "AAABAAEAICAAAAEAIAAAAAAAFgAAAA=="
+  },
+  "https://og.test/robots.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "nope"
+  }
+}

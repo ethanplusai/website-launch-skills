@@ -11,12 +11,13 @@ export function tmpDir(name) {
 }
 
 // Builds a `net` (compatible with net.mjs's createNet() shape, as far as `get`/`map` go) from a
-// plain object of `{ "<absolute url>": { status, headers?, body?, finalUrl?, chain? } }`
+// plain object of `{ "<absolute url>": { status, headers?, body?, bodyBase64?, finalUrl?, chain? } }`
 // recordings. Every response is shaped like a real net.get() result: `finalUrl` defaults to the
 // requested url and `chain` defaults to `[]`, but a recording may override either to express a
 // redirect; headers are lowercased, and an unknown url comes back as a `status: 0, error: 'not
 // recorded'` miss rather than throwing, so a fixture gap shows up as a failing assertion instead
-// of a crash.
+// of a crash. `bodyBase64` is how a fixture records a binary response — an image, say — and it
+// arrives as `bodyBytes`, the Uint8Array net.get() hands back for a non-text content type.
 export function recordedNet(fixture) {
   const entries = new Map(Object.entries(fixture))
 
@@ -36,11 +37,12 @@ export function recordedNet(fixture) {
     }
     const status = rec.status
     const body = rec.body ?? null
+    const bodyBytes = rec.bodyBase64 === undefined ? null : Uint8Array.from(Buffer.from(rec.bodyBase64, 'base64'))
     return {
       url, finalUrl: rec.finalUrl ?? url, status, ok: status >= 200 && status < 300,
-      headers: lowerHeaders(rec.headers), body, bodyBytes: null,
+      headers: lowerHeaders(rec.headers), body, bodyBytes,
       chain: rec.chain ?? [], error: null, timedOut: false,
-      bytes: typeof body === 'string' ? body.length : 0, truncated: false,
+      bytes: typeof body === 'string' ? body.length : (bodyBytes?.length ?? 0), truncated: false,
     }
   }
 
