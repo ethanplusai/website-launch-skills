@@ -43,9 +43,9 @@ test('full head reports body structure, image details, iframes, and scripts', ()
     src: 'https://x.test/a.png', alt: 'A', width: 10, height: 10,
     loading: 'lazy', fetchpriority: null, inPicture: false, srcset: null,
   })
-  assert.deepEqual(p.iframes, [{ src: 'https://x.test/e', title: 'Embed' }])
+  assert.deepEqual(p.iframes, [{ src: 'https://x.test/e', title: 'Embed', inForm: false }])
   assert.equal(p.scripts.length, 1)
-  assert.deepEqual(p.scripts[0], { src: 'https://x.test/app.js', inline: false, defer: true, async: false, type: null, inHead: false })
+  assert.deepEqual(p.scripts[0], { src: 'https://x.test/app.js', inline: false, defer: true, async: false, type: null, inHead: false, inForm: false })
   assert.ok(p.text.includes('A paragraph of visible copy.'))
   assert.equal(p.metaOutsideHead, 0)
   assert.deepEqual(p.duplicateIds, [])
@@ -211,6 +211,7 @@ test('links keep rel, target, and collapsed text', () => {
   const p = parseHtml('<a href="/a" rel="NOFOLLOW noopener" target="_blank">  Read   more </a>', 'https://x.test/')
   assert.deepEqual(p.links[0], {
     href: 'https://x.test/a', text: 'Read more', rel: 'nofollow noopener', target: '_blank', internal: true, scheme: 'https',
+    ariaLabel: null,
   })
 })
 
@@ -481,4 +482,57 @@ test('an explicit head is unaffected by the implied one', () => {
   assert.equal(p.metaOutsideHead, 1)
   assert.equal(p.head.metaCounts.get('name:description'), 1)
   assert.equal(p.head.metaByName.get('description'), 'in')
+})
+
+// --------------------------------------------------------- additions for the forms, images and
+// links dimensions: a wrapping label must reach the control it actually names, a <video> has to be
+// visible at all, and an embed has to say whether it sits inside a form.
+
+test('a wrapping label skips a hidden input and names the control that needs a name', () => {
+  const p = parseHtml('<form><label><input type="hidden" name="x"><input type="checkbox" name="x"> Subscribe</label></form>', 'https://x.test/')
+  const [hidden, checkbox] = p.forms[0].inputs
+  assert.equal(hidden.needsLabel, false)
+  assert.equal(checkbox.needsLabel, true)
+  assert.equal(checkbox.labelled, true)
+})
+
+test('a wrapping label still stops at the first control that does need a name', () => {
+  const p = parseHtml('<form><label><input name="a"><input name="b"> Both</label></form>', 'https://x.test/')
+  assert.deepEqual(p.forms[0].inputs.map((i) => [i.name, i.labelled]), [['a', true], ['b', false]])
+})
+
+test('form controls keep their value, which is where a placeholder form id hides', () => {
+  const p = parseHtml('<form><input type="hidden" name="form-id" value="your-form-id"><input name="email"></form>', 'https://x.test/')
+  assert.deepEqual(p.forms[0].inputs.map((i) => i.value), ['your-form-id', null])
+})
+
+test('anchors keep aria-label, so an icon link with an accessible name is not an empty one', () => {
+  const p = parseHtml('<a href="/a" aria-label="Home"></a><a href="/b"></a>', 'https://x.test/')
+  assert.deepEqual(p.links.map((l) => l.ariaLabel), ['Home', null])
+})
+
+test('iframes and scripts report whether they sit inside a form', () => {
+  const p = parseHtml(
+    '<form action="/x"><iframe src="/embed" title="Form"></iframe><script src="/embed.js"></script></form><iframe src="/other"></iframe><script src="/app.js"></script>',
+    'https://x.test/',
+  )
+  assert.deepEqual(p.iframes.map((f) => [f.src, f.inForm]), [['https://x.test/embed', true], ['https://x.test/other', false]])
+  assert.deepEqual(p.scripts.map((s) => [s.src, s.inForm]), [['https://x.test/embed.js', true], ['https://x.test/app.js', false]])
+})
+
+test('videos report their source, autoplay, muted, preload and whether they carry a track', () => {
+  const p = parseHtml(
+    '<video src="/loud.mp4" autoplay preload="auto"></video>' +
+    '<video muted autoplay><source src="/quiet.webm" type="video/webm"><track kind="captions" src="/c.vtt"></video>',
+    'https://x.test/',
+  )
+  assert.deepEqual(p.videos, [
+    { src: 'https://x.test/loud.mp4', autoplay: true, muted: false, hasTrack: false, preload: 'auto' },
+    { src: 'https://x.test/quiet.webm', autoplay: true, muted: true, hasTrack: true, preload: null },
+  ])
+})
+
+test('a video inside inert content is not reported', () => {
+  const p = parseHtml('<template><video src="/a.mp4" autoplay></video></template>', 'https://x.test/')
+  assert.deepEqual(p.videos, [])
 })

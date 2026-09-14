@@ -25,6 +25,10 @@
 //   `needsLabel: false`, so `inputs.filter((i) => !i.labelled)` is exactly the violation list.
 // - `forms[].inputs` is form-scoped: controls outside a `<form>` are not reported. `hasCaptcha` is
 //   page-scoped, since captcha widgets are routinely mounted outside the form they guard.
+// - `iframes` and `scripts` carry `inForm`, and `forms[].inputs` carry `value`, because a form
+//   embed and a placeholder form id are both invisible without them. `videos` reports the source a
+//   browser would play (the `src` attribute, else the first nested `<source>`), whether it
+//   autoplays unmuted, and whether any `<track>` is present.
 // - `head.links` collects every `<link>` in the document, wherever it was written, because a
 //   canonical or icon injected into the body is exactly the kind of mistake a check wants to see.
 // - Inert content is not collected: `images`, `links`, `forms`, form controls, `iframes` and
@@ -142,7 +146,7 @@ export function parseHtml(html, baseUrl) {
       links: [], canonical: null, canonicalCount: 0, robots: null, base: null,
     },
     headings: [], h1Count: 0,
-    images: [], links: [], forms: [], jsonld: [], scripts: [], iframes: [],
+    images: [], links: [], forms: [], jsonld: [], scripts: [], iframes: [], videos: [],
     text: '',
     metaOutsideHead: 0, duplicateIds: [], hasMain: false, landmarks: [], skipLink: false,
     tabindexPositive: 0, autofocus: 0,
@@ -164,6 +168,7 @@ export function parseHtml(html, baseUrl) {
   let inHead = true
   let labelPending = false
   let pictureDepth = 0
+  const videoStack = []
   let currentScript = null
 
   // `from` only ever moves forward, so one memo per needle makes every lookup amortized O(1):
@@ -253,12 +258,6 @@ export function parseHtml(html, baseUrl) {
   }
 
   function recordControl(tag, attrs) {
-    // A wrapping label names the first labelable control it contains and then stops.
-    const wrapped = labelPending
-    labelPending = false
-    if (suppressStack.length > 0) return
-    const form = formStack.length > 0 ? formStack[formStack.length - 1] : null
-    if (!form) return
     let type
     if (tag === 'input') type = lowerOrNull(attrs.type) ?? 'text'
     else if (tag === 'button') type = lowerOrNull(attrs.type) ?? 'submit'
@@ -266,12 +265,23 @@ export function parseHtml(html, baseUrl) {
     const style = attrs.style ?? ''
     const atHidden =
       attrs['aria-hidden'] === 'true' || 'hidden' in attrs || HIDDEN_STYLE.test(style)
+    const needsLabel = !NO_LABEL_TYPES.has(type) && !atHidden
+    // A wrapping label names the first *labelable* control it contains and then stops. A control
+    // that needs no name — a hidden input, a submit button, a honeypot — is not labelable, so it
+    // neither takes the name nor swallows it: `<label><input type="hidden"><input type="checkbox">
+    // Subscribe</label>` names the checkbox, which is what a browser does.
+    const wrapped = labelPending && needsLabel
+    if (wrapped) labelPending = false
+    if (suppressStack.length > 0) return
+    const form = formStack.length > 0 ? formStack[formStack.length - 1] : null
+    if (!form) return
     const control = {
       type,
       name: attrs.name ?? null,
       id: attrs.id ?? null,
+      value: attrs.value ?? null,
       labelled: false,
-      needsLabel: !NO_LABEL_TYPES.has(type) && !atHidden,
+      needsLabel,
       required: 'required' in attrs,
     }
     const named =
@@ -341,6 +351,7 @@ export function parseHtml(html, baseUrl) {
         const link = {
           href: attrs.href, text: '', rel: attrs.rel === undefined ? null : collapse(attrs.rel).toLowerCase(),
           target: attrs.target ?? null, internal: false, scheme: 'other',
+          ariaLabel: attrs['aria-label'] ?? null,
         }
         page.links.push(link)
         anchorMeta.push({ link, raw: attrs.href, cls: attrs.class ?? '' })
@@ -366,8 +377,31 @@ export function parseHtml(html, baseUrl) {
         if (!selfClosing) pictureDepth++
         break
       case 'iframe':
-        if (!inert) page.iframes.push({ src: attrs.src ?? null, title: attrs.title ?? null })
+        if (!inert) page.iframes.push({ src: attrs.src ?? null, title: attrs.title ?? null, inForm: formStack.length > 0 })
         break
+      case 'video': {
+        if (inert) break
+        const video = {
+          src: attrs.src ?? null,
+          autoplay: 'autoplay' in attrs,
+          muted: 'muted' in attrs,
+          hasTrack: false,
+          preload: lowerOrNull(attrs.preload),
+        }
+        page.videos.push(video)
+        if (!selfClosing) videoStack.push(video)
+        break
+      }
+      case 'source': {
+        const video = videoStack.length > 0 ? videoStack[videoStack.length - 1] : null
+        if (video !== null && video.src === null && attrs.src !== undefined) video.src = attrs.src
+        break
+      }
+      case 'track': {
+        const video = videoStack.length > 0 ? videoStack[videoStack.length - 1] : null
+        if (video !== null) video.hasTrack = true
+        break
+      }
       case 'script': {
         const script = {
           src: attrs.src ?? null,
@@ -376,6 +410,7 @@ export function parseHtml(html, baseUrl) {
           async: 'async' in attrs,
           type: lowerOrNull(attrs.type),
           inHead,
+          inForm: formStack.length > 0,
         }
         page.scripts.push(script)
         currentScript = script
@@ -417,6 +452,7 @@ export function parseHtml(html, baseUrl) {
     if (name === 'head' || name === 'body') inHead = false
     if (name === 'label' || name === 'form' || name === 'fieldset') labelPending = false
     if (name === 'picture' && pictureDepth > 0) pictureDepth--
+    if (name === 'video' && videoStack.length > 0) videoStack.pop()
     if (name === 'form' && formStack.length > 0) formStack.pop()
     closeCapture(name)
   }
@@ -537,6 +573,7 @@ export function parseHtml(html, baseUrl) {
   for (const link of page.head.links) link.href = resolve(link.href, effectiveBase)
   for (const image of page.images) image.src = resolve(image.src, effectiveBase)
   for (const frame of page.iframes) frame.src = resolve(frame.src, effectiveBase)
+  for (const video of page.videos) video.src = resolve(video.src, effectiveBase)
   for (const script of page.scripts) script.src = resolve(script.src, effectiveBase)
   for (const form of page.forms) form.action = resolve(form.action, effectiveBase)
   for (const { link, raw } of anchorMeta) {

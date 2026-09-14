@@ -241,3 +241,92 @@ test('buildAuditContext records a head asset that does not answer rather than dr
   const ctx = await buildAuditContext(net, createDns({}), { url: 'https://icons.test/', random: () => 'deadbeef' })
   assert.equal(ctx.probes.headAssets.get('https://icons.test/favicon.ico').status, 0)
 })
+
+// ------------------------------------------------------------------ link, image and embed probes
+// Everything a check in the links, images or forms dimension needs a response for is fetched here,
+// once, deduped and capped, so those checks stay pure over the context.
+
+const htmlPage = (body) => ({
+  status: 200,
+  headers: { 'content-type': 'text/html; charset=utf-8' },
+  body: `<!doctype html><html lang="en"><head><title>A page title</title></head><body>${body}</body></html>`,
+})
+const ok = (type) => ({ status: 200, headers: { 'content-type': type } })
+
+async function probeCtx(fixture, url = 'https://probe.test/') {
+  const net = recordedNet(fixture)
+  const asked = []
+  const get = net.get
+  net.get = (u) => { asked.push(`GET ${u}`); return get(u) }
+  net.head = (u) => { asked.push(`HEAD ${u}`); return get(u) }
+  net.cert = async () => ({ valid: true, altNames: ['probe.test'], daysLeft: 90, error: null })
+  const ctx = await buildAuditContext(net, createDns({}), { url, random: () => 'deadbeef' })
+  return { ctx, asked }
+}
+
+test('buildAuditContext probes every off-origin link once, with HEAD', async () => {
+  const { ctx, asked } = await probeCtx({
+    'https://probe.test/': htmlPage('<a href="/two">Two</a> <a href="https://out.test/a">A</a> <a href="mailto:x@y.test">Mail</a>'),
+    'https://probe.test/two': htmlPage('<a href="https://out.test/a">A again</a> <a href="https://out.test/b">B</a>'),
+    'https://out.test/a': ok('text/html'),
+    'https://out.test/b': { status: 404, headers: {} },
+  })
+  assert.deepEqual([...ctx.probes.externals.keys()].sort(), ['https://out.test/a', 'https://out.test/b'])
+  assert.equal(ctx.probes.externals.get('https://out.test/b').status, 404)
+  assert.equal(asked.filter((a) => a === 'HEAD https://out.test/a').length, 1)
+  assert.equal(asked.filter((a) => a.endsWith('mailto:x@y.test')).length, 0)
+})
+
+test('buildAuditContext probes every image and srcset candidate once, with GET', async () => {
+  const { ctx, asked } = await probeCtx({
+    'https://probe.test/': htmlPage(
+      '<img src="/a.png" alt="A" srcset="/a.png 1x, /a@2x.png 2x"><img src="https://cdn.test/b.jpg" alt="B"><a href="/two">Two</a>',
+    ),
+    'https://probe.test/two': htmlPage('<img src="/a.png" alt="A again">'),
+    'https://probe.test/a.png': ok('image/png'),
+    'https://probe.test/a@2x.png': ok('image/png'),
+    'https://cdn.test/b.jpg': ok('image/jpeg'),
+  })
+  assert.deepEqual([...ctx.probes.images.keys()].sort(), [
+    'https://cdn.test/b.jpg',
+    'https://probe.test/a.png',
+    'https://probe.test/a@2x.png',
+  ])
+  assert.equal(asked.filter((a) => a === 'GET https://probe.test/a.png').length, 1)
+})
+
+test('buildAuditContext probes form embeds: anything inside a form, and known form hosts anywhere', async () => {
+  const { ctx } = await probeCtx({
+    'https://probe.test/': htmlPage(
+      '<form action="/x"><iframe src="https://embed.test/frame" title="F"></iframe></form>' +
+      '<script src="https://js.hsforms.net/forms/embed/v2.js"></script>' +
+      '<script src="/app.js"></script><iframe src="https://video.test/v"></iframe>',
+    ),
+    'https://embed.test/frame': ok('text/html'),
+    'https://js.hsforms.net/forms/embed/v2.js': { status: 404, headers: {} },
+  })
+  assert.deepEqual([...ctx.probes.embeds.keys()].sort(), [
+    'https://embed.test/frame',
+    'https://js.hsforms.net/forms/embed/v2.js',
+  ])
+  assert.equal(ctx.probes.embeds.get('https://js.hsforms.net/forms/embed/v2.js').status, 404)
+})
+
+test('buildAuditContext records every probe cap, and what each one dropped', async () => {
+  const { ctx } = await probeCtx({ 'https://probe.test/': htmlPage('<p>Nothing to probe.</p>') })
+  assert.deepEqual(ctx.probes.caps, {
+    externals: { cap: 200, dropped: 0 },
+    images: { cap: 300, dropped: 0 },
+    embeds: { cap: 50, dropped: 0 },
+    headAssets: { cap: 100, dropped: 0 },
+  })
+})
+
+test('a probe set past its cap drops the overflow and says how much it dropped', async () => {
+  const links = Array.from({ length: 205 }, (_, i) => `<a href="https://out.test/${i}">L${i}</a>`).join('')
+  const fixture = { 'https://probe.test/': htmlPage(links) }
+  for (let i = 0; i < 205; i++) fixture[`https://out.test/${i}`] = ok('text/html')
+  const { ctx } = await probeCtx(fixture)
+  assert.equal(ctx.probes.externals.size, 200)
+  assert.equal(ctx.probes.caps.externals.dropped, 5)
+})

@@ -16,7 +16,16 @@
 //   7. static asset sample — up to two stylesheets, scripts and images the crawl actually saw
 //   8. head assets         — every og:image, icon, apple-touch-icon and manifest url the crawled
 //                            pages declare, deduped across the whole crawl and fetched once each
-//   9. cert                — net.cert(host)
+//   9. externals           — every off-origin link the crawl saw, HEADed once each
+//  10. images              — every <img src> and srcset candidate, GET (the bytes are the evidence)
+//  11. embeds              — the iframes and scripts that could be a form: inside a <form>, or on a
+//                            host that exists to host forms
+//  12. cert                — net.cert(host)
+//
+// Every one of those probe sets is capped, and every cap is recorded in `ctx.probes.caps` as
+// `{cap, dropped}` so the report's mandatory "Not covered" section can say what the audit did not
+// look at instead of implying it looked at everything. A url past a cap is simply absent from its
+// map, and a check that cannot see a response says nothing rather than guessing.
 //
 // The 404 probe's random suffix comes from `options.random`, which defaults to crypto randomness;
 // tests pin it (`random: () => 'deadbeef'`) so a recorded fixture can hold that exact path. Time
@@ -57,6 +66,74 @@ const HEAD_ASSET_LIMIT = 100
 const HEAD_ASSET_RELS = ['icon', 'apple-touch-icon', 'manifest']
 const HEAD_ASSET_META = ['og:image', 'og:image:secure_url']
 
+// An external link set is the crawl's own external link map, so it grows with the site's outbound
+// links rather than its pages; 200 covers an ordinary site's footer, partner list and citations.
+const EXTERNAL_LIMIT = 200
+// Images are per page rather than per site, so this is the one set that a large crawl really can
+// fill. Fetched with GET because the checks weigh the bytes and hash them.
+const IMAGE_LIMIT = 300
+// Form embeds are a handful on any site that has them at all.
+const EMBED_LIMIT = 50
+
+// Hosts that exist to host forms and booking widgets. A script or iframe from one of these is a
+// form even when it is mounted outside the <form> it replaces, which is how most of them work.
+const FORM_EMBED_HOSTS = [
+  'hsforms.net', 'hubspot.com', 'typeform.com', 'jotform.com', 'formstack.com', 'cognitoforms.com',
+  'gravityforms', 'wufoo.com', 'tally.so', 'formspree.io', 'netlify', 'getform.io', 'basin.com',
+  'formcarry.com', 'mailchimp.com', 'list-manage.com', 'calendly.com', 'acuityscheduling.com',
+]
+
+// A needle with a dot is a registrable host, matched as itself or as a parent of the host seen
+// (`js.hsforms.net` is `hsforms.net`). A needle without one is a product name that appears inside
+// whatever host that product happens to use, and is matched as a substring on purpose.
+const isFormEmbedHost = (host) => FORM_EMBED_HOSTS.some((needle) => (
+  needle.includes('.') ? host === needle || host.endsWith(`.${needle}`) : host.includes(needle)
+))
+
+// Absolute http(s) urls only, deduped, in discovery order. Everything a probe set collects goes
+// through this: a data: icon, a mailto: link and a relative url that would not resolve all have no
+// response to fetch, so none of them belongs in a map of responses.
+function urlCollector() {
+  const urls = new Set()
+  return {
+    add(href) {
+      if (typeof href !== 'string' || href === '') return
+      let parsed
+      try {
+        parsed = new URL(href)
+      } catch {
+        return
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
+      urls.add(parsed.href)
+    },
+    all: () => [...urls],
+  }
+}
+
+// Apply a cap, and say what it cost. The pair is what `probes.caps` reports.
+function capped(urls, cap) {
+  return { urls: urls.slice(0, cap), caps: { cap, dropped: Math.max(0, urls.length - cap) } }
+}
+
+// The candidate urls in a srcset, which is a comma-separated list whose entries are `url` followed
+// by an optional descriptor. Split tolerantly: a url containing a comma (a data: uri, a query with
+// a list) is not one of the http(s) urls this collects, so the simple split never loses one.
+function srcsetUrls(srcset, base) {
+  if (typeof srcset !== 'string' || srcset.trim() === '') return []
+  const out = []
+  for (const candidate of srcset.split(',')) {
+    const url = candidate.trim().split(/\s+/)[0]
+    if (url === undefined || url === '') continue
+    try {
+      out.push(new URL(url, base).href)
+    } catch {
+      // A candidate that does not resolve is markup to fix, not a url to fetch.
+    }
+  }
+  return out
+}
+
 function sampleAssets(assets, origin) {
   const picked = []
   for (const kind of ['styles', 'scripts', 'images']) {
@@ -84,28 +161,71 @@ function sampleAssets(assets, origin) {
 // not declare; `page.head.links` and the og meta values are already absolute by the time they get
 // here, and anything that is not http(s) (a data: icon, say) has no response to fetch.
 function headAssetUrls(crawl) {
-  const urls = new Set()
-  const add = (href) => {
-    if (typeof href !== 'string' || href === '' || urls.size >= HEAD_ASSET_LIMIT) return
-    let parsed
-    try {
-      parsed = new URL(href)
-    } catch {
-      return
-    }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
-    urls.add(parsed.href)
-  }
+  const collector = urlCollector()
   for (const entry of crawl.pages) {
     if (entry.page === null) continue
-    for (const key of HEAD_ASSET_META) add(entry.page.head.metaByProperty.get(key))
+    for (const key of HEAD_ASSET_META) collector.add(entry.page.head.metaByProperty.get(key))
     for (const link of entry.page.head.links) {
       if (link.rel === null) continue
       const rels = link.rel.split(/\s+/)
-      if (rels.some((rel) => HEAD_ASSET_RELS.some((wanted) => rel.includes(wanted)))) add(link.href)
+      if (rels.some((rel) => HEAD_ASSET_RELS.some((wanted) => rel.includes(wanted)))) collector.add(link.href)
     }
   }
-  return [...urls]
+  return collector.all()
+}
+
+// Every image a fetched page displays: the `src` a browser falls back to, and every candidate in a
+// `srcset`, since a responsive image usually serves one of those and never the fallback. Relative
+// candidates resolve against the page's own base, the way html.mjs already resolved `src`.
+function imageUrls(crawl) {
+  const collector = urlCollector()
+  for (const entry of crawl.pages) {
+    if (entry.page === null) continue
+    const base = entry.page.head.base ?? entry.finalUrl ?? entry.url
+    for (const image of entry.page.images) {
+      collector.add(image.src)
+      for (const candidate of srcsetUrls(image.srcset, base)) collector.add(candidate)
+    }
+  }
+  return collector.all()
+}
+
+// The embeds that could be a form: an iframe or an external script written inside a <form>, plus
+// anything from a host that exists to host forms, wherever it sits on the page. A same-origin
+// script outside a form is the site's own bundle, not an embed, and is left alone.
+function embedUrls(crawl) {
+  const collector = urlCollector()
+  for (const entry of crawl.pages) {
+    if (entry.page === null) continue
+    let origin = null
+    try {
+      origin = new URL(entry.finalUrl ?? entry.url).origin
+    } catch {
+      origin = null
+    }
+    const consider = (src, { requireOffOrigin }) => {
+      if (typeof src !== 'string' || src === '') return false
+      let parsed
+      try {
+        parsed = new URL(src)
+      } catch {
+        return false
+      }
+      if (requireOffOrigin && parsed.origin === origin) return false
+      return true
+    }
+    for (const frame of entry.page.iframes) {
+      if (frame.src === null) continue
+      if (!consider(frame.src, { requireOffOrigin: false })) continue
+      if (frame.inForm || isFormEmbedHost(new URL(frame.src).hostname.toLowerCase())) collector.add(frame.src)
+    }
+    for (const script of entry.page.scripts) {
+      if (script.src === null) continue
+      if (!consider(script.src, { requireOffOrigin: true })) continue
+      if (script.inForm || isFormEmbedHost(new URL(script.src).hostname.toLowerCase())) collector.add(script.src)
+    }
+  }
+  return collector.all()
 }
 
 export async function buildAuditContext(net, dns, options = {}) {
@@ -189,9 +309,27 @@ export async function buildAuditContext(net, dns, options = {}) {
 
   // 8. every head asset the crawl saw, fetched once each. net.get rather than net.head, because
   // the og:image checks read the response bytes to measure the image.
-  const headAssetList = headAssetUrls(crawl)
-  const headAssetResponses = await net.map(headAssetList, (assetUrl) => net.get(assetUrl))
-  const headAssets = new Map(headAssetList.map((assetUrl, i) => [assetUrl, headAssetResponses[i]]))
+  const headAssetPick = capped(headAssetUrls(crawl), HEAD_ASSET_LIMIT)
+  const headAssetResponses = await net.map(headAssetPick.urls, (assetUrl) => net.get(assetUrl))
+  const headAssets = new Map(headAssetPick.urls.map((assetUrl, i) => [assetUrl, headAssetResponses[i]]))
+
+  // 9. every off-origin link the crawl saw. HEAD, because a link check only needs the status, and
+  // net.head already falls back to GET on a server that refuses the method.
+  const externalPick = capped([...crawl.externalLinks.keys()], EXTERNAL_LIMIT)
+  const externalResponses = await net.map(externalPick.urls, fetchAsset)
+  const externals = new Map(externalPick.urls.map((linkUrl, i) => [linkUrl, externalResponses[i]]))
+
+  // 10. every image a fetched page displays. GET, because the bytes are the evidence: the size an
+  // image weighs and the hash that proves two pages ship the same file.
+  const imagePick = capped(imageUrls(crawl), IMAGE_LIMIT)
+  const imageResponses = await net.map(imagePick.urls, (imageUrl) => net.get(imageUrl))
+  const images = new Map(imagePick.urls.map((imageUrl, i) => [imageUrl, imageResponses[i]]))
+
+  // 11. the form embeds. GET, because a form host that answers 200 with an error page is a broken
+  // form, and the body is what says so.
+  const embedPick = capped(embedUrls(crawl), EMBED_LIMIT)
+  const embedResponses = await net.map(embedPick.urls, (embedUrl) => net.get(embedUrl))
+  const embeds = new Map(embedPick.urls.map((embedUrl, i) => [embedUrl, embedResponses[i]]))
 
   const probes = {
     httpRoot: at(variantUrls[0]),
@@ -203,9 +341,18 @@ export async function buildAuditContext(net, dns, options = {}) {
     llmsTxt: at(llmsUrl),
     assets,
     headAssets,
+    externals,
+    images,
+    embeds,
+    caps: {
+      externals: externalPick.caps,
+      images: imagePick.caps,
+      embeds: embedPick.caps,
+      headAssets: headAssetPick.caps,
+    },
   }
 
-  // 9. cert
+  // 12. cert
   const cert = typeof net.cert === 'function' ? await net.cert(host) : null
 
   return { target, crawl, robots, sitemaps, probes, cert, dns, net, options, now }
