@@ -19,3 +19,8 @@ test('SkipCheck is an Error with a reason property', () => {
   assert.equal(skip.reason, 'no predecessor url')
   assert.ok(skip instanceof Error)
 })
+test('add() rejects hand-built checks without defineCheck', () => {
+  const r = createRegistry()
+  const fakeCheck = { id: 'evil.fake', phase: 'launch-audit', dimension: 'evil', severity: 'high', tier: 'http', title: 't', catches: 'c', run: () => [], mk: () => {} }
+  assert.throws(() => r.add(fakeCheck), /defineCheck/)
+})

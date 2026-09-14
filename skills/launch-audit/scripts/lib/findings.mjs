@@ -12,7 +12,7 @@ export function finding(input) {
     if (!EVIDENCE_TYPES.includes(e?.type)) throw new FindingError(`unknown evidence type "${e?.type}"`)
     if (e.value === undefined || e.value === null || e.value === '') throw new FindingError('evidence.value is required')
   }
-  return Object.freeze({ page: null, ...input, evidence: input.evidence.map((e) => ({ ...e })) })
+  return Object.freeze({ page: null, ...input, evidence: Object.freeze(input.evidence.map((e) => Object.freeze({ ...e }))) })
 }
 export function validateFinding(f, knownIds) {
   const errors = []

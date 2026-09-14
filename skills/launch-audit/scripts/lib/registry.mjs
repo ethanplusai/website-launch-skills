@@ -1,5 +1,6 @@
 import { finding, SEVERITIES, TIERS } from './findings.mjs'
 const ID = /^[a-z0-9-]+\.[a-z0-9-]+$/
+const CHECK = Symbol('website-launch.check')
 export class SkipCheck extends Error {
   constructor(reason) {
     super(reason)
@@ -16,12 +17,13 @@ export function defineCheck(def) {
   if (!TIERS.includes(def.tier)) throw new Error(`check tier "${def.tier}"`)
   const check = { ...def }
   check.mk = (o) => finding({ id: def.id, phase: def.phase, dimension: def.dimension, severity: def.severity, tier: def.tier, ...o })
+  check[CHECK] = true
   return Object.freeze(check)
 }
 export function createRegistry() {
   const map = new Map()
   return {
-    add(c) { if (!c.mk) throw new Error('add() takes a defineCheck() result'); if (map.has(c.id)) throw new Error(`duplicate check id ${c.id}`); map.set(c.id, c); return c },
+    add(c) { if (c?.[CHECK] !== true) throw new Error('add() takes a defineCheck() result'); if (map.has(c.id)) throw new Error(`duplicate check id ${c.id}`); map.set(c.id, c); return c },
     list: () => [...map.values()],
     byPhase: (p) => [...map.values()].filter((c) => c.phase === p),
     ids: () => new Set(map.keys()),

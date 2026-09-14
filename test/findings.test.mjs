@@ -17,3 +17,15 @@ test('sortFindings orders by severity then dimension then page', () => {
   assert.deepEqual(sortFindings([a, b, c]).map((f) => f.page), [b.page, c.page, a.page])
   assert.deepEqual(SEVERITIES, ['blocker', 'high', 'medium', 'low', 'info'])
 })
+test('evidence array is frozen', () => {
+  const f = finding(base)
+  assert.throws(() => { f.evidence.push({ type: 'text', value: 'x' }) }, /TypeError/)
+})
+test('evidence items are frozen', () => {
+  const f = finding(base)
+  assert.throws(() => { f.evidence[0].value = 'y' }, /TypeError/)
+})
+test('finding object is frozen', () => {
+  const f = finding(base)
+  assert.throws(() => { f.severity = 'low' }, /TypeError/)
+})
