@@ -1,0 +1,23 @@
+{
+  "https://forms.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://forms.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Six forms, six different problems</title>\n</head>\n<body>\n<main>\n<form>\n<input type=\"email\" name=\"email\">\n<button type=\"submit\">Sign up</button>\n</form>\n\n<form action=\"http://localhost:4000/submit\" method=\"post\">\n<label for=\"b-email\">Email</label><input id=\"b-email\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n\n<form action=\"https://formspree.io/f/your-form-id\" method=\"post\">\n<label for=\"c-email\">Email</label><input id=\"c-email\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n\n<form action=\"javascript:submitIt()\">\n<label for=\"d-name\">Name</label><input id=\"d-name\" name=\"name\">\n<input type=\"hidden\" name=\"endpoint\" value=\"https://formspree.io/f/xxxxxx\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Go</button>\n</form>\n\n<form action=\"/contact\" method=\"post\">\n<label for=\"e-email\">Email</label><input id=\"e-email\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<iframe src=\"https://js.hsforms.net/embed/booking.html\" title=\"Booking\"></iframe>\n<button type=\"submit\">Send</button>\n</form>\n\n<form action=\"#\">\n<label for=\"f-note\">Note</label><input id=\"f-note\" name=\"note\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Leave a note</button>\n</form>\n</main>\n</body>\n</html>\n"
+  },
+  "https://js.hsforms.net/embed/booking.html": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  }
+}

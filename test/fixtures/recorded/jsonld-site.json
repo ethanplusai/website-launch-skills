@@ -1,0 +1,44 @@
+{
+  "https://ld.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Structured Data Home</title>\n<meta name=\"description\" content=\"A structured-data fixture page, long enough that no length check has anything to say.\">\n<link rel=\"canonical\" href=\"https://ld.test/\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n\n<script type=\"application/ld+json\">{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Ld Test\"}</script>\n<script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"name\":\"Ld Test\",}</script>\n</head>\n<body><h1>Structured Data Home</h1><a href=\"/urls\">Urls</a><a href=\"/hidden\">Hidden</a><a href=\"/\">Home</a></body>\n</html>\n"
+  },
+  "https://ld.test/urls": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Structured Data Urls</title>\n<meta name=\"description\" content=\"A structured-data fixture page, long enough that no length check has anything to say.\">\n<link rel=\"canonical\" href=\"https://ld.test/urls\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n\n<script type=\"application/ld+json\">{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Ld Test\", \"url\": \"https://ld.test/gone\", \"logo\": \"https://elsewhere.test/logo.png\"}</script>\n</head>\n<body><h1>Structured Data Urls</h1><a href=\"/gone\">Gone</a><a href=\"/\">Home</a></body>\n</html>\n"
+  },
+  "https://ld.test/hidden": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Structured Data Hidden</title>\n<meta name=\"description\" content=\"A structured-data fixture page, long enough that no length check has anything to say.\">\n<link rel=\"canonical\" href=\"https://ld.test/hidden\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n<meta name=\"robots\" content=\"noindex, nofollow\">\n<script type=\"application/ld+json\">{\"@context\": \"https://schema.org\", \"@graph\": [{\"@type\": \"WebSite\", \"name\": \"Ld Test\", \"url\": \"https://ld.test/\"}, {\"@type\": \"BreadcrumbList\", \"itemListElement\": [{\"@type\": \"ListItem\", \"position\": 1, \"name\": \"Home\"}]}]}</script>\n</head>\n<body><h1>Structured Data Hidden</h1><a href=\"/\">Home</a></body>\n</html>\n"
+  },
+  "https://ld.test/gone": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html><html><head><title>Gone</title></head><body>Not found</body></html>"
+  },
+  "https://ld.test/favicon.ico": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/x-icon"
+    },
+    "bodyBase64": "AAABAAEAICAAAAEAIAAAAAAAFgAAAA=="
+  },
+  "https://ld.test/robots.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "nope"
+  }
+}

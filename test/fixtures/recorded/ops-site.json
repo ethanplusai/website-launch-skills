@@ -1,0 +1,37 @@
+{
+  "https://ops.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://ops.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>The roastery</title>\n</head>\n<body>\n<main>\n<h1>The roastery</h1>\n<a href=\"/about\">About the roastery</a>\n<a href=\"/contact\">Contact</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://ops.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the roastery</title>\n</head>\n<body>\n<main>\n<h1>About the roastery</h1>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://ops.test/contact": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Contact</title>\n</head>\n<body>\n<main>\n<h1>Contact</h1>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://ops.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  }
+}

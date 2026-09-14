@@ -1,0 +1,484 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpDir } from './helpers.mjs'
+import { finding } from '../skills/launch-audit/scripts/lib/findings.mjs'
+import { buildNotCovered, renderReport, writeBundle, resolveOutDir } from '../skills/launch-audit/scripts/lib/report.mjs'
+
+const summary = { pages: 3, blockers: 1, high: 1, medium: 0, low: 0, info: 0 }
+
+function f(overrides) {
+  return finding({
+    id: 'head.title-missing', phase: 'launch-audit', dimension: 'head', severity: 'high', tier: 'http',
+    title: 'Missing <title>', detail: 'No title element', page: 'https://x.test/',
+    evidence: [{ type: 'url', value: 'https://x.test/' }], fix: 'Add a <title>',
+    ...overrides,
+  })
+}
+
+// --- buildNotCovered ---
+
+test('buildNotCovered always ends with the two fixed lines', () => {
+  const lines = buildNotCovered({})
+  assert.deepEqual(lines.slice(-2), [
+    'Copy vs. source documents: not run (no source of truth reachable)',
+    'Pages vs. agreed scope: not run (no scope source reachable)',
+  ])
+})
+
+test('buildNotCovered collapses dropped urls into one line per reason, with the count and the cap', () => {
+  const lines = buildNotCovered({
+    dropped: [
+      { url: 'https://x.test/a', reason: 'max-pages', cap: 200 },
+      { url: 'https://x.test/b', reason: 'robots' },
+      { url: 'https://x.test/c', reason: 'max-pages', cap: 200 },
+      { url: 'https://other.test/d', reason: 'off-origin' },
+    ],
+  })
+  assert.deepEqual(lines.slice(0, 3), [
+    'Dropped by max-pages: 2 urls not fetched (cap 200) — all listed in crawl.json under "dropped"; first 20: https://x.test/a, https://x.test/c',
+    'Dropped by robots: 1 url not fetched — all listed in crawl.json under "dropped"; first 20: https://x.test/b',
+    'Off-origin sitemap entry not fetched: 1 url — all listed in crawl.json under "dropped"; first 20: https://other.test/d',
+  ])
+})
+
+// I2: a 200-page cap on a 1000-page site used to print 800 lines into the section a person is
+// told to read verbatim, which is how a coverage list stops being read.
+test('buildNotCovered stays one line per reason at 800 drops and lists only the first 20', () => {
+  const dropped = Array.from({ length: 800 }, (_, i) => ({
+    url: `https://big.test/p${i}`, reason: i % 2 === 0 ? 'max-pages' : 'max-depth', cap: i % 2 === 0 ? 200 : 4,
+  }))
+  const lines = buildNotCovered({ dropped })
+  const dropLines = lines.filter((line) => line.startsWith('Dropped by'))
+  assert.equal(dropLines.length, 2)
+  assert.match(dropLines[0], /^Dropped by max-pages: 400 urls not fetched \(cap 200\) — all listed in crawl\.json under "dropped"; first 20: /)
+  assert.match(dropLines[1], /^Dropped by max-depth: 400 urls not fetched \(cap 4\) — /)
+  assert.equal(dropLines[0].split('first 20: ')[1].split(', ').length, 20)
+  assert.ok(!dropLines[0].includes('https://big.test/p40,'), 'the 21st url must not be listed')
+
+  const report = renderReport({
+    phase: 'launch-audit',
+    target: 'https://big.test/',
+    generatedAt: '2026-09-14T00:00:00.000Z',
+    findings: [],
+    notCovered: lines,
+    summary: { pages: 200, blockers: 0, high: 0, medium: 0, low: 0, info: 0 },
+  })
+  assert.ok(report.split('\n').length < 300, `report was ${report.split('\n').length} lines`)
+})
+
+// Two orchestrators feed this section and both of them append; a line that arrives from two
+// sources is one fact, and printing it twice makes the section look longer than it is.
+test('buildNotCovered de-duplicates repeated lines', () => {
+  const lines = buildNotCovered({
+    skipped: [
+      { check: 'perf.lcp', reason: 'browser tier unavailable' },
+      { check: 'perf.lcp', reason: 'browser tier unavailable' },
+    ],
+    unverifiableExternals: ['https://ext.test/', 'https://ext.test/'],
+  })
+  assert.equal(lines.filter((l) => l === 'perf.lcp: skipped — browser tier unavailable').length, 1)
+  assert.equal(lines.filter((l) => l.includes('https://ext.test/')).length, 1)
+})
+
+test('buildNotCovered reports browser tier, skipped checks, unverifiable externals, ignored robots, and PSI in order', () => {
+  const lines = buildNotCovered({
+    browserAvailable: false,
+    browserReason: 'no chrome binary found',
+    skipped: [{ check: 'perf.lcp', reason: 'browser tier unavailable' }],
+    unverifiableExternals: ['https://ext.test/'],
+    ignoredRobots: true,
+    psiSkipped: 'no API key',
+  })
+  assert.deepEqual(lines, [
+    'Browser tier not run: no chrome binary found',
+    'perf.lcp: skipped — browser tier unavailable',
+    'External link could not be verified (not a failure): https://ext.test/',
+    'robots.txt was ignored for crawl scope (--ignore-robots)',
+    'PageSpeed Insights: skipped — no API key',
+    'Copy vs. source documents: not run (no source of truth reachable)',
+    'Pages vs. agreed scope: not run (no scope source reachable)',
+  ])
+})
+
+// --- renderReport ---
+
+test('renderReport contains ## Not covered with the fixed lines even with zero findings', () => {
+  const notCovered = buildNotCovered({})
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings: [], notCovered, summary })
+  assert.match(md, /## Not covered/)
+  assert.match(md, /Copy vs\. source documents: not run \(no source of truth reachable\)/)
+  assert.match(md, /Pages vs\. agreed scope: not run \(no scope source reachable\)/)
+  assert.match(md, /## Findings\n\n_No findings\._/)
+})
+
+test('renderReport groups findings by dimension in first-seen order, severity order within a dimension', () => {
+  const findings = [
+    f({ severity: 'high', dimension: 'a', title: 'a-high' }),
+    f({ severity: 'blocker', dimension: 'b', title: 'b-blocker' }),
+    f({ severity: 'medium', dimension: 'a', title: 'a-medium' }),
+  ]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  const dimA = md.indexOf('## a')
+  const dimB = md.indexOf('## b')
+  assert.ok(dimA !== -1 && dimB !== -1)
+  assert.ok(dimB < dimA, 'dimension b appears first because its only finding is a blocker, ranked before a\'s high')
+  const highIdx = md.indexOf('a-high')
+  const mediumIdx = md.indexOf('a-medium')
+  assert.ok(highIdx < mediumIdx, 'within dimension a, high must render before medium')
+})
+
+test('renderReport renders page, detail, evidence lines, and fix for a finding', () => {
+  const findings = [f({ evidence: [{ type: 'url', value: 'https://x.test/' }, { type: 'html', value: '<title></title>' }] })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /### \[high\] Missing <title>/)
+  assert.match(md, /- Page: https:\/\/x\.test\//)
+  assert.match(md, /- Detail: No title element/)
+  assert.match(md, /- Evidence:\n {2}- url: https:\/\/x\.test\/\n {2}- html: <title><\/title>/)
+  assert.match(md, /- Fix: Add a <title>/)
+})
+
+test('renderReport prints site-wide for a finding with no page', () => {
+  const findings = [f({ page: null })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /- Page: site-wide/)
+})
+
+test('renderReport renders Ops & access readiness with auto-verified and human tags', () => {
+  const ops = [{ label: 'DNS records handed off', autoVerifiedBy: 'dns.records' }, { label: 'Client has admin access', autoVerifiedBy: null }]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings: [], notCovered: [], ops, summary })
+  assert.match(md, /## Ops & access readiness/)
+  assert.match(md, /- \[auto-verified by dns\.records\] DNS records handed off/)
+  assert.match(md, /- \[human\] Client has admin access/)
+})
+
+test('renderReport omits Ops & access readiness when ops is not given', () => {
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings: [], notCovered: [], summary })
+  assert.doesNotMatch(md, /Ops & access readiness/)
+})
+
+test('renderReport includes the summary table with all six columns', () => {
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings: [], notCovered: [], summary })
+  assert.match(md, /\| Pages \| Blockers \| High \| Medium \| Low \| Info \|/)
+  assert.match(md, /\| 3 \| 1 \| 1 \| 0 \| 0 \| 0 \|/)
+})
+
+test('renderReport H1 names phase and target', () => {
+  const md = renderReport({ phase: 'pre-launch', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings: [], notCovered: [], summary })
+  assert.match(md, /^# Launch pre-launch report — https:\/\/x\.test\//)
+})
+
+// --- markdown injection safety ---
+
+test('renderReport collapses embedded newlines so a finding title cannot inject a fake heading', () => {
+  const findings = [f({ dimension: 'seo', title: 'Evil\n## Fake Section\n### [blocker] Injected' })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  const h2Lines = md.split('\n').filter((l) => /^## /.test(l))
+  const h3Lines = md.split('\n').filter((l) => /^### /.test(l))
+  assert.deepEqual(h2Lines, ['## seo', '## Not covered'], `expected only the dimension and the always-present Not covered heading, got: ${JSON.stringify(h2Lines)}`)
+  assert.equal(h3Lines.length, 1, `expected exactly one real ### heading (the finding), got: ${JSON.stringify(h3Lines)}`)
+  assert.doesNotMatch(md, /^## Fake Section$/m)
+  assert.match(md, /Evil ## Fake Section ### \[blocker\] Injected/)
+})
+
+test('renderReport escapes a leading markdown block character in interpolated text', () => {
+  const findings = [f({ detail: '- not actually a list item', fix: '> not actually a quote' })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /- Detail: \\- not actually a list item/)
+  assert.match(md, /- Fix: \\> not actually a quote/)
+})
+
+test('renderReport escapes backtick runs anywhere in interpolated text', () => {
+  const findings = [f({ fix: 'Run `npm test` to verify' })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /- Fix: Run \\`npm test\\` to verify/)
+})
+
+test('renderReport neutralizes a not-covered line and a dimension heading the same way', () => {
+  const findings = [f({ dimension: '# hijacked' })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: ['# also hijacked'], summary })
+  assert.match(md, /## \\# hijacked/)
+  assert.match(md, /- \\# also hijacked/)
+})
+
+// --- evidence value formatting ---
+
+test('renderReport renders a structured evidence value as single-line JSON', () => {
+  const findings = [f({ evidence: [{ type: 'metric', value: { lcp: 4200 } }] })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /- metric: \{"lcp":4200\}/)
+})
+
+test('renderReport renders number and boolean evidence values via String()', () => {
+  const findings = [f({ evidence: [{ type: 'metric', value: 4200 }, { type: 'text', value: true }] })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /- metric: 4200/)
+  assert.match(md, /- text: true/)
+})
+
+test('renderReport renders a null or undefined evidence value as (none)', () => {
+  // Built directly rather than via finding() — finding() itself rejects an empty/null evidence
+  // value, but renderReport only reads the shape, so this still exercises formatValue's fallback.
+  const bare = { id: 'x.y', phase: 'launch-audit', dimension: 'x', severity: 'info', tier: 'http', title: 't', detail: 'd', page: null, evidence: [{ type: 'text', value: null }, { type: 'text', value: undefined }], fix: 'f' }
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings: [bare], notCovered: [], summary })
+  const noneLines = md.split('\n').filter((l) => l.trim() === '- text: (none)')
+  assert.equal(noneLines.length, 2)
+})
+
+// --- resolveOutDir ---
+
+test('resolveOutDir returns `out` verbatim when given', () => {
+  const p = resolveOutDir({ out: '/explicit/path', slug: 'x-test', phase: 'audit', now: new Date('2026-03-05T00:00:00Z'), cwd: '/cwd' })
+  assert.equal(p, '/explicit/path')
+})
+
+test('resolveOutDir builds a path under cwd from slug, phase, and the UTC date', () => {
+  const p = resolveOutDir({ out: undefined, slug: 'x-test', phase: 'audit', now: new Date('2026-03-05T23:30:00Z'), cwd: '/cwd' })
+  assert.equal(p, join('/cwd', 'website-launch', 'x-test-audit-2026-03-05'))
+})
+
+test('resolveOutDir depends on cwd', () => {
+  const now = new Date('2026-03-05T00:00:00Z')
+  const a = resolveOutDir({ slug: 's', phase: 'p', now, cwd: '/one' })
+  const b = resolveOutDir({ slug: 's', phase: 'p', now, cwd: '/two' })
+  assert.notEqual(a, b)
+})
+
+// --- writeBundle ---
+
+test('writeBundle writes the expected files into an output directory it creates', () => {
+  const { dir, cleanup } = tmpDir('report-bundle')
+  try {
+    const outDir = join(dir, 'nested', 'out')
+    const crawl = {
+      pages: [{ url: 'https://x.test/', status: 200, finalUrl: 'https://x.test/', depth: 0, source: 'crawl', title: 'Home', page: { fake: true }, response: { fake: true } }],
+      dropped: [{ url: 'https://x.test/gone', reason: 'max-depth' }],
+      orphans: [],
+      unlisted: [],
+      assets: { images: new Set(['https://x.test/a.png']), scripts: new Set(), styles: new Set() },
+      externalLinks: new Map([['https://ext.test/', ['https://x.test/']]]),
+      internalLinks: new Map(),
+    }
+    const findings = [f({})]
+    const baseline = { generatedAt: '2026-01-01T00:00:00.000Z', host: 'x.test', pages: [] }
+    const { files } = writeBundle(outDir, {
+      report: '# report\n', findings, crawl, baseline, redirectsCsv: 'from,to\n', extra: [{ name: 'notes.txt', content: 'hi' }],
+    })
+
+    for (const name of ['report.md', 'findings.json', 'crawl.json', 'baseline.json', 'redirects.csv', 'notes.txt']) {
+      assert.ok(existsSync(join(outDir, name)), `expected ${name} to exist`)
+      assert.ok(files.includes(join(outDir, name)), `expected files[] to include ${name}`)
+    }
+    assert.ok(files.every((p) => p.startsWith(outDir)))
+
+    const crawlJson = JSON.parse(readFileSync(join(outDir, 'crawl.json'), 'utf8'))
+    assert.deepEqual(crawlJson.pages, [{ url: 'https://x.test/', status: 200, finalUrl: 'https://x.test/', depth: 0, source: 'crawl', title: 'Home' }])
+    assert.deepEqual(crawlJson.assets.images, ['https://x.test/a.png'])
+    assert.deepEqual(crawlJson.externalLinks, { 'https://ext.test/': ['https://x.test/'] })
+    assert.deepEqual(crawlJson.dropped, [{ url: 'https://x.test/gone', reason: 'max-depth' }])
+
+    const findingsJson = JSON.parse(readFileSync(join(outDir, 'findings.json'), 'utf8'))
+    assert.equal(findingsJson.length, 1)
+    assert.equal(findingsJson[0].id, 'head.title-missing')
+
+    assert.equal(readFileSync(join(outDir, 'report.md'), 'utf8'), '# report\n')
+  } finally {
+    cleanup()
+  }
+})
+
+test('writeBundle omits redirects.csv when not given', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-no-redirects')
+  try {
+    const outDir = join(dir, 'out')
+    const crawl = { pages: [], dropped: [], orphans: [], unlisted: [], assets: { images: new Set(), scripts: new Set(), styles: new Set() }, externalLinks: new Map(), internalLinks: new Map() }
+    const { files } = writeBundle(outDir, { report: '# r\n', findings: [], crawl, baseline: {} })
+    assert.ok(!files.some((p) => p.endsWith('redirects.csv')))
+    assert.ok(!existsSync(join(outDir, 'redirects.csv')))
+  } finally {
+    cleanup()
+  }
+})
+
+test('writeBundle writes a manifest.json listing exactly this run\'s files, as its last file', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-manifest')
+  try {
+    const outDir = join(dir, 'out')
+    const { files } = writeBundle(outDir, { report: '# r\n', findings: [], crawl: emptyCrawl(), baseline: {}, redirectsCsv: 'a,b\n' })
+    assert.equal(files[files.length - 1], join(outDir, 'manifest.json'))
+    const manifest = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.deepEqual([...manifest.files].sort(), ['baseline.json', 'crawl.json', 'findings.json', 'redirects.csv', 'report.md'])
+    assert.equal(typeof manifest.generatedAt, 'string')
+  } finally {
+    cleanup()
+  }
+})
+
+// --- writeBundle: stale-artifact cleanup on rerun ---
+
+function emptyCrawl() {
+  return { pages: [], dropped: [], orphans: [], unlisted: [], assets: { images: new Set(), scripts: new Set(), styles: new Set() }, externalLinks: new Map(), internalLinks: new Map() }
+}
+
+test('writeBundle deletes files a prior run into the same outDir produced but this run does not rewrite', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-stale')
+  try {
+    const outDir = join(dir, 'out')
+    writeBundle(outDir, {
+      report: '# run1\n', findings: [], crawl: emptyCrawl(), baseline: {},
+      redirectsCsv: 'from,to\n', extra: [{ name: 'notes.txt', content: 'hi' }],
+    })
+    assert.ok(existsSync(join(outDir, 'redirects.csv')))
+    assert.ok(existsSync(join(outDir, 'notes.txt')))
+
+    const { files } = writeBundle(outDir, { report: '# run2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+
+    assert.ok(!existsSync(join(outDir, 'redirects.csv')), 'stale redirects.csv from run 1 should be gone')
+    assert.ok(!existsSync(join(outDir, 'notes.txt')), 'stale notes.txt from run 1 should be gone')
+    assert.equal(readFileSync(join(outDir, 'report.md'), 'utf8'), '# run2\n')
+    assert.ok(existsSync(join(outDir, 'findings.json')))
+    assert.ok(existsSync(join(outDir, 'crawl.json')))
+    assert.ok(existsSync(join(outDir, 'baseline.json')))
+
+    const manifest = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.deepEqual([...manifest.files].sort(), ['baseline.json', 'crawl.json', 'findings.json', 'report.md'])
+    assert.ok(files.includes(join(outDir, 'manifest.json')))
+  } finally {
+    cleanup()
+  }
+})
+
+test('writeBundle never deletes a file that was not named in a prior manifest', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-user-file')
+  try {
+    const outDir = join(dir, 'out')
+    writeBundle(outDir, { report: '# run1\n', findings: [], crawl: emptyCrawl(), baseline: {}, redirectsCsv: 'a,b\n' })
+
+    writeFileSync(join(outDir, 'mine.txt'), 'do not delete me')
+
+    writeBundle(outDir, { report: '# run2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+
+    assert.ok(existsSync(join(outDir, 'mine.txt')))
+    assert.equal(readFileSync(join(outDir, 'mine.txt'), 'utf8'), 'do not delete me')
+  } finally {
+    cleanup()
+  }
+})
+
+// --- writeBundle: extras filed into a subdirectory ---
+
+test('writeBundle files an extra whose name holds a slash into a subdirectory of the bundle', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-subdir')
+  try {
+    const outDir = join(dir, 'out')
+    const { files } = writeBundle(outDir, {
+      report: '# r\n',
+      findings: [],
+      crawl: emptyCrawl(),
+      baseline: {},
+      extra: [
+        { name: 'lighthouse/home-mobile.json', content: '{"score":95}\n' },
+        { name: 'lighthouse/home-desktop.json', content: '{"score":99}\n' },
+      ],
+    })
+
+    for (const name of ['lighthouse/home-mobile.json', 'lighthouse/home-desktop.json']) {
+      const path = join(outDir, ...name.split('/'))
+      assert.ok(existsSync(path), `expected ${name} to exist`)
+      assert.ok(files.includes(path), `expected files[] to include ${name}`)
+    }
+    assert.equal(readFileSync(join(outDir, 'lighthouse', 'home-mobile.json'), 'utf8'), '{"score":95}\n')
+
+    const manifest = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.ok(manifest.files.includes('lighthouse/home-mobile.json'))
+    assert.ok(manifest.files.includes('lighthouse/home-desktop.json'))
+  } finally {
+    cleanup()
+  }
+})
+
+test('writeBundle deletes a stale extra out of a subdirectory on a rerun', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-subdir-stale')
+  try {
+    const outDir = join(dir, 'out')
+    writeBundle(outDir, {
+      report: '# run1\n', findings: [], crawl: emptyCrawl(), baseline: {},
+      extra: [{ name: 'lighthouse/home-mobile.json', content: '{}\n' }],
+    })
+    assert.ok(existsSync(join(outDir, 'lighthouse', 'home-mobile.json')))
+
+    writeBundle(outDir, { report: '# run2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+    assert.ok(!existsSync(join(outDir, 'lighthouse', 'home-mobile.json')), 'the stale lighthouse file should be gone')
+  } finally {
+    cleanup()
+  }
+})
+
+test('writeBundle refuses an extra name that would escape the bundle, before writing anything', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-escape')
+  try {
+    const outDir = join(dir, 'out')
+    assert.throws(
+      () => writeBundle(outDir, {
+        report: '# r\n', findings: [], crawl: emptyCrawl(), baseline: {},
+        extra: [{ name: '../escaped.json', content: '{}\n' }],
+      }),
+      /not a name inside the bundle/,
+    )
+    assert.ok(!existsSync(join(outDir, 'report.md')), 'nothing is written when an extra name is refused')
+    assert.ok(!existsSync(join(dir, 'escaped.json')))
+  } finally {
+    cleanup()
+  }
+})
+
+// --- writeBundle: files the run wrote through another hand ---
+//
+// From the smoke run: the browser tier writes its screenshots straight into the bundle, so they
+// appeared in neither the manifest nor the stale-file sweep. A manifest that does not list what
+// the run produced is the same lie as a silent cap, and a rerun of a shrinking site left the old
+// pages' screenshots sitting in the bundle for a reader to open as if they were this run's.
+test('writeBundle lists files written by another hand, and sweeps them when a rerun does not', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-alsowritten')
+  try {
+    const outDir = join(dir, 'out')
+    mkdirSync(join(outDir, 'screenshots', 'x-test'), { recursive: true })
+    writeFileSync(join(outDir, 'screenshots', 'x-test', 'mobile.png'), 'png')
+    writeBundle(outDir, {
+      report: '# run1\n', findings: [], crawl: emptyCrawl(), baseline: {},
+      alsoWritten: ['screenshots/x-test/mobile.png'],
+    })
+    const first = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.ok(first.files.includes('screenshots/x-test/mobile.png'), 'the manifest must name the screenshot')
+
+    writeBundle(outDir, { report: '# run2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+    assert.ok(!existsSync(join(outDir, 'screenshots', 'x-test', 'mobile.png')), 'a stale screenshot should be swept')
+    assert.ok(!existsSync(join(outDir, 'screenshots', 'x-test')), 'and the directory it emptied should go too')
+    const second = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.ok(!second.files.some((name) => name.startsWith('screenshots/')))
+  } finally {
+    cleanup()
+  }
+})
+
+// --out is whatever the person typed. `./bundle`, or a path with a `.` segment in the middle, gets
+// normalised by join() on the way to the file but not on the way into the prefix test — which is
+// how the first version of the empty-directory sweep quietly did nothing on every real run.
+test('writeBundle sweeps emptied subdirectories however the out directory was spelled', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-outdir-spelling')
+  try {
+    const outDir = join(dir, '.', 'out', '.')
+    mkdirSync(join(dir, 'out', 'shots'), { recursive: true })
+    writeFileSync(join(dir, 'out', 'shots', 'a.png'), 'png')
+    writeBundle(outDir, {
+      report: '# r\n', findings: [], crawl: emptyCrawl(), baseline: {}, alsoWritten: ['shots/a.png'],
+    })
+    writeBundle(outDir, { report: '# r2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+    assert.ok(!existsSync(join(dir, 'out', 'shots', 'a.png')))
+    assert.ok(!existsSync(join(dir, 'out', 'shots')), 'the emptied directory should be gone')
+    assert.ok(existsSync(join(dir, 'out', 'report.md')), 'the bundle itself stays')
+  } finally {
+    cleanup()
+  }
+})

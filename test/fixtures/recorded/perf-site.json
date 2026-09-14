@@ -1,0 +1,75 @@
+{
+  "https://perf.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://perf.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>The press</title>\n<link rel=\"stylesheet\" href=\"/s.css\">\n<script src=\"/blocking.js\"></script>\n<script src=\"/app.js\" defer></script>\n<style>\n@font-face { font-family: \"Ledger\"; src: url(/ledger.woff2) format(\"woff2\"); }\nbody { font-family: Ledger, serif; }\n</style>\n</head>\n<body>\n<main>\n<h1>The press</h1>\n<img src=\"/hero.webp\" alt=\"The press room\">\n<p>We print books.</p>\n<script src=\"https://cdn.other.test/a.js\"></script>\n<script src=\"https://tags.vendor.test/b.js\"></script>\n<a href=\"/weight\">A heavy page</a>\n<a href=\"/many\">A page with many pictures</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://perf.test/weight": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>A heavy page</title>\n\n</head>\n<body>\n<main>\n<h1>A heavy page</h1>\n<img src=\"/huge.png\" alt=\"A very large scan\" fetchpriority=\"high\">\n<script src=\"/w.js\" defer></script>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://perf.test/many": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>A page with many pictures</title>\n\n</head>\n<body>\n<main>\n<h1>A page with many pictures</h1>\n<img src=\"/i0.png\" alt=\"Plate 0\" fetchpriority=\"high\">\n<img src=\"/i1.png\" alt=\"Plate 1\">\n<img src=\"/i2.png\" alt=\"Plate 2\">\n<img src=\"/i3.png\" alt=\"Plate 3\">\n<img src=\"/i4.png\" alt=\"Plate 4\">\n<img src=\"/i5.png\" alt=\"Plate 5\">\n<img src=\"/i6.png\" alt=\"Plate 6\">\n<img src=\"/i7.png\" alt=\"Plate 7\">\n<img src=\"/i8.png\" alt=\"Plate 8\">\n<img src=\"/i9.png\" alt=\"Plate 9\">\n<img src=\"/i10.png\" alt=\"Plate 10\">\n<img src=\"/i11.png\" alt=\"Plate 11\">\n<img src=\"/i12.png\" alt=\"Plate 12\">\n<img src=\"/i13.png\" alt=\"Plate 13\">\n<img src=\"/i14.png\" alt=\"Plate 14\">\n<img src=\"/i15.png\" alt=\"Plate 15\">\n<img src=\"/i16.png\" alt=\"Plate 16\">\n<img src=\"/i17.png\" alt=\"Plate 17\">\n<img src=\"/i18.png\" alt=\"Plate 18\">\n<img src=\"/i19.png\" alt=\"Plate 19\">\n<img src=\"/i20.png\" alt=\"Plate 20\">\n<img src=\"/i21.png\" alt=\"Plate 21\">\n<img src=\"/i22.png\" alt=\"Plate 22\">\n<img src=\"/i23.png\" alt=\"Plate 23\">\n<img src=\"/i24.png\" alt=\"Plate 24\">\n<img src=\"/i25.png\" alt=\"Plate 25\">\n<img src=\"/i26.png\" alt=\"Plate 26\">\n<img src=\"/i27.png\" alt=\"Plate 27\">\n<img src=\"/i28.png\" alt=\"Plate 28\">\n<img src=\"/i29.png\" alt=\"Plate 29\">\n<img src=\"/i30.png\" alt=\"Plate 30\">\n<img src=\"/i31.png\" alt=\"Plate 31\">\n<img src=\"/i32.png\" alt=\"Plate 32\">\n<img src=\"/i33.png\" alt=\"Plate 33\">\n<img src=\"/i34.png\" alt=\"Plate 34\">\n<img src=\"/i35.png\" alt=\"Plate 35\">\n<img src=\"/i36.png\" alt=\"Plate 36\">\n<img src=\"/i37.png\" alt=\"Plate 37\">\n<img src=\"/i38.png\" alt=\"Plate 38\">\n<img src=\"/i39.png\" alt=\"Plate 39\">\n<img src=\"/i40.png\" alt=\"Plate 40\">\n<img src=\"/i41.png\" alt=\"Plate 41\">\n<img src=\"/i42.png\" alt=\"Plate 42\">\n<img src=\"/i43.png\" alt=\"Plate 43\">\n<img src=\"/i44.png\" alt=\"Plate 44\">\n<img src=\"/i45.png\" alt=\"Plate 45\">\n<img src=\"/i46.png\" alt=\"Plate 46\">\n<img src=\"/i47.png\" alt=\"Plate 47\">\n<img src=\"/i48.png\" alt=\"Plate 48\">\n<img src=\"/i49.png\" alt=\"Plate 49\">\n<img src=\"/i50.png\" alt=\"Plate 50\">\n<img src=\"/i51.png\" alt=\"Plate 51\">\n<img src=\"/i52.png\" alt=\"Plate 52\">\n<img src=\"/i53.png\" alt=\"Plate 53\">\n<img src=\"/i54.png\" alt=\"Plate 54\">\n<img src=\"/i55.png\" alt=\"Plate 55\">\n<img src=\"/i56.png\" alt=\"Plate 56\">\n<img src=\"/i57.png\" alt=\"Plate 57\">\n<img src=\"/i58.png\" alt=\"Plate 58\">\n<img src=\"/i59.png\" alt=\"Plate 59\">\n<img src=\"/i60.png\" alt=\"Plate 60\">\n<img src=\"/i61.png\" alt=\"Plate 61\">\n<img src=\"/i62.png\" alt=\"Plate 62\">\n<img src=\"/i63.png\" alt=\"Plate 63\">\n<img src=\"/i64.png\" alt=\"Plate 64\">\n<img src=\"/i65.png\" alt=\"Plate 65\">\n<img src=\"/i66.png\" alt=\"Plate 66\">\n<img src=\"/i67.png\" alt=\"Plate 67\">\n<img src=\"/i68.png\" alt=\"Plate 68\">\n<img src=\"/i69.png\" alt=\"Plate 69\">\n<img src=\"/i70.png\" alt=\"Plate 70\">\n<img src=\"/i71.png\" alt=\"Plate 71\">\n<img src=\"/i72.png\" alt=\"Plate 72\">\n<img src=\"/i73.png\" alt=\"Plate 73\">\n<img src=\"/i74.png\" alt=\"Plate 74\">\n<img src=\"/i75.png\" alt=\"Plate 75\">\n<img src=\"/i76.png\" alt=\"Plate 76\">\n<img src=\"/i77.png\" alt=\"Plate 77\">\n<img src=\"/i78.png\" alt=\"Plate 78\">\n<img src=\"/i79.png\" alt=\"Plate 79\">\n<img src=\"/i80.png\" alt=\"Plate 80\">\n<img src=\"/i81.png\" alt=\"Plate 81\">\n<img src=\"/i82.png\" alt=\"Plate 82\">\n<img src=\"/i83.png\" alt=\"Plate 83\">\n<img src=\"/i84.png\" alt=\"Plate 84\">\n<img src=\"/i85.png\" alt=\"Plate 85\">\n<img src=\"/i86.png\" alt=\"Plate 86\">\n<img src=\"/i87.png\" alt=\"Plate 87\">\n<img src=\"/i88.png\" alt=\"Plate 88\">\n<img src=\"/i89.png\" alt=\"Plate 89\">\n<img src=\"/i90.png\" alt=\"Plate 90\">\n<img src=\"/i91.png\" alt=\"Plate 91\">\n<img src=\"/i92.png\" alt=\"Plate 92\">\n<img src=\"/i93.png\" alt=\"Plate 93\">\n<img src=\"/i94.png\" alt=\"Plate 94\">\n<img src=\"/i95.png\" alt=\"Plate 95\">\n<img src=\"/i96.png\" alt=\"Plate 96\">\n<img src=\"/i97.png\" alt=\"Plate 97\">\n<img src=\"/i98.png\" alt=\"Plate 98\">\n<img src=\"/i99.png\" alt=\"Plate 99\">\n<img src=\"/i100.png\" alt=\"Plate 100\">\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://perf.test/s.css": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/css",
+      "content-length": "220"
+    },
+    "body": "@font-face { font-family: \"Quire\"; src: url(/quire.woff2) format(\"woff2\"); }\n.page { max-width: 60rem; }\n"
+  },
+  "https://perf.test/blocking.js": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/javascript",
+      "content-length": "12000"
+    }
+  },
+  "https://perf.test/app.js": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/javascript",
+      "content-length": "8000"
+    }
+  },
+  "https://perf.test/hero.webp": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/webp",
+      "content-length": "40000"
+    },
+    "bytes": 40000
+  },
+  "https://perf.test/huge.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png",
+      "content-length": "4000000"
+    },
+    "bytes": 4000000
+  },
+  "https://perf.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  }
+}

@@ -1,9 +1,9 @@
-# website-launch-skill — Design Spec
+# website-launch-skills — Design Spec
 
 **Date:** 2026-09-13
 **Status:** Approved (sections 1–4 reviewed in conversation; 5–8 approved by delegation)
 **Audience:** Public. Anyone launching a website with any coding agent that supports the Agent Skills standard.
-**Repo:** `github.com/ethanplusai/website-launch-skill` (MIT)
+**Repo:** `github.com/ethanplusai/website-launch-skills` (MIT)
 
 ## 1. What this is
 
@@ -35,7 +35,7 @@ The public checklists (Front-End Checklist's 385 rules, the 2026 agency lists, t
 ## 2. Repository layout
 
 ```
-website-launch-skill/
+website-launch-skills/
 ├── README.md                 # what it is, install for any agent, the three phases, honesty rules
 ├── AGENTS.md                 # orientation for agents that read it
 ├── LICENSE                   # MIT
@@ -261,7 +261,11 @@ Emits a dated plan and re-runs the cutover checks plus a light audit on demand. 
 
 ## 7. Documentation and references
 
-- `docs/checks.md` — generated from the registry. Columns: id, phase, dimension, severity, tier, title, what it catches, source. A test compares the generated output to the committed file.
+- `docs/checks.md` — generated from the registry. Columns: id, severity, tier, title, what it catches;
+  phase and dimension are the headings a row sits under rather than columns repeated on every row.
+  There is no `source` column: a check's source is the module it is defined in, which the id already
+  names, and a path column would be a second place for it to drift from. A test compares the generated
+  output to the committed file.
 - `docs/sources.md` — attribution: Front-End Checklist (thedaviddias), MarketingPipeline and greghub launch checklists, OWASP Secure Headers Project (vendored JSON, fetch date), Google Search Central, the llms.txt proposal, the Agent Skills specification, and the 2026 launch/SEO/post-launch lists that contributed items. Each with what was taken.
 - Each `references/*.md` in a skill answers: what the finding means, why it matters at launch specifically, how to fix it on common stacks, and what it does not tell you.
 - README documents installation for: Claude Code (`/plugin marketplace add`), Codex / Copilot / Cursor / Gemini CLI / others (clone and point the agent at `skills/`, or copy the three dirs), and manual runs of the scripts without any agent.

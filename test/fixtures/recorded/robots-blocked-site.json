@@ -1,0 +1,17 @@
+{
+  "https://blocked.test/robots.txt": {
+    "status": 200,
+    "headers": { "content-type": "text/plain" },
+    "body": "User-agent: *\nDisallow: /\n"
+  },
+  "https://blocked.test/": {
+    "status": 200,
+    "headers": { "content-type": "text/html; charset=utf-8" },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<title>Blocked Home</title>\n<link rel=\"canonical\" href=\"https://blocked.test/\">\n</head>\n<body>\n<h1>Blocked Home</h1>\n</body>\n</html>\n"
+  },
+  "https://blocked.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": { "content-type": "text/html" },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Not found</title></head><body><h1>Not found</h1><p>No such page.</p></body></html>"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "website-launch-skills",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "gen:checks": "node scripts/gen-checks-doc.mjs"
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "https://capped.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Capped Test Home</title>\n<link rel=\"canonical\" href=\"https://capped.test/\">\n</head>\n<body>\n<main>\n<h1>Capped</h1>\n<img src=\"/img/a.png\" alt=\"a\" width=\"10\" height=\"10\">\n<img src=\"/img/b.png\" alt=\"b\" width=\"10\" height=\"10\">\n<img src=\"/img/c.png\" alt=\"c\" width=\"10\" height=\"10\" loading=\"lazy\">\n<img src=\"/img/d.png\" alt=\"d\" width=\"10\" height=\"10\" loading=\"lazy\">\n</main>\n</body>\n</html>\n"
+  },
+  "https://capped.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nSitemap: https://capped.test/sitemap.xml\n"
+  },
+  "https://capped.test/sitemap.xml": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n<url><loc>https://capped.test/</loc></url>\n</urlset>\n"
+  },
+  "http://capped.test/": {
+    "status": 301,
+    "headers": {
+      "location": "https://capped.test/"
+    },
+    "finalUrl": "https://capped.test/",
+    "chain": [
+      {
+        "url": "http://capped.test/",
+        "status": 301,
+        "location": "https://capped.test/"
+      }
+    ]
+  },
+  "https://www.capped.test/": {
+    "status": 301,
+    "headers": {
+      "location": "https://capped.test/"
+    },
+    "finalUrl": "https://capped.test/",
+    "chain": [
+      {
+        "url": "https://www.capped.test/",
+        "status": 301,
+        "location": "https://capped.test/"
+      }
+    ]
+  },
+  "https://capped.test/llms.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "not found"
+  },
+  "https://capped.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html><html><head><title>Not found</title></head><body><nav><a href=\"/\">Home</a></nav><h1>Not found</h1></body></html>"
+  },
+  "https://capped.test/img/a.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png",
+      "content-length": "95"
+    }
+  },
+  "https://capped.test/img/b.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png",
+      "content-length": "95"
+    }
+  },
+  "https://capped.test/img/c.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png",
+      "content-length": "95"
+    }
+  },
+  "https://capped.test/img/d.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png",
+      "content-length": "95"
+    }
+  }
+}

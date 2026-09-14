@@ -1,4 +1,4 @@
-# website-launch-skill Implementation Plan
+# website-launch-skills Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -13,11 +13,19 @@
 ## Global Constraints
 
 - Node ≥ 20; `package.json` `"engines": {"node": ">=20"}`; zero `dependencies`; zero `devDependencies`.
-- Tests: `node --test "test/**/*.test.mjs"`, no network, no browser, no filesystem writes outside `test/tmp/` (cleaned in `after`).
+- Tests: `node --test "test/**/*.test.mjs"`, no network, no browser, no filesystem writes outside
+  `test/tmp/` (cleaned in `after`) — with one exception: a test whose subject is how a script behaves
+  *outside* this repository (git hygiene answers about the checkout it is run in, so a fixture inside
+  `test/tmp/` is inside this repo's working tree) may write under `os.tmpdir()`, and must clean up the
+  same way.
 - Every script supports `--help` and `--json`; scripts are black boxes to agents.
 - Every `SKILL.md` ≤ 200 lines; frontmatter `name` equals its directory name, ≤ 64 chars, `[a-z0-9-]`, no leading/trailing/double hyphen; `description` 1–1024 chars.
 - No agent-specific paths or variables (no `${CLAUDE_PLUGIN_ROOT}`); script paths in SKILL.md are relative to the skill directory.
-- No vendor names anywhere except `docs/sources.md` and lines tagged `vendor-negative-use`. Banned regex (case-insensitive): `plastix|aesthetix|accessibe|wpengine|Desktop/git|/Users/`.
+- No vendor names anywhere except `docs/sources.md` and lines tagged `vendor-negative-use`. The two
+  real agency and product names are deliberately not written in this file: it is tracked, the scan
+  reads it, and a plan that spells the names out is the leak it was written to prevent.
+  `test/invariants.test.mjs` holds the live list. Banned regex, shape only (case-insensitive):
+  `agencyname|crmname|accessibe|wpengine|Desktop/git|/Users/` <!-- vendor-negative-use -->
 - Every finding carries ≥ 1 evidence item; validation rejects otherwise.
 - `pre-launch` exits 1 on any `fail`; no flag converts a `fail`. `launch-audit` and `post-launch` always exit 0.
 - Every report ends with a `## Not covered` section, even when empty of caps (it then lists the two never-runnable checks).
@@ -73,7 +81,7 @@ docs/checks.md, docs/sources.md, docs/smoke.md
 
 ```json
 {
-  "name": "website-launch-skill",
+  "name": "website-launch-skills",
   "private": true,
   "type": "module",
   "engines": { "node": ">=20" },
@@ -97,9 +105,9 @@ import { join } from 'node:path'
 import { REPO_ROOT } from './helpers.mjs'
 import { walk } from '../skills/launch-audit/scripts/lib/fs-util.mjs'
 
-const VENDOR = /plastix|aesthetix|accessibe|wpengine|Desktop\/git|\/Users\//i // vendor-negative-use
+const VENDOR = /agencyname|crmname|accessibe|wpengine|Desktop\/git|\/Users\//i // vendor-negative-use — shape only; the shipped file names the real ones
 const TAG = 'vendor-negative-use'
-const SKIP = new Set(['node_modules', '.git', 'tmp', 'website-launch'])
+const SKIP = new Set(['node_modules', '.git', 'tmp', 'website-launch', '.superpowers', '.agents'])
 const TEXT = /\.(mjs|md|json|xml|html|css|txt|csv)$/
 
 function offenders() {
@@ -373,7 +381,7 @@ test('a non-numeric value for a number flag is an error', () => { assert.match(p
 - Test: `test/net.test.mjs`
 
 **Interfaces:**
-- `createNet({fetchImpl = globalThis.fetch, tlsConnect = node:tls.connect, timeoutMs = 15000, concurrency = 8, userAgent = 'website-launch-skill/1.0 (+https://github.com/ethanplusai/website-launch-skill)'}) → net`
+- `createNet({fetchImpl = globalThis.fetch, tlsConnect = node:tls.connect, timeoutMs = 15000, concurrency = 8, userAgent = 'website-launch-skills/0.1 (+https://github.com/ethanplusai/website-launch-skills)'}) → net`
 - `net.get(url, {method='GET', maxHops=10, headers={}}) → {url, finalUrl, status, ok, headers: Record<string,string> (lowercased), body: string|null, chain: [{url, status, location}], error: string|null, timedOut: boolean, bytes: number}` — follows redirects **manually** (`redirect: 'manual'`), records each hop; on error/timeout returns a result with `status: 0`.
 - `net.head(url)` — same with HEAD, falls back to GET on 405.
 - `net.map(items, fn)` — bounded concurrency; preserves order; never rejects (errors are values).
@@ -423,7 +431,7 @@ test('cert reports days left and SAN coverage via injected tls', async () => {
 })
 test('headers are lowercased and the user agent is sent', async () => {
   let seenUa; const net = createNet({ fetchImpl: async (u, o) => { seenUa = o.headers['user-agent']; return new Response('', { status: 200, headers: { 'X-Robots-Tag': 'noindex' } }) } })
-  const r = await net.get('https://u.test/'); assert.equal(r.headers['x-robots-tag'], 'noindex'); assert.match(seenUa, /website-launch-skill/)
+  const r = await net.get('https://u.test/'); assert.equal(r.headers['x-robots-tag'], 'noindex'); assert.match(seenUa, /website-launch-skills/)
 })
 ```
 
@@ -731,7 +739,7 @@ test('links are classified internal/external and resolved', () => { const p = pa
 
 - [ ] **Step 1: Write failing tests.**
 - [ ] **Step 2: Run, expect failure.**
-- [ ] **Step 3: Implement the generator and write the docs.** README sections: what it is (three phases, one sentence each) · honesty rules · install for Claude Code (`/plugin marketplace add ethanplusai/website-launch-skill`), for Codex / Copilot / Cursor / Gemini CLI / Goose / others (clone; point the agent at `skills/`, or copy the three directories together), and without any agent (the three commands) · the optional browser tier (`npm i -D playwright axe-core lighthouse && npx playwright install chromium`) · what each phase produces · what it never does · how to contribute a check (register + two fixtures + reference paragraph) · sources. `AGENTS.md`: three paragraphs — the three skills and when to use each, the golden rule, the `Not covered` rule. `marketplace.json`: name `website-launch-skill`, one plugin `website-launch` with `skills: ["./skills/pre-launch","./skills/launch-audit","./skills/post-launch"]`. `docs/sources.md`: attribution list per spec §7. `docs/smoke.md`: the manual real-site smoke procedure and a checklist for reading every finding.
+- [ ] **Step 3: Implement the generator and write the docs.** README sections: what it is (three phases, one sentence each) · honesty rules · install for Claude Code (`/plugin marketplace add ethanplusai/website-launch-skills`), for Codex / Copilot / Cursor / Gemini CLI / Goose / others (clone; point the agent at `skills/`, or copy the three directories together), and without any agent (the three commands) · the optional browser tier (`npm i -D playwright axe-core lighthouse && npx playwright install chromium`) · what each phase produces · what it never does · how to contribute a check (register + two fixtures + reference paragraph) · sources. `AGENTS.md`: three paragraphs — the three skills and when to use each, the golden rule, the `Not covered` rule. `marketplace.json`: name `website-launch-skills`, one plugin `website-launch` with `skills: ["./skills/pre-launch","./skills/launch-audit","./skills/post-launch"]`. `docs/sources.md`: attribution list per spec §7. `docs/smoke.md`: the manual real-site smoke procedure and a checklist for reading every finding.
 - [ ] **Step 4: Run, expect pass** — full `npm test` green.
 - [ ] **Step 5: Commit** — `docs: generated check inventory, sources, README for any agent, marketplace metadata`
 

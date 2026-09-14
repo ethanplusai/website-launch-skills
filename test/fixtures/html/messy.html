@@ -1,0 +1,24 @@
+<!DOCTYPE HTML>
+<HTML LANG=en>
+<HEAD>
+<META CHARSET=utf-8>
+<TITLE>Messy &amp; Unclosed</TITLE>
+</HEAD>
+<BODY>
+<H1 CLASS=title>Messy    page</H1>
+<P>Unclosed paragraph with entities: &nbsp;kept &copy; and &#39;quoted&#39;
+<IMG SRC=x.png ALT="">
+<div id="dup">one</div>
+<span id=dup>two</span>
+<a href=/next tabindex=3>Next</a>
+<META name=generator content="messy">
+<script>
+  var s = "<div>" + '</div>';
+  if (1 < 2) { document.write("<p>scripted</p>") }
+</script>
+<style>.a::after { content: "<b>"; }</style>
+<noscript><p>noscript copy</p></noscript>
+<template><p>template copy</p></template>
+<svg viewBox="0 0 1 1"><title>icon</title><desc>svg copy</desc></svg>
+<textarea>raw <b>not markup</b></textarea>
+</BODY>

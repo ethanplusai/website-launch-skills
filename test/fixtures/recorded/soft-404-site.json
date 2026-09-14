@@ -1,0 +1,30 @@
+{
+  "https://soft.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>Soft</title><link rel=\"canonical\" href=\"https://soft.test/\">\n</head><body><nav><a href=\"/about\">About</a></nav><h1>Soft</h1></body></html>"
+  },
+  "https://soft.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>About</title><link rel=\"canonical\" href=\"https://soft.test/about\"></head><body><h1>About</h1></body></html>"
+  },
+  "https://soft.test/robots.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "nope"
+  },
+  "https://soft.test/this-page-should-not-exist-deadbeef": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Not found</title></head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a> <a href=\"/blog\">Blog</a></nav>\n<h1>Sorry, we could not find that page</h1>\n<p>This server answers every address with a two hundred, which is exactly the problem this fixture exists to demonstrate.</p>\n</body></html>"
+  }
+}

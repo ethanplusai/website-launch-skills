@@ -1,0 +1,16 @@
+{
+  "https://good-forms.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://good-forms.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>One form, wired up properly</title>\n</head>\n<body>\n<main>\n<form action=\"/contact\" method=\"post\">\n<label for=\"name\">Your name</label><input id=\"name\" name=\"name\" required>\n<label for=\"email\">Your email</label><input id=\"email\" type=\"email\" name=\"email\" required>\n<label for=\"message\">What do you need?</label><textarea id=\"message\" name=\"message\"></textarea>\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send the message</button>\n</form>\n</main>\n</body>\n</html>\n"
+  }
+}

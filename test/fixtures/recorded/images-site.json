@@ -1,0 +1,80 @@
+{
+  "https://images.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://images.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Images, every way they go wrong</title>\n</head>\n<body>\n<main>\n<img src=\"/hero.jpg\" alt=\"The bench where every tool is measured\" width=\"1200\" height=\"600\" loading=\"lazy\">\n<img src=\"/two.png\" alt=\"A finished widget\">\n<img src=\"/three.png\">\n<img src=\"/four.png\" alt=\"A jig on the bench\" width=\"400\" height=\"300\">\n<img src=\"/missing.png\" alt=\"A tool that is not there\" width=\"400\" height=\"300\" loading=\"lazy\">\n<img src=\"/big.png\" alt=\"An uncompressed scan\" width=\"400\" height=\"300\" loading=\"lazy\">\n<img src=\"/shared.png\" alt=\"The same file twice\" width=\"400\" height=\"300\" loading=\"lazy\">\n<video src=\"/loud.mp4\" autoplay></video>\n<a href=\"/two\">A second page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://images.test/two": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>A second page with one image</title>\n</head>\n<body>\n<main>\n<picture><img src=\"/shared-copy.png\" alt=\"The same file twice\" width=\"400\" height=\"300\"></picture>\n<a href=\"/\">Home</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://images.test/hero.jpg": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/jpeg"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGM4IScHAAK2AQU0pnWqAAAAAElFTkSuQmCC"
+  },
+  "https://images.test/two.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOQOyEHAAIMAQUtuDZBAAAAAElFTkSuQmCC"
+  },
+  "https://images.test/three.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOQkzsBAAFiAQURG6MhAAAAAElFTkSuQmCC"
+  },
+  "https://images.test/four.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGM4cUIOAAQKAa9ALaa4AAAAAElFTkSuQmCC"
+  },
+  "https://images.test/missing.png": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  },
+  "https://images.test/big.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGOIiooCAAIgAQ/kH0CsAAAAAElFTkSuQmCC",
+    "bytes": 912345
+  },
+  "https://images.test/shared.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGMQVDIGAACuAGcVHqFfAAAAAElFTkSuQmCC"
+  },
+  "https://images.test/shared-copy.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGMQVDIGAACuAGcVHqFfAAAAAElFTkSuQmCC"
+  }
+}

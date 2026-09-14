@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://passing.test/sitemap-index.xml

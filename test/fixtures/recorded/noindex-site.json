@@ -1,0 +1,52 @@
+{
+  "https://noindex.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>Staging Home</title>\n<meta name=\"robots\" content=\"noindex, nofollow, nosnippet\">\n<link rel=\"canonical\" href=\"https://noindex.test/\">\n</head><body>\n<nav><a href=\"/about\">About</a></nav>\n<h1>Staging Home</h1>\n</body></html>"
+  },
+  "https://noindex.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>About</title>\n<meta name=\"robots\" content=\"index, nosnippet\">\n<link rel=\"canonical\" href=\"https://noindex.test/about\">\n</head><body><h1>About</h1></body></html>"
+  },
+  "http://noindex.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<html><body>home</body></html>",
+    "finalUrl": "https://noindex.test/",
+    "chain": [
+      {
+        "url": "http://noindex.test/",
+        "status": 301,
+        "location": "https://noindex.test/"
+      }
+    ]
+  },
+  "https://noindex.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nDisallow: /assets/\nDisallow: /a.css\n\nUser-agent: GPTBot\nDisallow: /\n"
+  },
+  "https://noindex.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Page not found</title></head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a> <a href=\"/blog\">Blog</a></nav>\n<h1>We could not find that page</h1>\n<p>The address you asked for has moved or never existed. Use the navigation above, or head back to the home page to find what you were after. If a link brought you here, tell us and we will repair it.</p>\n</body></html>"
+  },
+  "https://noindex.test/llms.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "not found"
+  }
+}

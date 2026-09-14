@@ -1,0 +1,30 @@
+{
+  "https://app.example.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>App</title>\n<link rel=\"canonical\" href=\"https://app.example.test/\">\n</head><body><h1>App</h1><nav><a href=\"/settings\">Settings</a></nav></body></html>"
+  },
+  "https://app.example.test/settings": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Settings</title>\n<link rel=\"canonical\" href=\"https://app.example.test/settings\">\n</head><body><h1>Settings</h1></body></html>"
+  },
+  "https://app.example.test/robots.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "nope"
+  },
+  "https://app.example.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Page not found</title></head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a> <a href=\"/blog\">Blog</a></nav>\n<h1>We could not find that page</h1>\n<p>The address you asked for has moved or never existed. Use the navigation above, or head back to the home page to find what you were after. If a link brought you here, tell us and we will repair it.</p>\n</body></html>"
+  }
+}

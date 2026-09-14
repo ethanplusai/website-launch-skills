@@ -1,0 +1,11 @@
+{
+  "name": "Ridgeline Survey",
+  "short_name": "Ridgeline",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f2f5f8",
+  "theme_color": "#14406e",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "https://form-actions.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://form-actions.test/current-page": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Five form actions, three of them dead</title>\n</head>\n<body>\n<main>\n<h2 id=\"contact\">Contact</h2>\n<form action=\"#contact\" method=\"post\">\n<label for=\"f1\">Your email</label><input id=\"f1\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n<form action=\"#\" method=\"post\">\n<label for=\"f2\">Your email</label><input id=\"f2\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n<form action=\"\" method=\"post\">\n<label for=\"f3\">Your email</label><input id=\"f3\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n<form  method=\"post\">\n<label for=\"f4\">Your email</label><input id=\"f4\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n<form action=\"/current-page\" method=\"post\">\n<label for=\"f5\">Your email</label><input id=\"f5\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n</main>\n</body>\n</html>\n"
+  }
+}

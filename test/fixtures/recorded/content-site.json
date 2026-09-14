@@ -1,0 +1,30 @@
+{
+  "https://content.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://content.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Widgets and Gadgets, precision tooling</title>\n<meta name=\"description\" content=\"Precision tooling for small workshops, measured before it ships.\">\n</head>\n<body>\n<main>\n<h1>Widgets &amp;amp; Gadgets</h1>\n<p>Tom&apos;s bench is the one by the window.</p>\n<p>Every color we stock is measured before it ships.&amp;nbsp;Nothing leaves the bench untested.</p>\n<p>Our summer sale ends Aug 31.</p>\n<p>Call us on (555) 123-4567 or email hello@content.test.</p>\n<p>Visit us at 100 Main Street, Springfield, IL 62704.</p>\n<nav><a href=\"/about\">About the workshop</a> <a href=\"/placeholder\">The new page</a></nav>\n</main>\n<footer><p>&copy; 2024 Acme Widgets. All rights reserved.</p></footer>\n</body>\n</html>\n"
+  },
+  "https://content.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the workshop and the people in it</title>\n<meta name=\"description\" content=\"The workshop, the people and the twelve years behind every tool.\">\n</head>\n<body>\n<main>\n<h1>About the workshop</h1>\n<p>Every colour we stock is measured twice.</p>\n<p>Enrollment for the winter course is open until Dec 15.</p>\n<p>Call 555-987-6543 or write to info@content.test.</p>\n<p>Our second workshop is at 5 Mill Road, Shelbyville, IL 62565.</p>\n<a href=\"/\">Home</a>\n</main>\n<footer><p>&copy; 2024 Acme Widgets.</p></footer>\n</body>\n</html>\n"
+  },
+  "https://content.test/placeholder": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>TODO: write a real title</title>\n<meta name=\"description\" content=\"A description nobody has written yet.\">\n</head>\n<body>\n<main>\n<h1>A page that was never written</h1>\n<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor.</p>\n<a href=\"mailto:jo%e@content.test\">A link nobody checked</a>\n<a href=\"tel:+1-555-100%\">Another one</a>\n<a href=\"/\">Home</a>\n</main>\n</body>\n</html>\n"
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "https://perf-good.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://perf-good.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>The bindery</title>\n<link rel=\"stylesheet\" href=\"/s.css\">\n<link rel=\"preload\" as=\"image\" href=\"/hero.webp\">\n<script src=\"/app.js\" defer></script>\n<style>\n@font-face { font-family: \"Quire\"; src: url(/quire.woff2) format(\"woff2\"); font-display: swap; }\n</style>\n</head>\n<body>\n<main>\n<h1>The bindery</h1>\n<img src=\"/hero.webp\" alt=\"A nipping press\">\n<p>We rebind books.</p>\n<a href=\"/about\">About the bindery</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://perf-good.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the bindery</title>\n<script src=\"/legacy.js\" nomodule></script>\n\n</head>\n<body>\n<main>\n<h1>About the bindery</h1>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://perf-good.test/s.css": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/css",
+      "content-length": "180"
+    },
+    "body": "@font-face { font-family: \"Ledger\"; src: url(/ledger.woff2) format(\"woff2\"); font-display: swap; }\n@font-face { font-family: \"Ledger Fallback\"; src: local(Arial); ascent-override: 95%; size-adjust: 104%; }\n.page { max-width: 60rem; }\n"
+  },
+  "https://perf-good.test/app.js": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/javascript",
+      "content-length": "8000"
+    }
+  },
+  "https://perf-good.test/hero.webp": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/webp",
+      "content-length": "40000"
+    },
+    "bytes": 40000
+  },
+  "https://perf-good.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  },
+  "https://perf-good.test/legacy.js": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/javascript"
+    },
+    "body": ""
+  }
+}

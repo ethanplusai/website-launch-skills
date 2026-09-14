@@ -1,0 +1,6 @@
+{
+  "production-url": "https://passing.test",
+  "build-dir": "dist",
+  "required-env": [],
+  "dev-host": []
+}

@@ -1,0 +1,23 @@
+{
+  "https://noanalytics.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://noanalytics.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>A site with no measurement at all</title>\n\n</head>\n<body>\n<main><h1>Home</h1><nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a></nav></main>\n</body>\n</html>\n"
+  },
+  "https://noanalytics.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About, also unmeasured</title>\n\n</head>\n<body>\n<main><h1>About</h1><nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a></nav></main>\n</body>\n</html>\n"
+  }
+}

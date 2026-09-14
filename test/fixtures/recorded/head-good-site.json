@@ -1,0 +1,51 @@
+{
+  "https://good-head.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Acme Widgets \u2014 Precision Tooling</title>\n<meta name=\"description\" content=\"Acme Widgets makes precision tooling for small workshops, shipped worldwide within two working days.\">\n<link rel=\"canonical\" href=\"https://good-head.test/\">\n<link rel=\"icon\" href=\"/favicon.ico\" sizes=\"any\">\n<link rel=\"apple-touch-icon\" href=\"/apple-touch-icon.png\">\n<link rel=\"manifest\" href=\"/site.webmanifest\">\n<meta name=\"theme-color\" content=\"#0b3d2e\">\n<meta property=\"og:title\" content=\"Acme Widgets \u2014 Precision Tooling\">\n<meta property=\"og:description\" content=\"Acme Widgets makes precision tooling for small workshops, shipped worldwide within two working days.\">\n<meta property=\"og:image\" content=\"https://good-head.test/og.png\">\n<meta property=\"og:image:width\" content=\"1200\">\n<meta property=\"og:image:height\" content=\"630\">\n<meta property=\"og:url\" content=\"https://good-head.test/\">\n<meta property=\"og:type\" content=\"website\">\n<meta name=\"twitter:card\" content=\"summary_large_image\">\n<script type=\"application/ld+json\">{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Acme Widgets\", \"url\": \"https://good-head.test/\", \"logo\": \"https://good-head.test/logo.png\"}</script>\n</head>\n<body>\n<h1>Precision tooling for small workshops</h1>\n<h2>What we make</h2>\n<h3>Tolerances we hold</h3>\n<p>Every tool is measured before it ships.</p>\n<a href=\"/about\">About</a>\n</body>\n</html>\n"
+  },
+  "https://good-head.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>About Acme Widgets</title>\n<meta name=\"description\" content=\"The people, the workshop and the twelve-year history behind every Acme Widgets tool we ship today.\">\n<link rel=\"canonical\" href=\"https://good-head.test/about\">\n<link rel=\"icon\" href=\"/favicon.ico\" sizes=\"any\">\n<link rel=\"apple-touch-icon\" href=\"/apple-touch-icon.png\">\n<link rel=\"manifest\" href=\"/site.webmanifest\">\n<meta name=\"theme-color\" content=\"#0b3d2e\">\n<meta property=\"og:title\" content=\"About Acme Widgets\">\n<meta property=\"og:description\" content=\"The people, the workshop and the twelve-year history behind every Acme Widgets tool we ship today.\">\n<meta property=\"og:image\" content=\"https://good-head.test/og.png\">\n<meta property=\"og:image:width\" content=\"1200\">\n<meta property=\"og:image:height\" content=\"630\">\n<meta property=\"og:url\" content=\"https://good-head.test/about\">\n<meta property=\"og:type\" content=\"article\">\n<meta name=\"twitter:card\" content=\"summary_large_image\">\n</head>\n<body>\n<h1>About Acme Widgets</h1>\n<h2>The workshop</h2>\n<p>Founded in a shed.</p>\n<a href=\"/\">Home</a>\n</body>\n</html>\n"
+  },
+  "https://good-head.test/og.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAABLAAAAJ2CAYAAAA="
+  },
+  "https://good-head.test/favicon.ico": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/x-icon"
+    },
+    "bodyBase64": "AAABAAEAICAAAAEAIAAAAAAAFgAAAA=="
+  },
+  "https://good-head.test/apple-touch-icon.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA="
+  },
+  "https://good-head.test/site.webmanifest": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/manifest+json"
+    },
+    "body": "{\"name\":\"Acme Widgets\",\"icons\":[]}"
+  },
+  "https://good-head.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  }
+}

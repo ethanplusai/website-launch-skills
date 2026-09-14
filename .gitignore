@@ -1,0 +1,8 @@
+node_modules/
+website-launch/
+test/tmp/*
+!test/tmp/.gitkeep
+.DS_Store
+*.log
+.superpowers/
+.agents/sessions/

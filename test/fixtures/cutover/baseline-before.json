@@ -1,0 +1,92 @@
+{
+  "generatedAt": "2026-09-13T00:00:00.000Z",
+  "host": "new.test",
+  "https": true,
+  "hsts": "max-age=63072000; includeSubDomains; preload",
+  "cert": {
+    "expires": "2027-01-01T00:00:00.000Z",
+    "daysLeft": 200
+  },
+  "robotsTxtHash": "014a18bdff51ff42219bd28c1c6dc45afdbd454794cf3be8c3b383150dde117c",
+  "sitemapUrls": [
+    "https://new.test/",
+    "https://new.test/about",
+    "https://new.test/thanks"
+  ],
+  "securityHeaders": {
+    "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+    "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "permissions-policy": "geolocation=(), camera=()"
+  },
+  "pages": [
+    {
+      "url": "https://new.test/",
+      "status": 200,
+      "finalUrl": "https://new.test/",
+      "redirectChain": [],
+      "title": "New Test — the site that replaced the old one",
+      "description": "The new site, live and serving every url the old one did, on its own domain.",
+      "canonical": "https://new.test/",
+      "robotsMeta": null,
+      "h1": "New Test",
+      "jsonldTypes": [],
+      "analyticsTags": [
+        "GA4"
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300",
+        "x-robots-tag": null
+      },
+      "imageCount": 0,
+      "linkCount": 3
+    },
+    {
+      "url": "https://new.test/about",
+      "status": 200,
+      "finalUrl": "https://new.test/about",
+      "redirectChain": [],
+      "title": "About — New Test",
+      "description": "Who we are, what we do, and how to reach a person about any of it.",
+      "canonical": "https://new.test/about",
+      "robotsMeta": null,
+      "h1": "About New Test",
+      "jsonldTypes": [],
+      "analyticsTags": [
+        "GA4"
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300",
+        "x-robots-tag": null
+      },
+      "imageCount": 0,
+      "linkCount": 3
+    },
+    {
+      "url": "https://new.test/thanks",
+      "status": 200,
+      "finalUrl": "https://new.test/thanks",
+      "redirectChain": [],
+      "title": "Thank you — New Test",
+      "description": "Your message reached a person, and somebody will answer it today.",
+      "canonical": "https://new.test/thanks",
+      "robotsMeta": null,
+      "h1": "Thank you",
+      "jsonldTypes": [],
+      "analyticsTags": [
+        "GA4"
+      ],
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "public, max-age=300",
+        "x-robots-tag": null
+      },
+      "imageCount": 0,
+      "linkCount": 3
+    }
+  ]
+}

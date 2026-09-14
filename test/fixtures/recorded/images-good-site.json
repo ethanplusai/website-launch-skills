@@ -1,0 +1,37 @@
+{
+  "https://good-images.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://good-images.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>A site whose images are all in order</title>\n</head>\n<body>\n<main>\n<picture><source srcset=\"/hero.avif\" type=\"image/avif\"><img src=\"/hero.jpg\" alt=\"The workshop bench\" width=\"1200\" height=\"600\" fetchpriority=\"high\"></picture>\n<picture><img src=\"/logo.png\" alt=\"Acme Widgets\" width=\"120\" height=\"40\"></picture>\n<video src=\"/tour.mp4\" muted autoplay preload=\"metadata\"><track kind=\"captions\" src=\"/tour.vtt\"></video>\n<a href=\"/about\">About the workshop</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://good-images.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the workshop</title>\n</head>\n<body>\n<main>\n<picture><img src=\"/logo.png\" alt=\"Acme Widgets\" width=\"120\" height=\"40\"></picture>\n<a href=\"/\">Home</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://good-images.test/hero.jpg": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/jpeg"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGPgirIBAAESAKEDk9s1AAAAAElFTkSuQmCC"
+  },
+  "https://good-images.test/logo.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP49esXAAXgAu+YSct+AAAAAElFTkSuQmCC"
+  }
+}

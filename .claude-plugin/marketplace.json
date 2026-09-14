@@ -1,0 +1,17 @@
+{
+  "name": "website-launch-skills",
+  "owner": { "name": "Ethan Rogers" },
+  "metadata": {
+    "description": "Three read-only Agent Skills that carry a website from built to launched and verified.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "website-launch",
+      "description": "pre-launch gate, launch-audit, and post-launch cutover verification and watch — read-only, any stack.",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/pre-launch", "./skills/launch-audit", "./skills/post-launch"]
+    }
+  ]
+}
