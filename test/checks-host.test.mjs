@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { checks } from '../skills/launch-audit/scripts/lib/checks/host.mjs'
-import { findingsFor, has, of, allEvidence, evidenceText, patchHeaders, defaultCert } from './checks-helpers.mjs'
+import { findingsFor, findingsAndSkips, skipReason, has, of, allEvidence, evidenceText, patchHeaders, defaultCert } from './checks-helpers.mjs'
 
 const run = (fixture, options) => findingsFor(checks, `recorded/${fixture}`, options)
 const good = () => run('https-site.json', { url: 'https://good.test/' })
@@ -337,4 +337,23 @@ test('host.dev-host-leak also catches a configured dev host', async () => {
   }), 'host.dev-host-leak')
   assert.equal(found.length, 1)
   assert.match(evidenceText(found[0]), /cdn\.other\.test/)
+})
+
+// I1: a probe that never answered is not evidence of anything about the protocol. Reporting
+// "nothing newer than HTTP/1.1 is advertised" for a host that sent no headers at all is a claim
+// about a response nobody received.
+test('host.http-version skips when the root probe never answered', async () => {
+  const { findings, skipped } = await findingsAndSkips(checks, 'recorded/unreachable-site.json', { url: 'https://gone.test/' })
+  assert.deepEqual(of(findings, 'host.http-version'), [])
+  assert.match(skipReason(skipped, 'host.http-version'), /never answered|no response|status 0/i)
+})
+
+// I1: `finalUrl` on a request that failed is the url that was asked for, not a url anything
+// landed on. "landed on https://www.bare.test/" describes a page load that did not happen.
+test('host.www-apex-no-redirect says the other variant did not answer rather than where it landed', async () => {
+  const found = of(await bare(), 'host.www-apex-no-redirect')
+  assert.equal(found.length, 1)
+  const evidence = evidenceText(found[0])
+  assert.ok(!/landed on/.test(evidence), `status-0 probe must not claim a landing: ${evidence}`)
+  assert.match(evidence, /did not answer/)
 })

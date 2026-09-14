@@ -18,7 +18,7 @@
 // through a redirect of its own is clean — what matters is whether the canonical url itself
 // redirects.
 
-import { defineCheck } from '../registry.mjs'
+import { defineCheck, SkipCheck } from '../registry.mjs'
 import { aiPolicy, blocksAssets, isAllowed } from '../robots.mjs'
 
 const PHASE = 'launch-audit'
@@ -26,7 +26,6 @@ const DIMENSION = 'indexability'
 const TIER = 'http'
 const SITEMAP_URL_LIMIT = 50_000
 const HREFLANG_CODE = /^([a-z]{2,3}(-[a-z]{2,4})?|x-default)$/i
-const EMPTY_ROBOTS = { groups: [], sitemaps: [], errors: [] }
 const LINK_TAG = /<link\b[^>]*>/gi
 
 const url = (value) => ({ type: 'url', value })
@@ -275,7 +274,14 @@ export const aiCrawlerPolicy = define({
   title: 'AI crawler policy',
   catches: 'An AI crawler stance nobody chose on purpose.',
   run(ctx) {
-    const rows = aiPolicy(ctx.robots.parsed ?? EMPTY_ROBOTS)
+    // An absent robots.txt and an unfetched one mean the same thing to a crawler and opposite
+    // things to a reader. `aiPolicy` over an empty robots object reports all twelve crawlers as
+    // "allowed", which is a statement about a file this run never read — so the only honest answer
+    // when it could not be read is that this was not checked.
+    if (ctx.robots.parsed === null) {
+      throw new SkipCheck(`robots.txt could not be fetched (${ctx.robots.url} answered HTTP ${ctx.robots.status})`)
+    }
+    const rows = aiPolicy(ctx.robots.parsed)
     const blocked = rows.filter((row) => !row.allowed)
     return [emit(aiCrawlerPolicy, {
       page: ctx.robots.url,

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { checks } from '../skills/launch-audit/scripts/lib/checks/indexability.mjs'
-import { findingsFor, has, of, allEvidence, evidenceText } from './checks-helpers.mjs'
+import { findingsFor, findingsAndSkips, skipReason, has, of, allEvidence, evidenceText } from './checks-helpers.mjs'
 
 const run = (fixture, options) => findingsFor(checks, `recorded/${fixture}`, options)
 const GOOD = ['https-site.json', { url: 'https://good.test/' }]
@@ -258,4 +258,16 @@ test('indexability.llms-txt reports present, malformed and absent', async () => 
   const absent = of(await run('noindex-site.json', { url: 'https://noindex.test/' }), 'indexability.llms-txt')
   assert.equal(absent.length, 1)
   assert.match(absent[0].title, /absent|no llms\.txt/i)
+})
+
+// I1: an always-emit check may not state a fact nobody observed. `aiPolicy` over an empty robots
+// object reports every known crawler as "allowed", which is what an absent robots.txt means for a
+// crawler and is not what an *unfetched* one means for a reader of this report.
+test('indexability.ai-crawler-policy skips rather than reporting "allowed" when robots.txt was not fetched', async () => {
+  const { findings, skipped } = await findingsAndSkips(checks, 'recorded/https-site.json', {
+    url: 'https://good.test/',
+    records: { 'https://good.test/robots.txt': { status: 503 } },
+  })
+  assert.deepEqual(of(findings, 'indexability.ai-crawler-policy'), [])
+  assert.match(skipReason(skipped, 'indexability.ai-crawler-policy'), /robots\.txt could not be fetched/)
 })

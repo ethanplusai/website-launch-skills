@@ -17,7 +17,7 @@
 // 3xx status. A chain that revisits a url it already fetched is a loop, and a loop is never also
 // reported as a long chain.
 
-import { defineCheck } from '../registry.mjs'
+import { defineCheck, SkipCheck } from '../registry.mjs'
 import { parseHtml } from '../html.mjs'
 import owasp from '../headers/owasp.json' with { type: 'json' }
 
@@ -366,7 +366,12 @@ export const wwwApexNoRedirect = define({
       evidence: [
         url(other.url),
         status(`HTTP ${other.status}${other.error ? ` (${other.error})` : ''}`),
-        ...(landedHost === null ? [] : [text(`landed on ${other.finalUrl}`)]),
+        // `finalUrl` on a failed request is the url that was asked for, not one anything landed
+        // on, so a status-0 probe gets the fact that it never answered instead of a fictional
+        // destination.
+        ...(other.status === 0
+          ? [text(`did not answer (${other.error ?? 'no response'})`)]
+          : landedHost === null ? [] : [text(`landed on ${other.finalUrl}`)]),
       ],
       fix: `Serve a 301 from ${other.url} to the matching url on ${ctx.target.host}.`,
     })]
@@ -617,6 +622,11 @@ export const httpVersion = define({
   catches: 'Whether the origin advertises a protocol newer than HTTP/1.1.',
   run(ctx) {
     const response = rootResponse(ctx)
+    // No response means no headers, and "no alt-svc header" would then be a claim about a
+    // response nobody received rather than about the origin.
+    if (!response || response.status === 0) {
+      throw new SkipCheck(`the root probe never answered (${response?.url ?? ctx.target.url}: ${response?.error ?? 'no response'})`)
+    }
     const altSvc = headerOf(response, 'alt-svc')
     const advertised = altSvc === undefined ? [] : [...String(altSvc).matchAll(/\b(h3(?:-\d+)?|h2)\b/gi)].map((m) => m[1].toLowerCase())
     const unique = [...new Set(advertised)]

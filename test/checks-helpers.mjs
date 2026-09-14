@@ -10,6 +10,7 @@
 import { readFixture, recordedNet } from './helpers.mjs'
 import { buildAuditContext } from '../skills/launch-audit/scripts/lib/checks/_ctx.mjs'
 import { createDns } from '../skills/launch-audit/scripts/lib/dns.mjs'
+import { SkipCheck } from '../skills/launch-audit/scripts/lib/registry.mjs'
 
 export const NOW = '2026-09-13T00:00:00.000Z'
 
@@ -71,19 +72,39 @@ export function ctxFor(relPath, options = {}) {
   return cache.get(key)
 }
 
-export async function findingsFor(checks, relPath, options) {
+// A check may skip itself, which is not a finding and not a crash — the orchestrator turns it into
+// a "Not covered" line. Tests that care about the skip read `skipped`; every other test reads
+// `findings` and a skipped check simply contributes nothing, the same as one that found nothing.
+// Those two are different facts, which is precisely why the skip has its own channel here.
+export async function findingsAndSkips(checks, relPath, options) {
   const ctx = await ctxFor(relPath, options)
   const out = []
+  const skipped = []
   for (const check of checks) {
-    const produced = await check.run(ctx)
+    let produced
+    try {
+      produced = await check.run(ctx)
+    } catch (error) {
+      if (error instanceof SkipCheck) {
+        skipped.push({ check: check.id, reason: error.reason })
+        continue
+      }
+      throw error
+    }
     if (!Array.isArray(produced)) throw new Error(`${check.id}.run() must return an array`)
     for (const f of produced) {
       if (f.id !== check.id && !String(f.id).startsWith(`${check.dimension}.`)) throw new Error(`${check.id} produced ${f.id}`)
       out.push(f)
     }
   }
-  return out
+  return { findings: out, skipped }
 }
+
+export async function findingsFor(checks, relPath, options) {
+  return (await findingsAndSkips(checks, relPath, options)).findings
+}
+
+export const skipReason = (skipped, id) => skipped.find((s) => s.check === id)?.reason ?? null
 
 export const has = (findings, id) => findings.some((f) => f.id === id)
 export const of = (findings, id) => findings.filter((f) => f.id === id)

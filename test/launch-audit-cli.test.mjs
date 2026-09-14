@@ -16,7 +16,7 @@ import { REPO_ROOT, fixturePath, recordedNetFromFile, tmpDir } from './helpers.m
 import { defaultCert, fakeResolvers, NOW } from './checks-helpers.mjs'
 import { runAudit, buildOps, insertBeforeFixed } from '../skills/launch-audit/scripts/launch-audit.mjs'
 import { createDns } from '../skills/launch-audit/scripts/lib/dns.mjs'
-import { createRegistry, defineCheck } from '../skills/launch-audit/scripts/lib/registry.mjs'
+import { createRegistry, defineCheck, SkipCheck } from '../skills/launch-audit/scripts/lib/registry.mjs'
 
 const run = promisify(execFile)
 const SCRIPT = join(REPO_ROOT, 'skills', 'launch-audit', 'scripts', 'launch-audit.mjs')
@@ -104,6 +104,34 @@ const invalidCheck = define({
       fix: 'nothing',
     }]
   },
+})
+
+// A check that skips itself is not a check that crashed and not a check that passed, and the
+// orchestrator has to keep those three apart in the one section a reader is told to repeat
+// verbatim. I1 turned three always-emit checks into conditional skips on the strength of this.
+const skippingCheck = define({
+  id: 'inventory.skipping-check',
+  run() {
+    throw new SkipCheck('the thing it needed was never fetched')
+  },
+})
+
+test('a check that skips itself becomes a Not covered line naming the check and the reason', async () => {
+  const tmp = tmpDir('audit-skip-line')
+  try {
+    const result = await audit({
+      cwd: tmp.dir,
+      options: { url: URL_UNDER_TEST, out: tmp.dir, registry: registryWith(okCheck, skippingCheck) },
+    })
+    assert.ok(
+      result.notCovered.includes('inventory.skipping-check: skipped — the thing it needed was never fetched'),
+      `Not covered was: ${result.notCovered.join(' | ')}`,
+    )
+    // A skip is not a crash: the crash wording must not also appear for it.
+    assert.ok(!result.notCovered.some((line) => line.includes('inventory.skipping-check') && line.includes('crashed')))
+  } finally {
+    tmp.cleanup()
+  }
 })
 
 test('runAudit reports findings across the audit dimensions', async () => {
