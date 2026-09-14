@@ -115,9 +115,11 @@ export async function buildAuditContext(net, dns, options = {}) {
   const notFoundUrl = `${origin}/this-page-should-not-exist-${random()}`
   const llmsUrl = `${origin}/llms.txt`
 
-  const probeUrls = [...variantUrls, ...(slashUrl === null ? [] : [slashUrl]), notFoundUrl, llmsUrl]
+  // An apex https target makes httpsRoot and apexRoot the same url; fetch each distinct url once.
+  const probeUrls = [...new Set([...variantUrls, ...(slashUrl === null ? [] : [slashUrl]), notFoundUrl, llmsUrl])]
   const probeResponses = await net.map(probeUrls, (probeUrl) => net.get(probeUrl))
-  const at = (probeUrl) => probeResponses[probeUrls.indexOf(probeUrl)]
+  const byProbeUrl = new Map(probeUrls.map((probeUrl, i) => [probeUrl, probeResponses[i]]))
+  const at = (probeUrl) => byProbeUrl.get(probeUrl)
 
   // 7. a sample of the static assets the crawl actually saw
   const assetPicks = sampleAssets(crawl.assets, origin)

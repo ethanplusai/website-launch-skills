@@ -17,7 +17,7 @@
 // target it never saw is left alone rather than fetched here.
 
 import { defineCheck } from '../registry.mjs'
-import { AI_CRAWLERS, aiPolicy, blocksAssets, isAllowed } from '../robots.mjs'
+import { aiPolicy, blocksAssets, isAllowed } from '../robots.mjs'
 
 const PHASE = 'launch-audit'
 const DIMENSION = 'indexability'
@@ -715,5 +715,3 @@ export const checks = [
   hreflangNoXDefault,
   llmsTxt,
 ]
-
-export { AI_CRAWLERS }
