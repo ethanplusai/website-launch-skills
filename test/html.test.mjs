@@ -551,3 +551,36 @@ test('an apostrophe entity is decoded, so copy that uses one reads as written', 
   const p = parseHtml("<p>Tom&apos;s shop</p>", 'https://x.test/')
   assert.equal(p.text, "Tom's shop")
 })
+
+test('parseHtml collects every stylesheet, inline and linked, in document order', () => {
+  const p = parseHtml(
+    '<!doctype html><html><head>' +
+    '<link rel="stylesheet" href="/a.css">' +
+    '<style>@font-face{font-family:X;src:url(/x.woff2)}</style>' +
+    '<link rel="preload" as="image" href="/hero.webp">' +
+    '</head><body><style media="print">.b{color:red}</style></body></html>',
+    'https://x.test/',
+  )
+  assert.deepEqual(p.styles.map((s) => [s.inline, s.src]), [
+    [false, 'https://x.test/a.css'],
+    [true, null],
+    [true, null],
+  ])
+  assert.match(p.styles[1].text, /@font-face/)
+  assert.equal(p.styles[2].text, '.b{color:red}')
+  assert.equal(p.styles[0].text, null)
+})
+
+test('a <link> reports the resource kind it declares, so a preload can be told apart', () => {
+  const p = parseHtml(
+    '<link rel="preload" as="image" href="/hero.webp"><link rel="stylesheet" href="/a.css">',
+    'https://x.test/',
+  )
+  assert.equal(p.head.links[0].as, 'image')
+  assert.equal(p.head.links[1].as, null)
+})
+
+test('a <style> inside inert content is not collected', () => {
+  const p = parseHtml('<template><style>@font-face{font-family:Y}</style></template>', 'https://x.test/')
+  assert.deepEqual(p.styles, [])
+})

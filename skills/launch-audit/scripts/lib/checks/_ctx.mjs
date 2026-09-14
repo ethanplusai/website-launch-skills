@@ -21,6 +21,10 @@
 //  11. embeds              — the iframes and scripts that could be a form: inside a <form>, or on a
 //                            host that exists to host forms
 //  12. cert                — net.cert(host)
+//  13. old site            — only when `options.oldUrl` is given: the same crawl again over the
+//                            old origin (its own robots.txt and sitemap, the same caps), and then
+//                            every path that crawl found, requested once on the NEW origin, so the
+//                            redirects dimension can say what each old url does after the cutover
 //
 // Every one of those probe sets is capped, and every cap is recorded in `ctx.probes.caps` as
 // `{cap, dropped}` so the report's mandatory "Not covered" section can say what the audit did not
@@ -31,13 +35,21 @@
 // tests pin it (`random: () => 'deadbeef'`) so a recorded fixture can hold that exact path. Time
 // is pinned the same way through `options.now`, so "is this lastmod in the future" never drifts.
 //
-// `ctx.dns` is the adapter from dns.mjs, not resolved records: nothing in the launch-audit phase
-// resolves DNS eagerly, and the dimensions that do need it own the host list they care about.
+// `ctx.dns` is the adapter from dns.mjs; `ctx.dnsRecords` is the one set of records resolved here,
+// because every dimension that asks about email authentication asks about the same three records
+// on the same registrable domain. Every lookup in dns.mjs is total, so an absent record is the
+// absent shape rather than a rejection, and a site whose DNS cannot be resolved at all still
+// produces a context.
+//
+// `ctx.browser` is whatever the orchestrator learned about the browser tier — `{available,
+// reason}` — or null when it was never asked. The http-tier checks that have a browser-tier
+// counterpart read it to say, once, that the deeper check did not run and why.
 
 import { randomBytes } from 'node:crypto'
 import { parseRobots } from '../robots.mjs'
 import { discoverSitemaps, expandSitemap } from '../sitemap.mjs'
 import { crawlSite } from '../crawl.mjs'
+import { DKIM_SELECTORS } from '../dns.mjs'
 
 const EMPTY_EXPANSION = { urls: [], children: [], errors: [], failedClosed: false }
 
@@ -132,6 +144,24 @@ function srcsetUrls(srcset, base) {
     }
   }
   return out
+}
+
+// The paths of the old site worth asking the new site about: `pathname + search` for every old
+// page that actually answered 2xx, deduped, in crawl order. A url that was already gone on the old
+// site is not a url anybody is still following, and a path is the right key because the whole
+// question is what the NEW origin does with it.
+export function oldPagePaths(oldCrawl) {
+  const paths = new Set()
+  for (const entry of oldCrawl?.pages ?? []) {
+    if (entry.status < 200 || entry.status >= 300) continue
+    try {
+      const parsed = new URL(entry.url)
+      paths.add(parsed.pathname + parsed.search)
+    } catch {
+      // A page url the crawl produced always parses; if it does not, it is not a path to probe.
+    }
+  }
+  return [...paths]
 }
 
 function sampleAssets(assets, origin) {
@@ -243,6 +273,10 @@ export async function buildAuditContext(net, dns, options = {}) {
   const random = typeof options.random === 'function' ? options.random : () => randomBytes(4).toString('hex')
   const now = options.now === undefined ? new Date() : new Date(options.now)
 
+  const maxPages = options.maxPages ?? 200
+  const maxDepth = options.maxDepth ?? 4
+  const ignoreRobots = options.ignoreRobots === true
+
   const wwwCounterpart = hasWwwCounterpart(host)
   const target = {
     url,
@@ -275,9 +309,9 @@ export async function buildAuditContext(net, dns, options = {}) {
   // 3. crawl
   const crawl = await crawlSite(net, {
     url,
-    maxPages: options.maxPages ?? 200,
-    maxDepth: options.maxDepth ?? 4,
-    ignoreRobots: options.ignoreRobots === true,
+    maxPages,
+    maxDepth,
+    ignoreRobots,
     robots: robots.parsed,
     sitemapUrls: sitemaps.urls,
   })
@@ -335,6 +369,37 @@ export async function buildAuditContext(net, dns, options = {}) {
   const embedResponses = await net.map(embedPick.urls, (embedUrl) => net.get(embedUrl))
   const embeds = new Map(embedPick.urls.map((embedUrl, i) => [embedUrl, embedResponses[i]]))
 
+  // 13. the old site, when the audit was told there is one: crawled the same way the new site was,
+  // then every path it found asked once on the new origin. Nothing about the old origin is probed
+  // beyond its own crawl — the question is what the new site does, not what the old one still does.
+  let oldCrawl = null
+  let oldPathPick = { urls: [], caps: { cap: maxPages, dropped: 0 } }
+  const oldPaths = new Map()
+  if (typeof options.oldUrl === 'string' && options.oldUrl !== '') {
+    const oldStart = new URL(options.oldUrl)
+    const oldOrigin = oldStart.origin
+    const oldRobotsResponse = await net.get(`${oldOrigin}/robots.txt`)
+    const oldRobotsText = oldRobotsResponse.status === 200 && typeof oldRobotsResponse.body === 'string'
+      ? oldRobotsResponse.body
+      : null
+    const oldRobots = oldRobotsText === null ? null : parseRobots(oldRobotsText)
+    const oldDiscovery = await discoverSitemaps(net, oldOrigin, oldRobots)
+    const oldExpanded = oldDiscovery.found.length > 0
+      ? await expandSitemap(net, oldDiscovery.found[0].url)
+      : { ...EMPTY_EXPANSION }
+    oldCrawl = await crawlSite(net, {
+      url: oldStart.href,
+      maxPages,
+      maxDepth,
+      ignoreRobots,
+      robots: oldRobots,
+      sitemapUrls: oldExpanded.urls.map((entry) => entry.loc),
+    })
+    oldPathPick = capped(oldPagePaths(oldCrawl), maxPages)
+    const oldResponses = await net.map(oldPathPick.urls, (path) => net.get(`${origin}${path}`))
+    oldPathPick.urls.forEach((path, i) => oldPaths.set(path, oldResponses[i]))
+  }
+
   const probes = {
     httpRoot: at(variantUrls[0]),
     httpsRoot: at(variantUrls[1]),
@@ -348,16 +413,25 @@ export async function buildAuditContext(net, dns, options = {}) {
     externals,
     images,
     embeds,
+    oldPaths,
     caps: {
       externals: externalPick.caps,
       images: imagePick.caps,
       embeds: embedPick.caps,
       headAssets: headAssetPick.caps,
+      oldPaths: oldPathPick.caps,
     },
   }
 
   // 12. cert
   const cert = typeof net.cert === 'function' ? await net.cert(host) : null
 
-  return { target, crawl, robots, sitemaps, probes, cert, dns, net, options, now }
+  // The email records, on the registrable domain rather than the www host: mail is authenticated
+  // for `example.test`, and `www.example.test` never publishes its own SPF.
+  const [spf, dmarc, dkim] = await Promise.all([dns.spf(apex), dns.dmarc(apex), dns.dkim(apex, DKIM_SELECTORS)])
+  const dnsRecords = { spf, dmarc, dkim }
+
+  const browser = options.browser ?? null
+
+  return { target, crawl, oldCrawl, robots, sitemaps, probes, cert, dns, dnsRecords, browser, net, options, now }
 }

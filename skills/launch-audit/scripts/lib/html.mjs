@@ -34,6 +34,11 @@
 //   autoplays unmuted, and whether any `<track>` is present.
 // - `head.links` collects every `<link>` in the document, wherever it was written, because a
 //   canonical or icon injected into the body is exactly the kind of mistake a check wants to see.
+//   Each carries the resource kind it declares as `as`, so a `rel="preload"` can be told apart
+//   from the thing it preloads.
+// - `styles` is every stylesheet the document brings in, in the order it was written: an inline
+//   `<style>` as `{inline: true, src: null, text}`, a `<link rel=stylesheet>` as `{inline: false,
+//   src, text: null}`. The text of a linked stylesheet is not here because parsing does not fetch.
 // - Inert content is not collected: `images`, `links`, `forms`, form controls, `iframes` and
 //   `headings` inside `<template>`, `<noscript>` or `<svg>` are skipped, the way their text is.
 // - A wrapping `<label>` names the first labelable control inside it and no more, which is what
@@ -149,7 +154,7 @@ export function parseHtml(html, baseUrl) {
       links: [], canonical: null, canonicalCount: 0, robots: null, base: null,
     },
     headings: [], h1Count: 0,
-    images: [], links: [], forms: [], jsonld: [], scripts: [], iframes: [], videos: [],
+    images: [], links: [], forms: [], jsonld: [], scripts: [], iframes: [], videos: [], styles: [],
     text: '',
     metaOutsideHead: 0, duplicateIds: [], hasMain: false, landmarks: [], skipLink: false,
     tabindexPositive: 0, autofocus: 0,
@@ -165,6 +170,9 @@ export function parseHtml(html, baseUrl) {
   const landmarkSeen = new Set()
   const anchorMeta = []
   const controls = []
+  // Every <link rel=stylesheet> gets a `styles` entry at the position it was written, paired with
+  // its link object so the href resolved at the end lands in both places.
+  const styleLinks = []
   // The implied head: a document may omit <head> entirely (a minifier drops the optional tag) and
   // a browser still parses the metas before the first body content as head content. Starting true
   // is what makes that document's <meta> tags count, and head.meta-duplicate see them at all.
@@ -173,6 +181,7 @@ export function parseHtml(html, baseUrl) {
   let pictureDepth = 0
   const videoStack = []
   let currentScript = null
+  let currentStyle = null
 
   // `from` only ever moves forward, so one memo per needle makes every lookup amortized O(1):
   // once a needle is absent from the tail it is absent for every later position too.
@@ -340,15 +349,23 @@ export function parseHtml(html, baseUrl) {
       case 'base':
         if (page.head.base === null && attrs.href !== undefined) page.head.base = resolve(attrs.href, declaredBase)
         break
-      case 'link':
-        page.head.links.push({
+      case 'link': {
+        const declared = {
           rel: attrs.rel === undefined ? null : collapse(attrs.rel).toLowerCase(),
           href: attrs.href ?? null,
+          as: lowerOrNull(attrs.as),
           type: attrs.type ?? null,
           sizes: attrs.sizes ?? null,
           hreflang: attrs.hreflang ?? null,
-        })
+        }
+        page.head.links.push(declared)
+        if (declared.rel !== null && declared.rel.split(/\s+/).includes('stylesheet')) {
+          const entry = { inline: false, src: null, text: null }
+          page.styles.push(entry)
+          styleLinks.push({ entry, link: declared })
+        }
         break
+      }
       case 'a': {
         if (attrs.href === undefined || inert) break
         const link = {
@@ -430,6 +447,15 @@ export function parseHtml(html, baseUrl) {
         if (!inert) page.forms.push(form)
         break
       }
+      case 'style': {
+        // The text arrives from the raw-text scan below; an inert or self-closed <style> has none
+        // to claim, so it never opens one.
+        currentStyle = null
+        if (inert || selfClosing) break
+        currentStyle = { inline: true, src: null, text: '' }
+        page.styles.push(currentStyle)
+        break
+      }
       case 'label':
         // A fresh label supersedes an unclosed one; `for=` targets an id, never a wrapped control.
         labelPending = !selfClosing && attrs.for === undefined
@@ -487,6 +513,9 @@ export function parseHtml(html, baseUrl) {
         page.jsonld.push(entry)
       }
       currentScript = null
+    } else if (name === 'style') {
+      if (currentStyle !== null) currentStyle.text = content.trim()
+      currentStyle = null
     }
     return next
   }
@@ -601,6 +630,8 @@ export function parseHtml(html, baseUrl) {
       if (URL_META.test(key) && URL_META_VALUE.test(key)) map.set(key, resolve(value, effectiveBase) ?? value)
     }
   }
+
+  for (const { entry, link } of styleLinks) entry.src = link.href
 
   for (const link of page.head.links) {
     if (link.rel === null) continue

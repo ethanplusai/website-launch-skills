@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFixture, recordedNet } from './helpers.mjs'
-import { buildCtxFromFixture, NOW } from './checks-helpers.mjs'
+import { buildCtxFromFixture, NOW, fakeResolvers } from './checks-helpers.mjs'
 import { buildAuditContext } from '../skills/launch-audit/scripts/lib/checks/_ctx.mjs'
 import { createDns } from '../skills/launch-audit/scripts/lib/dns.mjs'
 
@@ -94,7 +94,7 @@ test('buildAuditContext never invents a www counterpart for a subdomain target',
   net.get = (url) => { asked.push(url); return get(url) }
   net.head = (url) => net.get(url)
   net.cert = async () => ({ valid: true, altNames: ['app.example.test'], daysLeft: 90, error: null })
-  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://app.example.test/', random: () => 'deadbeef' })
+  const ctx = await buildAuditContext(net, createDns(fakeResolvers()), { url: 'https://app.example.test/', random: () => 'deadbeef' })
   assert.equal(ctx.target.hasWwwCounterpart, false)
   assert.equal(ctx.probes.wwwRoot, null)
   assert.deepEqual(asked.filter((url) => url.includes('www.')), [])
@@ -110,7 +110,7 @@ test('buildAuditContext still probes www for a host under a two-label public suf
   net.get = (url) => { asked.push(url); return get(url) }
   net.head = (url) => net.get(url)
   net.cert = async () => ({ valid: true, altNames: ['example.co.uk'], daysLeft: 90, error: null })
-  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://example.co.uk/', random: () => 'deadbeef' })
+  const ctx = await buildAuditContext(net, createDns(fakeResolvers()), { url: 'https://example.co.uk/', random: () => 'deadbeef' })
   assert.equal(ctx.target.hasWwwCounterpart, true)
   assert.equal(ctx.probes.wwwRoot.url, 'https://www.example.co.uk/')
   assert.ok(asked.includes('https://www.example.co.uk/'))
@@ -161,7 +161,7 @@ test('every probe goes through net, and the 404 path comes from the injected ran
   net.head = (url) => net.get(url)
   let certHost = null
   net.cert = async (host) => { certHost = host; return { valid: true, altNames: ['good.test'], daysLeft: 90, error: null } }
-  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://good.test/', random: () => 'cafe1234' })
+  const ctx = await buildAuditContext(net, createDns(fakeResolvers()), { url: 'https://good.test/', random: () => 'cafe1234' })
   assert.equal(certHost, 'good.test')
   assert.equal(ctx.probes.notFound.url, 'https://good.test/this-page-should-not-exist-cafe1234')
   for (const url of [
@@ -180,7 +180,7 @@ test('buildAuditContext defaults the 404 suffix to real randomness', async () =>
   const net = recordedNet(fixture)
   net.head = (url) => net.get(url)
   net.cert = async () => ({ valid: true, altNames: [], daysLeft: 90, error: null })
-  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://good.test/' })
+  const ctx = await buildAuditContext(net, createDns(fakeResolvers()), { url: 'https://good.test/' })
   assert.match(ctx.probes.notFound.url, /^https:\/\/good\.test\/this-page-should-not-exist-[0-9a-f]{8,}$/)
 })
 
@@ -212,7 +212,7 @@ test('buildAuditContext fetches the head assets every crawled page points at, on
   net.get = (url) => { asked.push(url); return get(url) }
   net.head = (url) => net.get(url)
   net.cert = async () => ({ valid: true, altNames: ['icons.test'], daysLeft: 90, error: null })
-  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://icons.test/', random: () => 'deadbeef' })
+  const ctx = await buildAuditContext(net, createDns(fakeResolvers()), { url: 'https://icons.test/', random: () => 'deadbeef' })
 
   assert.deepEqual([...ctx.probes.headAssets.keys()].sort(), [
     'https://cdn.test/og.png',
@@ -238,7 +238,7 @@ test('buildAuditContext records a head asset that does not answer rather than dr
   })
   net.head = (url) => net.get(url)
   net.cert = async () => ({ valid: true, altNames: [], daysLeft: 90, error: null })
-  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://icons.test/', random: () => 'deadbeef' })
+  const ctx = await buildAuditContext(net, createDns(fakeResolvers()), { url: 'https://icons.test/', random: () => 'deadbeef' })
   assert.equal(ctx.probes.headAssets.get('https://icons.test/favicon.ico').status, 0)
 })
 
@@ -260,7 +260,7 @@ async function probeCtx(fixture, url = 'https://probe.test/') {
   net.get = (u) => { asked.push(`GET ${u}`); return get(u) }
   net.head = (u) => { asked.push(`HEAD ${u}`); return get(u) }
   net.cert = async () => ({ valid: true, altNames: ['probe.test'], daysLeft: 90, error: null })
-  const ctx = await buildAuditContext(net, createDns({}), { url, random: () => 'deadbeef' })
+  const ctx = await buildAuditContext(net, createDns(fakeResolvers()), { url, random: () => 'deadbeef' })
   return { ctx, asked }
 }
 
@@ -319,6 +319,7 @@ test('buildAuditContext records every probe cap, and what each one dropped', asy
     images: { cap: 300, dropped: 0 },
     embeds: { cap: 50, dropped: 0 },
     headAssets: { cap: 100, dropped: 0 },
+    oldPaths: { cap: 200, dropped: 0 },
   })
 })
 
@@ -343,4 +344,101 @@ test('a site hosted on a form-embed domain does not probe its own iframes as emb
   // The site's own host ends in .netlify.app, which is on the form-embed list — but its own pages
   // are not embedded forms, and its own bundle is not an embedded form either.
   assert.deepEqual([...ctx.probes.embeds.keys()], ['https://js.hsforms.net/f.html'])
+})
+
+// ------------------------------------------------------------- email records, browser, cutover
+// The ops dimension needs SPF/DMARC/DKIM and the redirects dimension needs the old site; both are
+// resolved here, once, so those checks stay pure over the context.
+
+test('buildAuditContext resolves the email records the ops dimension reads', async () => {
+  const ctx = await buildCtxFromFixture('recorded/https-site.json', {
+    url: 'https://good.test/',
+    resolvers: {
+      resolveTxt: async (name) => {
+        if (name === 'good.test') return [['v=spf1 include:mail.test -all']]
+        if (name === '_dmarc.good.test') return [['v=DMARC1; p=reject']]
+        if (name === 'default._domainkey.good.test') return [['v=DKIM1; p=AAAA']]
+        return []
+      },
+    },
+  })
+  assert.equal(ctx.dnsRecords.spf.present, true)
+  assert.equal(ctx.dnsRecords.dmarc.policy, 'reject')
+  assert.deepEqual(ctx.dnsRecords.dkim.found.map((f) => f.selector), ['default'])
+})
+
+test('buildAuditContext reports absent email records rather than throwing', async () => {
+  const ctx = await buildCtxFromFixture('recorded/https-site.json', { url: 'https://good.test/' })
+  assert.equal(ctx.dnsRecords.spf.present, false)
+  assert.equal(ctx.dnsRecords.dmarc.present, false)
+  assert.deepEqual(ctx.dnsRecords.dkim.found, [])
+})
+
+test('buildAuditContext carries the browser tier report through, and defaults it to null', async () => {
+  const ctx = await buildCtxFromFixture('recorded/https-site.json', {
+    url: 'https://good.test/',
+    browser: { available: false, reason: 'no browser adapter was supplied' },
+  })
+  assert.deepEqual(ctx.browser, { available: false, reason: 'no browser adapter was supplied' })
+  const none = await buildCtxFromFixture('recorded/https-site.json', { url: 'https://good.test/' })
+  assert.equal(none.browser, null)
+})
+
+async function cutoverCtx(options = {}) {
+  const net = recordedNet({
+    'https://new.test/': htmlPage('<a href="/about">About</a>'),
+    'https://new.test/about': htmlPage('About'),
+    'https://old.test/': htmlPage('<a href="/about-us">About us</a> <a href="/shop">Shop</a>'),
+    'https://old.test/about-us': htmlPage('About us'),
+    'https://old.test/shop': htmlPage('Shop'),
+    'https://new.test/about-us': {
+      status: 200,
+      finalUrl: 'https://new.test/about',
+      chain: [{ url: 'https://new.test/about-us', status: 301, location: '/about' }],
+      headers: { 'content-type': 'text/html' },
+      body: 'About',
+    },
+    'https://new.test/shop': { status: 404, headers: { 'content-type': 'text/html' }, body: 'Not found' },
+  })
+  const asked = []
+  const get = net.get
+  net.get = (u) => { asked.push(u); return get(u) }
+  net.head = (u) => net.get(u)
+  net.cert = async () => ({ valid: true, altNames: ['new.test'], daysLeft: 90, error: null })
+  const ctx = await buildAuditContext(net, createDns(fakeResolvers()), {
+    url: 'https://new.test/', oldUrl: 'https://old.test/', random: () => 'deadbeef', ...options,
+  })
+  return { ctx, asked }
+}
+
+test('buildAuditContext crawls the old site when it is given one', async () => {
+  const { ctx } = await cutoverCtx()
+  assert.deepEqual(ctx.oldCrawl.pages.map((p) => p.url).sort(), [
+    'https://old.test/',
+    'https://old.test/about-us',
+    'https://old.test/shop',
+  ])
+})
+
+test('buildAuditContext requests every old path on the new origin', async () => {
+  const { ctx, asked } = await cutoverCtx()
+  assert.deepEqual([...ctx.probes.oldPaths.keys()].sort(), ['/', '/about-us', '/shop'])
+  assert.equal(ctx.probes.oldPaths.get('/shop').status, 404)
+  assert.equal(ctx.probes.oldPaths.get('/about-us').finalUrl, 'https://new.test/about')
+  assert.equal(ctx.probes.oldPaths.get('/about-us').chain.length, 1)
+  assert.ok(asked.includes('https://new.test/shop'))
+  assert.deepEqual(ctx.probes.caps.oldPaths, { cap: 200, dropped: 0 })
+})
+
+test('the old-path probe carries the crawl cap rather than a cap of its own', async () => {
+  const { ctx } = await cutoverCtx({ maxPages: 2 })
+  assert.equal(ctx.probes.caps.oldPaths.cap, 2)
+  assert.ok(ctx.probes.oldPaths.size <= 2)
+})
+
+test('without an old url there is no old crawl and nothing is probed on the new origin', async () => {
+  const ctx = await buildCtxFromFixture('recorded/https-site.json', { url: 'https://good.test/' })
+  assert.equal(ctx.oldCrawl, null)
+  assert.equal(ctx.probes.oldPaths.size, 0)
+  assert.deepEqual(ctx.probes.caps.oldPaths, { cap: 200, dropped: 0 })
 })
