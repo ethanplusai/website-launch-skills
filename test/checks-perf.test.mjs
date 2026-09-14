@@ -62,6 +62,16 @@ test('perf.render-blocking-script names the scripts the head waits for', async (
   assert.ok(!has(await good(), 'perf.render-blocking-script'))
 })
 
+// Regression, from the smoke run against a real Next.js site: every page carried a
+// `<script src=... nomodule>` in the head and every page was reported as render-blocking. A
+// nomodule script is neither fetched nor run by any browser that understands modules, which is
+// every browser shipped since 2018 — it blocks nothing, and saying it does on fourteen pages is
+// how a report teaches people to skim.
+test('perf.render-blocking-script passes over a nomodule fallback in the head', async () => {
+  const found = of(await good(), 'perf.render-blocking-script')
+  assert.deepEqual(found, [])
+})
+
 test('perf.hero-preload-missing fires on a first image nothing tells the browser about', async () => {
   const found = of(await bad(), 'perf.hero-preload-missing')
   assert.equal(found.length, 1)

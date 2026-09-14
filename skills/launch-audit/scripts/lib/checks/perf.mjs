@@ -206,12 +206,13 @@ export const renderBlockingScript = define({
   id: 'perf.render-blocking-script',
   severity: 'medium',
   title: 'The head waits for a script before showing anything',
-  catches: 'A <script src> in the head with no defer, no async and no type="module" — the browser stops parsing until it has fetched and run it.',
+  catches: 'A <script src> in the head with no defer, no async, no nomodule and no type="module" — the browser stops parsing until it has fetched and run it.',
   run(ctx) {
     const out = []
     for (const entry of htmlPages(ctx)) {
       const hits = entry.page.scripts.filter(
-        (script) => script.src !== null && script.inHead && !script.defer && !script.async && script.type !== 'module',
+        (script) => script.src !== null && script.inHead && !script.defer && !script.async
+          && script.type !== 'module' && script.nomodule !== true,
       )
       if (hits.length === 0) continue
       out.push(emit(renderBlockingScript, {

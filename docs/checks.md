@@ -266,7 +266,7 @@ Crawls a staging or live url and reports. It always exits 0 — it reports, it d
 | `perf.font-display-missing` | low | http | A web font has no font-display, so text waits for it | An @font-face block with no font-display descriptor — by default the browser hides the text for up to three seconds while the font loads. |
 | `perf.hero-preload-missing` | info | http | Nothing tells the browser which image matters most | A page whose first <img> is neither preloaded nor marked fetchpriority="high" — the browser finds it only after parsing. |
 | `perf.page-weight` | medium | http | A page weighs more than three megabytes | A page whose HTML plus the assets the audit could size already exceeds 3 MB — before anything it could not size. |
-| `perf.render-blocking-script` | medium | http | The head waits for a script before showing anything | A <script src> in the head with no defer, no async and no type="module" — the browser stops parsing until it has fetched and run it. |
+| `perf.render-blocking-script` | medium | http | The head waits for a script before showing anything | A <script src> in the head with no defer, no async, no nomodule and no type="module" — the browser stops parsing until it has fetched and run it. |
 | `perf.request-count` | low | http | A page asks the browser for more than a hundred things | More than 100 referenced images, scripts, stylesheets and frames on a single page. |
 | `perf.third-party-scripts` | info | http | Code this site loads from somebody else | Every script served from a host that is not this site, grouped by host — each one a connection, a dependency and a privacy question. |
 

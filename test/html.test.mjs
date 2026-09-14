@@ -45,7 +45,7 @@ test('full head reports body structure, image details, iframes, and scripts', ()
   })
   assert.deepEqual(p.iframes, [{ src: 'https://x.test/e', title: 'Embed', inForm: false }])
   assert.equal(p.scripts.length, 1)
-  assert.deepEqual(p.scripts[0], { src: 'https://x.test/app.js', inline: false, defer: true, async: false, type: null, inHead: false, inForm: false })
+  assert.deepEqual(p.scripts[0], { src: 'https://x.test/app.js', inline: false, defer: true, async: false, nomodule: false, type: null, inHead: false, inForm: false })
   assert.ok(p.text.includes('A paragraph of visible copy.'))
   assert.equal(p.metaOutsideHead, 0)
   assert.deepEqual(p.duplicateIds, [])
@@ -583,4 +583,13 @@ test('a <link> reports the resource kind it declares, so a preload can be told a
 test('a <style> inside inert content is not collected', () => {
   const p = parseHtml('<template><style>@font-face{font-family:Y}</style></template>', 'https://x.test/')
   assert.deepEqual(p.styles, [])
+})
+
+// A nomodule fallback is a script no module-capable browser fetches. Parsing the attribute is what
+// lets perf.render-blocking-script tell it apart from a script the head really waits for.
+test('records nomodule on a legacy fallback script', () => {
+  const p = parseHtml('<head><script src="/legacy.js" nomodule></script></head>', 'https://x.test/')
+  assert.equal(p.scripts.length, 1)
+  assert.equal(p.scripts[0].nomodule, true)
+  assert.equal(p.scripts[0].inHead, true)
 })

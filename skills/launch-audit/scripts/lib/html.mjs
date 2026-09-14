@@ -428,6 +428,11 @@ export function parseHtml(html, baseUrl) {
           inline: attrs.src === undefined,
           defer: 'defer' in attrs,
           async: 'async' in attrs,
+          // A nomodule script is a fallback for browsers that cannot do modules. Every browser
+          // that can ignores it entirely — it is never fetched and never run — so it is not a
+          // script the page waits for, and a checker that treats it as one is wrong about every
+          // build that still ships a legacy bundle.
+          nomodule: 'nomodule' in attrs,
           type: lowerOrNull(attrs.type),
           inHead,
           inForm: formStack.length > 0,

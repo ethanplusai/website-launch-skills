@@ -192,6 +192,10 @@ export function createBrowser(options = {}) {
     widths = DEFAULT_WIDTHS,
     resolveAxe = defaultResolveAxe,
     pickPort = pickFreePort,
+    // Injectable for the same reason `loader` is: whether lighthouse is installed is a fact about
+    // the machine, and a test that asserts the not-installed path by relying on it being absent
+    // passes for the wrong reason on any machine that has run the browser-tier install.
+    importLighthouse = () => import('lighthouse'),
   } = options
 
   let available = mode === 'off' ? false : null
@@ -422,7 +426,7 @@ export function createBrowser(options = {}) {
     let run = typeof loader.lighthouse === 'function' ? loader.lighthouse : null
     if (run === null) {
       try {
-        const loaded = await import('lighthouse')
+        const loaded = await importLighthouse()
         run = loaded?.default ?? loaded
       } catch {
         return { available: false, reason: LIGHTHOUSE_MISSING }

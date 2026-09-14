@@ -18,7 +18,7 @@
     "headers": {
       "content-type": "text/html; charset=utf-8"
     },
-    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the bindery</title>\n\n</head>\n<body>\n<main>\n<h1>About the bindery</h1>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the bindery</title>\n<script src=\"/legacy.js\" nomodule></script>\n\n</head>\n<body>\n<main>\n<h1>About the bindery</h1>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
   },
   "https://perf-good.test/s.css": {
     "status": 200,
@@ -49,5 +49,12 @@
       "content-type": "text/html"
     },
     "body": "<h1>Not found</h1>"
+  },
+  "https://perf-good.test/legacy.js": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/javascript"
+    },
+    "body": ""
   }
 }

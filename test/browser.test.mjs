@@ -326,7 +326,13 @@ test('axe() is unavailable when the browser itself is', async () => {
 
 test('lighthouse() is unavailable, with the install line, when lighthouse cannot be imported', async () => {
   const stub = stubChromium({})
-  const browser = createBrowser({ loader: loaderFor(stub) })
+  // The import is injected rather than left to the machine: this repository's own smoke procedure
+  // tells a maintainer to install lighthouse with --no-save, and a test that proves the
+  // not-installed path by hoping the package is absent stops proving anything the moment they do.
+  const browser = createBrowser({
+    loader: loaderFor(stub),
+    importLighthouse: () => Promise.reject(new Error("Cannot find package 'lighthouse'")),
+  })
   const result = await browser.lighthouse('https://render.test/', { formFactor: 'mobile' })
   assert.deepEqual(result, { available: false, reason: LIGHTHOUSE_MISSING })
 })
