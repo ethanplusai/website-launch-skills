@@ -1,0 +1,101 @@
+{
+  "https://links.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://links.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Links, good and bad, on one page</title>\n</head>\n<body>\n<nav>\n<a href=\"/about\">About the workshop</a>\n<a href=\"/contact\">Contact</a>\n<a href=\"/contact-us\">Contact</a>\n</nav>\n<main>\n<a href=\"/gone\">Our old buying guide</a>\n<a href=\"/old\">Pricing and lead times</a>\n<a href=\"https://dead.test/page\">A partner we list</a>\n<a href=\"https://blocked.test/page\">A trade directory</a>\n<a href=\"https://slow.test/page\">A standards registry</a>\n<a href=\"https://out.test/blog\" target=\"_blank\">Our writing elsewhere</a>\n<a href=\"http://localhost:3000/admin\">Admin</a>\n<a href=\"http://insecure.test/x\">A legacy tool</a>\n<a href=\"mailto:hello@\">Email us</a>\n<a href=\"tel:call-us\">Call us</a>\n<a href=\"/about\"><span></span></a>\n<a href=\"#\">Back to top</a>\n<a href=\"javascript:void(0)\">Open the menu</a>\n<a href=\"/pricing\">Click here</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://links.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the workshop</title>\n</head>\n<body>\n<main><a href=\"/\">Home</a></main>\n</body>\n</html>\n"
+  },
+  "https://links.test/contact": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Contact the workshop</title>\n</head>\n<body>\n<main><a href=\"/\">Home</a></main>\n</body>\n</html>\n"
+  },
+  "https://links.test/contact-us": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Contact us another way</title>\n</head>\n<body>\n<main><a href=\"/\">Home</a></main>\n</body>\n</html>\n"
+  },
+  "https://links.test/pricing": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Pricing and lead times</title>\n</head>\n<body>\n<main><a href=\"/\">Home</a></main>\n</body>\n</html>\n"
+  },
+  "https://links.test/gone": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  },
+  "https://links.test/old": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Pricing and lead times</title>\n</head>\n<body>\n<main><a href=\"/\">Home</a></main>\n</body>\n</html>\n",
+    "finalUrl": "https://links.test/pricing",
+    "chain": [
+      {
+        "url": "https://links.test/old",
+        "status": 301,
+        "location": "https://links.test/pricing"
+      }
+    ]
+  },
+  "https://dead.test/page": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Gone</h1>"
+  },
+  "https://blocked.test/page": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Forbidden</h1>"
+  },
+  "https://out.test/blog": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Blog</h1>"
+  },
+  "http://localhost:3000/admin": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Admin</h1>"
+  },
+  "http://insecure.test/x": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Legacy</h1>"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "https://good-links.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://good-links.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>A site whose links all work</title>\n</head>\n<body>\n<a class=\"skip-link\" href=\"#main\">Skip to content</a>\n<nav><a href=\"/about\">About the workshop</a></nav>\n<main id=\"main\">\n<a href=\"https://out.test/guide\" target=\"_blank\" rel=\"noopener noreferrer\">Our published guide</a>\n<a href=\"mailto:hello@good-links.test\">Email the workshop</a>\n<a href=\"tel:+15551234567\">Call the workshop</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://good-links.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the workshop</title>\n</head>\n<body>\n<a class=\"skip-link\" href=\"#main\">Skip to content</a>\n<main id=\"main\"><a href=\"/\">Back to the front page</a></main>\n</body>\n</html>\n"
+  },
+  "https://out.test/guide": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Guide</h1>"
+  }
+}
