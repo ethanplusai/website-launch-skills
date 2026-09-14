@@ -39,9 +39,11 @@ const EVIDENCE_LIMIT = 10
 
 // The titles a framework ships in its starter template. An empty title is title-missing rather
 // than one of these; `Home` and `Untitled` are here because a CMS writes them when nobody chose.
+// `Home` is deliberately absent: it is a plausible title for a real home page, and a high finding
+// on it would be a false positive more often than a catch.
 const FRAMEWORK_TITLES = new Set([
   'astro', 'vite app', 'vite + react', 'vite + vue', 'vite + svelte', 'react app', 'document',
-  'create next app', 'nuxt', 'sveltekit app', 'welcome to gatsby', 'site title', 'home', 'untitled',
+  'create next app', 'nuxt', 'sveltekit app', 'welcome to gatsby', 'site title', 'untitled',
 ])
 
 const OG_REQUIRED = ['og:title', 'og:description', 'og:image', 'og:url', 'og:type']
@@ -71,7 +73,12 @@ const metaOf = (entry, name) => trimmed(entry.page.head.metaByName.get(name))
 const ogOf = (entry, property) => trimmed(entry.page.head.metaByProperty.get(property))
 const hasAnyOg = (entry) => [...entry.page.head.metaByProperty.keys()].some((key) => key.startsWith('og:'))
 const rels = (link) => (link.rel === null ? [] : link.rel.split(/\s+/))
+// Substring, for "is any icon of any kind declared here" — `apple-touch-icon` and `mask-icon` both
+// count, because a broken one of those is still a broken icon.
 const linksMatching = (entry, needle) => entry.page.head.links.filter((link) => rels(link).some((rel) => rel.includes(needle)))
+// Exact token, for "is the favicon itself declared" — `rel="shortcut icon"` is the favicon and
+// `rel="apple-touch-icon"` is not, so only a whole-token match can answer that.
+const linksWithRel = (entry, wanted) => entry.page.head.links.filter((link) => rels(link).includes(wanted))
 const contentTypeOf = (response) => String(response?.headers?.['content-type'] ?? '').toLowerCase()
 
 // One finding per group of pages that share a value, rather than one per page: the defect is the
@@ -81,7 +88,10 @@ function sharedValues(entries, valueOf) {
   for (const entry of entries) {
     const value = valueOf(entry)
     if (value === null) continue
-    const key = value.toLowerCase()
+    // Collapsed, because two descriptions differing only by a stray double space are the same
+    // description to a reader and to a search engine. html.mjs already collapses a <title> this
+    // way; meta content it leaves verbatim, so the normalisation has to happen here.
+    const key = value.toLowerCase().replace(/\s+/g, ' ')
     if (!groups.has(key)) groups.set(key, { value, pages: [] })
     groups.get(key).pages.push(entry.url)
   }
@@ -408,9 +418,9 @@ export const faviconMissing = define({
   title: 'The page links no favicon',
   catches: 'A site with no icon, which every tab, bookmark and history entry shows blank.',
   run(ctx) {
-    return htmlPages(ctx).filter((entry) => linksMatching(entry, 'icon').length === 0).map((entry) => emit(faviconMissing, {
+    return htmlPages(ctx).filter((entry) => linksWithRel(entry, 'icon').length === 0).map((entry) => emit(faviconMissing, {
       page: entry.url,
-      detail: 'No <link rel="icon"> is declared, so the browser falls back to /favicon.ico if it exists and shows a blank page icon if it does not. Tabs, bookmarks and history entries are unidentifiable.',
+      detail: 'No <link rel="icon"> is declared — a touch icon or a mask icon is not one — so the browser falls back to /favicon.ico if it exists and shows a blank page icon if it does not. Tabs, bookmarks and history entries are unidentifiable.',
       evidence: [url(entry.url), html('no <link rel="icon">')],
       fix: 'Link an icon from the head, and ship the file it points at.',
     }))

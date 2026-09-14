@@ -4,7 +4,7 @@
     "headers": {
       "content-type": "text/html; charset=utf-8"
     },
-    "body": "<!doctype html>\n<html>\n<head>\n<meta name=\"keywords\" content=\"widgets\">\n<meta name=\"keywords\" content=\"gadgets\">\n</head>\n<body>\n<meta name=\"generator\" content=\"a meta the template put in the body\">\n<div id=\"hero\">Welcome</div>\n<div id=\"hero\">Welcome again</div>\n<h2>We sell widgets</h2>\n<a href=\"/framework\">Framework</a>\n<a href=\"/long\">Long</a>\n<a href=\"/dup-one\">One</a>\n<a href=\"/dup-two\">Two</a>\n</body>\n</html>\n"
+    "body": "<!doctype html>\n<html>\n<head>\n<meta name=\"keywords\" content=\"widgets\">\n<meta name=\"keywords\" content=\"gadgets\">\n</head>\n<body>\n<meta name=\"generator\" content=\"a meta the template put in the body\">\n<div id=\"hero\">Welcome</div>\n<div id=\"hero\">Welcome again</div>\n<h2>We sell widgets</h2>\n<a href=\"/framework\">Framework</a>\n<a href=\"/long\">Long</a>\n<a href=\"/dup-one\">One</a>\n<a href=\"/dup-two\">Two</a>\n<a href=\"/home\">Home</a>\n<a href=\"/touch-only\">Touch only</a>\n<a href=\"/shortcut\">Shortcut</a>\n<a href=\"/minified\">Minified</a>\n</body>\n</html>\n"
   },
   "https://bad-head.test/framework": {
     "status": 200,
@@ -32,7 +32,49 @@
     "headers": {
       "content-type": "text/html; charset=utf-8"
     },
-    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Widgets, Gadgets and Sprockets</title>\n<meta name=\"description\" content=\"One description, copied onto two pages, telling a search engine nothing new about either.\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n</head>\n<body>\n<h1>Widgets, Gadgets and Sprockets</h1>\n<a href=\"/\">Home</a>\n</body>\n</html>\n"
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Widgets, Gadgets and Sprockets</title>\n<meta name=\"description\" content=\"One  description, copied onto two pages, telling a search engine nothing new about either.\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n</head>\n<body>\n<h1>Widgets, Gadgets and Sprockets</h1>\n<a href=\"/\">Home</a>\n</body>\n</html>\n"
+  },
+  "https://bad-head.test/home": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Home</title>\n<meta name=\"description\" content=\"The home page of a site whose author chose the word Home on purpose, and meant it.\">\n<link rel=\"icon\" href=\"/favicon.ico\">\n</head>\n<body>\n<h1>Home</h1>\n<a href=\"/\">Start</a>\n</body>\n</html>\n"
+  },
+  "https://bad-head.test/touch-only": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Touch Icon Only Page</title>\n<meta name=\"description\" content=\"A page that declares an apple-touch-icon and a mask-icon, and no ordinary favicon at all.\">\n<link rel=\"apple-touch-icon\" href=\"/apple-touch-icon.png\">\n<link rel=\"mask-icon\" href=\"/mask.svg\" color=\"#000\">\n</head>\n<body>\n<h1>Touch icon only</h1>\n<a href=\"/\">Home</a>\n</body>\n</html>\n"
+  },
+  "https://bad-head.test/shortcut": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Shortcut Icon Page</title>\n<meta name=\"description\" content=\"A page declaring its favicon the old way, with rel=shortcut icon, which still counts.\">\n<link rel=\"shortcut icon\" href=\"/favicon.ico\">\n</head>\n<body>\n<h1>Shortcut icon</h1>\n<a href=\"/\">Home</a>\n</body>\n</html>\n"
+  },
+  "https://bad-head.test/minified": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\"><title>Minified No Head Tag</title><meta name=description content=\"A page a minifier stripped the optional head tag from, twice over.\"><meta name=description content=\"A second description the same build wrote a second time.\"><link rel=icon href=/favicon.ico><h1>Minified</h1><a href=\"/\">Home</a>"
+  },
+  "https://bad-head.test/apple-touch-icon.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    },
+    "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA="
+  },
+  "https://bad-head.test/mask.svg": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/svg+xml"
+    },
+    "body": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\"></svg>"
   },
   "https://bad-head.test/favicon.ico": {
     "status": 404,

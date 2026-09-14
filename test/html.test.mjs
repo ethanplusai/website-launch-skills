@@ -272,7 +272,9 @@ test('a body-only document parses without a head', () => {
   assert.equal(p.head.title, null)
   assert.equal(p.htmlAttrs.lang, null)
   assert.equal(p.htmlAttrs.dir, null)
-  assert.equal(p.metaOutsideHead, 1)
+  // The loose meta comes before any body content, so it belongs to the head a browser implies.
+  assert.equal(p.metaOutsideHead, 0)
+  assert.equal(p.head.metaCounts.get('name:description'), 1)
   assert.equal(p.h1Count, 1)
   assert.equal(p.links[0].href, 'https://x.test/somewhere')
   assert.equal(p.head.canonical, null)
@@ -443,4 +445,40 @@ test('counts every meta occurrence in the head by name and by property', () => {
   // First-wins stays first-wins, and a meta outside the head is counted nowhere but metaOutsideHead.
   assert.equal(p.head.metaByName.get('description'), 'first')
   assert.equal(p.metaOutsideHead, 1)
+})
+
+test('a document minified past its head tag still has a head', () => {
+  const p = parseHtml(
+    '<!doctype html><html lang=en><meta charset=utf-8>'
+    + '<meta name=viewport content="width=device-width, initial-scale=1"><title>Minified</title>'
+    + '<meta name=description content="first"><meta name=description content="second">'
+    + '<link rel=icon href=/favicon.ico><h1>Minified</h1><p>Body copy.</p>',
+    'https://x.test/',
+  )
+  assert.equal(p.metaOutsideHead, 0)
+  assert.equal(p.head.metaCounts.get('name:description'), 2)
+  assert.equal(p.head.charset, 'utf-8')
+  assert.equal(p.head.title, 'Minified')
+  assert.equal(p.head.links[0].href, 'https://x.test/favicon.ico')
+})
+
+test('the implied head ends at the first body content, and at <body>', () => {
+  const afterContent = parseHtml('<html><title>t</title><h1>Heading</h1><meta name="description" content="late">', 'https://x.test/')
+  assert.equal(afterContent.metaOutsideHead, 1)
+  assert.equal(afterContent.head.metaCounts.get('name:description'), undefined)
+
+  const afterBody = parseHtml('<html><title>t</title><body><meta name="description" content="late">', 'https://x.test/')
+  assert.equal(afterBody.metaOutsideHead, 1)
+  assert.equal(afterBody.head.metaCounts.size, 0)
+})
+
+test('an explicit head is unaffected by the implied one', () => {
+  const p = parseHtml(
+    '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="description" content="in"></head>'
+    + '<body><meta name="description" content="out"><p>Copy.</p></body></html>',
+    'https://x.test/',
+  )
+  assert.equal(p.metaOutsideHead, 1)
+  assert.equal(p.head.metaCounts.get('name:description'), 1)
+  assert.equal(p.head.metaByName.get('description'), 'in')
 })

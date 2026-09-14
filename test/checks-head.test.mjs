@@ -50,7 +50,7 @@ test('head.title-duplicate reports one finding per shared title, listing every p
 
 test('head.title-length fires both under ten characters and over sixty', async () => {
   const found = of(await bad(), 'head.title-length')
-  assert.deepEqual(pages(found), ['https://bad-head.test/framework', 'https://bad-head.test/long'])
+  assert.deepEqual(pages(found), ['https://bad-head.test/framework', 'https://bad-head.test/home', 'https://bad-head.test/long'])
   assert.equal(found[0].severity, 'low')
   assert.match(allEvidence(found), /5 characters/)
   assert.match(allEvidence(found), /89 characters/)
@@ -65,6 +65,12 @@ test('head.title-framework-default fires on a starter template title', async () 
   assert.ok(!has(await good(), 'head.title-framework-default'))
 })
 
+test('head.title-framework-default leaves a page genuinely titled Home alone', async () => {
+  const found = of(await bad(), 'head.title-framework-default')
+  assert.deepEqual(found.map((f) => f.page), ['https://bad-head.test/framework'])
+  assert.ok(!found.some((f) => f.page === 'https://bad-head.test/home'))
+})
+
 test('head.description-missing fires on a page with no description meta', async () => {
   const found = of(await bad(), 'head.description-missing')
   assert.equal(found.length, 1)
@@ -77,7 +83,10 @@ test('head.description-duplicate reports one finding per shared description', as
   const found = of(await bad(), 'head.description-duplicate')
   assert.equal(found.length, 1)
   assert.equal(found[0].severity, 'medium')
+  assert.match(evidenceText(found[0]), /bad-head\.test\/dup-one/)
   assert.match(evidenceText(found[0]), /bad-head\.test\/dup-two/)
+  // The two pages write that description with different internal whitespace, and it is still one
+  // description: the grouping collapses runs of space the way a title already is.
   assert.ok(!has(await good(), 'head.description-duplicate'))
 })
 
@@ -150,10 +159,12 @@ test('head.viewport-blocks-zoom fires on user-scalable=no and maximum-scale=1', 
   assert.ok(!has(await good(), 'head.viewport-blocks-zoom'))
 })
 
-test('head.favicon-missing fires when no link rel mentions an icon', async () => {
+test('head.favicon-missing fires when no link rel is exactly icon, touch and mask icons included', async () => {
   const found = of(await bad(), 'head.favicon-missing')
-  assert.equal(found.length, 1)
-  assert.equal(found[0].page, 'https://bad-head.test/')
+  // /touch-only declares an apple-touch-icon and a mask-icon and no favicon: neither rel is the
+  // favicon, so the page is still missing one. /shortcut spells it `rel="shortcut icon"`, which is.
+  assert.deepEqual(pages(found), ['https://bad-head.test/', 'https://bad-head.test/touch-only'])
+  assert.ok(!found.some((f) => f.page === 'https://bad-head.test/shortcut'))
   assert.ok(!has(await good(), 'head.favicon-missing'))
 })
 
@@ -307,11 +318,21 @@ test('head.meta-outside-head counts the metas a browser will ignore', async () =
   assert.ok(!has(await good(), 'head.meta-outside-head'))
 })
 
+test('a page minified past its head tag has an implied head, not four metas outside one', async () => {
+  const findings = await bad()
+  assert.ok(!of(findings, 'head.meta-outside-head').some((f) => f.page === 'https://bad-head.test/minified'))
+  // The same page writes its description twice, which is only visible because those metas are
+  // counted as head content in the first place.
+  const duplicate = of(findings, 'head.meta-duplicate').find((f) => f.page === 'https://bad-head.test/minified')
+  assert.ok(duplicate)
+  assert.match(evidenceText(duplicate), /description/)
+})
+
 test('head.meta-duplicate fires per repeated key, and never on a repeatable one', async () => {
   const found = of(await bad(), 'head.meta-duplicate')
-  assert.equal(found.length, 1)
+  assert.deepEqual(pages(found), ['https://bad-head.test/', 'https://bad-head.test/minified'])
   assert.equal(found[0].severity, 'low')
-  assert.match(evidenceText(found[0]), /keywords/)
+  assert.match(allEvidence(found), /keywords/)
   // og:image and og:locale:alternate are repeated on og-site by design: both are legitimately
   // repeatable, so neither is a duplicate.
   assert.ok(!has(await og(), 'head.meta-duplicate'))

@@ -13,8 +13,10 @@
 //   `head.metaCounts` counts every `<meta>` in the head under `name:<name>` / `property:<property>`,
 //   which is how a repeated tag stays visible despite those maps keeping only the first.
 // - `width`/`height` are numbers only when the attribute is a plain integer, else `null`.
-// - `inHead` is true only inside an explicit `<head>` element, so a body-only document reports
-//   every `<meta>` it finds through `metaOutsideHead`.
+// - `inHead` follows the implied head a browser would build: it starts true, so a document
+//   minified without its optional `<head>` tag still has a head, and it flips false at `<body>`
+//   or at the first element that is not head content (`<html>` excepted, since it wraps both).
+//   A `<meta>` after that point is the one `metaOutsideHead` counts.
 // - `text` is visible text with whitespace collapsed. The contents of `script`, `style`,
 //   `template`, `noscript` and `svg` are excluded; `textarea` content is kept literally, because
 //   that is what a reader sees.
@@ -156,7 +158,10 @@ export function parseHtml(html, baseUrl) {
   const landmarkSeen = new Set()
   const anchorMeta = []
   const controls = []
-  let inHead = false
+  // The implied head: a document may omit <head> entirely (a minifier drops the optional tag) and
+  // a browser still parses the metas before the first body content as head content. Starting true
+  // is what makes that document's <meta> tags count, and head.meta-duplicate see them at all.
+  let inHead = true
   let labelPending = false
   let pictureDepth = 0
   let currentScript = null
@@ -283,7 +288,9 @@ export function parseHtml(html, baseUrl) {
   function handleOpen(name, attrs, selfClosing) {
     if (name === 'head') inHead = true
     else if (name === 'body') inHead = false
-    else if (inHead && !HEAD_TAGS.has(name)) inHead = false
+    // `<html>` wraps the head rather than ending it; everything else that is not head content is
+    // the first body content, whether or not a <head> was ever opened.
+    else if (inHead && name !== 'html' && !HEAD_TAGS.has(name)) inHead = false
 
     const id = attrs.id
     if (id !== undefined && id !== '') {
