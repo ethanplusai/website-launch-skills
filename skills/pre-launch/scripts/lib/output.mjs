@@ -78,7 +78,12 @@ const CSS_URL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"]+))\s*\)/gi
 // launch over them. `<style>` is left in: the url() references in it are real files.
 // The opening tag is kept — a `<script src>` pointing at a file the build does not contain is a
 // real broken reference — and only the body between the tags is dropped.
-const SCRIPT_BODY = /(<script\b[^>]*>)[\s\S]*?(<\/script\s*>|$)/gi
+// The attribute run is the tokenizer's (html.mjs TOKEN), so a `>` inside a quoted value — a CSS
+// selector in a data attribute, an inline JSON island — does not end the tag early. It used to:
+// the opening tag stopped at that `>`, and the lazy body match then ate the rest of the real tag,
+// `src` and all, so a `<script src>` pointing at a bundle the build never wrote stopped being a
+// broken reference — the exact thing this rule keeps.
+const SCRIPT_BODY = /(<script\b(?:\s+[^\s=/><]+(?:\s*=\s*(?:"[^"<]*"|'[^'<]*'|[^\s"'<>]+))?)*\s*>)[\s\S]*?(<\/script\s*>|$)/gi
 
 const withoutScripts = (body) => String(body ?? '').replace(SCRIPT_BODY, '$1$2')
 

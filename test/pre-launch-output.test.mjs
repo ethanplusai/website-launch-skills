@@ -238,3 +238,42 @@ test('with no build directory every output check skips with the reason', async (
     }
   } finally { cleanup() }
 })
+
+// M8: `<script\b[^>]*>` stops at the first `>` in the tag, and a `>` inside a quoted attribute
+// value is an ordinary thing for a bundler to emit (`data-sel="div > span"`, an inline JSON
+// island, a selector in a data attribute). The opening tag then ends early, and the lazy body
+// match eats the rest of the real tag — `src` included — so a `<script src>` pointing at a bundle
+// the build never wrote stopped being a broken reference. That is the one thing the script rule
+// was explicitly written to keep catching. The tokenizer's own quoted-attribute class does not
+// have the problem, so this uses it.
+test('a > inside a quoted script attribute does not hide a broken script src', async () => {
+  const { dir, cleanup } = outsideRepoDir('script-attr-gt')
+  try {
+    const { mkdirSync } = await import('node:fs')
+    const head = '<meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Home</title><meta name="description" content="A description long enough to be a real one and not a stub of any kind at all.">'
+    const script = '<script data-sel="div > span" src="/missing-bundle.js"></script>'
+    writeFileSync(join(dir, 'package.json'), '{}')
+    mkdirSync(join(dir, 'dist'))
+    writeFileSync(join(dir, 'dist', 'index.html'), `<!doctype html><html lang="en"><head>${head}</head><body><h1>Home</h1>${script}</body></html>`)
+    const map = await group(checks, await ctxFor(dir))
+    const found = assertStatus(map, 'output.internal-refs', 'fail', assert)
+    assert.match(found.evidence.map((e) => e.value).join(' | '), /missing-bundle\.js/)
+  } finally { cleanup() }
+})
+
+// And the body of such a script is still not markup: the reason the rule exists at all.
+test('a > inside a quoted script attribute does not expose the script body to the reference scan', async () => {
+  const { dir, cleanup } = outsideRepoDir('script-attr-gt-body')
+  try {
+    const { mkdirSync } = await import('node:fs')
+    const head = '<meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Home</title><meta name="description" content="A description long enough to be a real one and not a stub of any kind at all.">'
+    const script = '<script data-sel="div > span">window.location.href = "/a-file-that-is-not-there.html"</script>'
+    writeFileSync(join(dir, 'package.json'), '{}')
+    mkdirSync(join(dir, 'dist'))
+    writeFileSync(join(dir, 'dist', 'index.html'), `<!doctype html><html lang="en"><head>${head}</head><body><h1>Home</h1>${script}</body></html>`)
+    const map = await group(checks, await ctxFor(dir))
+    const found = map.get('output.internal-refs')
+    assert.ok(found !== undefined, 'output.internal-refs did not run')
+    assert.notEqual(found.status, 'fail', `output.internal-refs — ${found.detail}`)
+  } finally { cleanup() }
+})

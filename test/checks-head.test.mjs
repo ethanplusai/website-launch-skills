@@ -168,32 +168,46 @@ test('head.favicon-missing fires when no link rel is exactly icon, touch and mas
   assert.ok(!has(await good(), 'head.favicon-missing'))
 })
 
-test('head.favicon-broken fires when the declared icon does not 200', async () => {
+test('head.favicon-broken fires on every page declaring the icon that 404s, and on no other', async () => {
   const found = of(await bad(), 'head.favicon-broken')
-  assert.ok(found.length >= 1)
+  // Seven of the nine pages declare /favicon.ico, which answers 404. `/` and `/touch-only` declare
+  // no favicon at all, so they are `head.favicon-missing`'s business rather than this one's.
+  assert.deepEqual(pages(found), [
+    'https://bad-head.test/dup-one', 'https://bad-head.test/dup-two', 'https://bad-head.test/framework',
+    'https://bad-head.test/home', 'https://bad-head.test/long', 'https://bad-head.test/minified',
+    'https://bad-head.test/shortcut',
+  ])
   assert.match(allEvidence(found), /favicon\.ico/)
   assert.match(allEvidence(found), /404/)
   assert.ok(!has(await good(), 'head.favicon-broken'))
 })
 
-test('head.apple-touch-icon-missing fires when no touch icon is declared', async () => {
+test('head.apple-touch-icon-missing fires on every page but the one that declares a touch icon', async () => {
   const found = of(await bad(), 'head.apple-touch-icon-missing')
-  assert.ok(found.includes(found.find((f) => f.page === 'https://bad-head.test/')))
-  assert.equal(found[0].severity, 'low')
+  // Eight of the nine pages. `/touch-only` is the exception: it declares an apple-touch-icon and
+  // nothing else, which is the negative case this check needs and the fixture's whole reason for
+  // that page. (The old assertion — `found.includes(found.find(…))` — is true of any non-empty
+  // array and false of none, so it asserted only that the array was not empty.)
+  assert.equal(found.length, 8)
+  assert.ok(pages(found).includes('https://bad-head.test/'))
+  assert.ok(!pages(found).includes('https://bad-head.test/touch-only'))
+  for (const finding of found) assert.equal(finding.severity, 'low')
   assert.ok(!has(await good(), 'head.apple-touch-icon-missing'))
 })
 
-test('head.manifest-missing is an info finding when no web app manifest is linked', async () => {
+test('head.manifest-missing is an info finding on each of the nine pages with no manifest', async () => {
   const found = of(await bad(), 'head.manifest-missing')
-  assert.ok(found.length >= 1)
-  assert.equal(found[0].severity, 'info')
+  assert.equal(found.length, 9)
+  assert.ok(pages(found).includes('https://bad-head.test/touch-only'))
+  for (const finding of found) assert.equal(finding.severity, 'info')
   assert.ok(!has(await good(), 'head.manifest-missing'))
 })
 
-test('head.theme-color-missing is an info finding when no theme colour is declared', async () => {
+test('head.theme-color-missing is an info finding on each of the nine pages with no theme colour', async () => {
   const found = of(await bad(), 'head.theme-color-missing')
-  assert.ok(found.length >= 1)
-  assert.equal(found[0].severity, 'info')
+  assert.equal(found.length, 9)
+  assert.ok(pages(found).includes('https://bad-head.test/'))
+  for (const finding of found) assert.equal(finding.severity, 'info')
   assert.ok(!has(await good(), 'head.theme-color-missing'))
 })
 
