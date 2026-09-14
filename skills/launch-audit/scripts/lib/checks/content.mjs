@@ -42,8 +42,13 @@ const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}
 // own are a price, a year range or a part number far more often than an address.
 const US_STATES = 'AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY'
 const POSTAL = new RegExp(`\\b(${US_STATES})[\\s,]+(\\d{5}(?:-\\d{4})?)\\b`, 'g')
-// An entity that survived into the rendered text is an entity that was escaped twice.
-const VISIBLE_ENTITY = /&(?:amp|nbsp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/g
+// An entity that survived into the rendered text is an entity that was escaped twice. Only an
+// entity html.mjs decodes may be listed here: one it leaves alone reaches page.text intact on
+// every site that writes it, and would fire on all of them — which is why `&copy;` is absent, and
+// why `&apos;` is too. `&apos;` is now decoded, so a visible one would be a real double-escape,
+// but it is left out of the alternation deliberately: apostrophes are common enough in copy that
+// the check earns more from being quiet here than from the one case it gives up.
+const VISIBLE_ENTITY = /&(?:amp|nbsp|lt|gt|quot|#\d+|#x[0-9a-fA-F]+);/g
 
 // Spelling pairs where a site using both looks like two writers who never spoke. Each side matches
 // the word and its ordinary inflections, and neither side may match a word that merely contains
@@ -65,6 +70,18 @@ const emit = (check, overrides) => check.mk({ title: check.title, ...overrides }
 
 const htmlPages = (ctx) => ctx.crawl.pages.filter((p) => p.page !== null && p.status >= 200 && p.status < 300)
 const plural = (n, one, many) => (n === 1 ? one : many)
+// decodeURIComponent throws a URIError on a stray percent sign — and a stray percent sign in an
+// href is exactly the kind of malformed link this dimension exists to find, so a decode failure
+// must hand back the raw text rather than take the whole audit down with it. The raw text is also
+// the right thing to judge: `mailto:jo%e@` is not a usable address either way.
+const safeDecode = (value) => {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
 const matchesOf = (value, re) => (typeof value === 'string' ? [...value.matchAll(re)] : [])
 
 // A phone number as the digits somebody would actually dial: punctuation dropped, and the US
@@ -210,7 +227,7 @@ export const phoneVariants = define({
       for (const found of matchesOf(entry.page.text, PHONE)) add(normalizePhone(found[0]), found[0].trim())
       for (const link of entry.page.links) {
         if (link.scheme !== 'tel' || link.href === null) continue
-        const raw = decodeURIComponent(link.href.slice('tel:'.length))
+        const raw = safeDecode(link.href.slice('tel:'.length))
         add(normalizePhone(raw), raw)
       }
     })
@@ -235,7 +252,7 @@ export const emailVariants = define({
       for (const found of matchesOf(entry.page.text, EMAIL)) add(found[0].toLowerCase(), found[0])
       for (const link of entry.page.links) {
         if (link.scheme !== 'mailto' || link.href === null) continue
-        const address = decodeURIComponent(link.href.slice('mailto:'.length).split('?')[0].split(',')[0]).trim()
+        const address = safeDecode(link.href.slice('mailto:'.length).split('?')[0].split(',')[0]).trim()
         if (address === '' || !address.includes('@')) continue
         add(address.toLowerCase(), address)
       }

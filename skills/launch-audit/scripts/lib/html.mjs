@@ -10,6 +10,9 @@
 //   supplied `baseUrl` otherwise. A url that cannot be resolved is `null`.
 // - `alt` is `null` when the attribute is absent and `''` when it is present but empty.
 // - `metaByName`/`metaByProperty` keys are lowercased; the first occurrence of a key wins.
+//   `forms[].action` is `''` — not resolved — when the attribute is present but empty, because
+//   `action=""` and a resolved page url are different facts and only the parser can tell them
+//   apart. An absent attribute stays `null`.
 //   `head.metaCounts` counts every `<meta>` in the head under `name:<name>` / `property:<property>`,
 //   which is how a repeated tag stays visible despite those maps keeping only the first.
 // - `width`/`height` are numbers only when the attribute is a plain integer, else `null`.
@@ -54,7 +57,7 @@ const MAX_TAG = 16384
 const ATTR = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g
 const ENTITY = /&(#[xX][0-9a-fA-F]+|#\d+|[a-zA-Z][a-zA-Z0-9]*);/g
 
-const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', nbsp: '\u00a0' }
+const NAMED_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0' }
 const VOID = new Set(['img', 'br', 'hr', 'meta', 'link', 'input', 'source', 'track', 'wbr', 'area', 'base', 'col', 'embed', 'param'])
 const RAW_TEXT = new Set(['script', 'style', 'textarea', 'title'])
 const SUPPRESS_TEXT = new Set(['template', 'noscript', 'svg'])
@@ -575,7 +578,11 @@ export function parseHtml(html, baseUrl) {
   for (const frame of page.iframes) frame.src = resolve(frame.src, effectiveBase)
   for (const video of page.videos) video.src = resolve(video.src, effectiveBase)
   for (const script of page.scripts) script.src = resolve(script.src, effectiveBase)
-  for (const form of page.forms) form.action = resolve(form.action, effectiveBase)
+  for (const form of page.forms) {
+    // An empty action is kept empty. Resolving it would produce the page's own url, which is also
+    // what `action="/this-page"` produces, and the two are not the same thing to a check.
+    form.action = form.action !== null && form.action.trim() === '' ? '' : resolve(form.action, effectiveBase)
+  }
   for (const { link, raw } of anchorMeta) {
     link.href = resolve(raw, effectiveBase)
     link.scheme = schemeOf(link.href, raw)

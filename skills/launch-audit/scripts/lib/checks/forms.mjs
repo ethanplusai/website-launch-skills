@@ -60,7 +60,28 @@ function forms(ctx) {
   return out
 }
 
-const describeAction = (action) => (action === null ? 'no action attribute' : action)
+const describeAction = (action) => (action === null ? 'no action attribute' : (action === '' ? 'an empty action' : action))
+
+// The hosts that are this site. A production site can perfectly well live on a preview domain —
+// `acme.vercel.app` is a real address a real business hands out — and a staging run is pointed at
+// a staging host on purpose. Reporting every internal link, or the site's own form action, as a
+// reference to a development host would make both of those audits unusable, so the audited host
+// (with its apex and www counterparts, and the host of the url the audit was given) is exempt. A
+// *different* host matching the same pattern is still reported.
+function ownHosts(ctx) {
+  const hosts = new Set()
+  const add = (host) => { if (typeof host === 'string' && host !== '') hosts.add(host.toLowerCase()) }
+  add(ctx.target.host)
+  add(ctx.target.apex)
+  if (ctx.target.hasWwwCounterpart) add(ctx.target.www)
+  try {
+    add(new URL(ctx.target.url).hostname)
+  } catch {
+    // target.url is the url the audit parsed to build the context; if it will not parse here there
+    // is nothing to add and nothing to exempt.
+  }
+  return hosts
+}
 
 function hostOf(href) {
   try {
@@ -70,12 +91,18 @@ function hostOf(href) {
   }
 }
 
-// A form that posts nowhere. A missing action and an action of "#" both submit to the current url
-// and reload the page with the answers thrown away; a javascript: action does nothing at all
-// without script. html.mjs resolves the action against the page, so "#" arrives as the page url
-// with a trailing hash.
-function deadReason(action) {
-  if (action === null || action.trim() === '') return 'no action attribute'
+// A form that posts nowhere. A missing action, an empty one and an action of "#" all reload the
+// current url with the answers thrown away; a javascript: action does nothing at all without
+// script. html.mjs keeps an empty action empty and resolves everything else against the page, so
+// `action="#"` arrives as the page url with a trailing hash.
+//
+// Posting to the page's own url is *not* dead: that is how a server-rendered form has always
+// worked, and `action="/contact"` on /contact is a working form, so an action that resolves to the
+// page itself is passed over before the hash test can see it.
+function deadReason(action, pageUrl) {
+  if (action === null) return 'no action attribute'
+  if (action.trim() === '') return 'action=""'
+  if (action === pageUrl) return null
   if (action.endsWith('#')) return 'action="#"'
   if (/^javascript:/i.test(action)) return `action="${action}"`
   return null
@@ -150,7 +177,7 @@ export const deadAction = define({
   run(ctx) {
     const out = []
     for (const { form, entry, where } of forms(ctx)) {
-      const reason = deadReason(form.action)
+      const reason = deadReason(form.action, entry.finalUrl ?? entry.url)
       if (reason === null) continue
       out.push(emit(deadAction, {
         page: entry.url,
@@ -171,11 +198,12 @@ export const devEndpoint = define({
   run(ctx) {
     const staging = ctx.target.staging
     const extraHosts = ctx.target.devHosts
+    const own = ownHosts(ctx)
     const out = []
     for (const { form, entry, where } of forms(ctx)) {
-      if (form.action === null) continue
+      if (form.action === null || form.action === '') continue
       const host = hostOf(form.action)
-      if (host === null) continue
+      if (host === null || own.has(host)) continue
       const hits = scanText(host, DEV_HOSTS, { extraHosts })
       if (hits.length === 0) continue
       out.push(emit(devEndpoint, {

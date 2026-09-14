@@ -10,6 +10,10 @@ const good = () => run('links-good-site.json', { url: 'https://good-links.test/'
 // page, so every check has something real to catch.
 const bad = () => run('links-site.json', { url: 'https://links.test/' })
 const staging = () => run('links-site.json', { url: 'https://links.test/', staging: true, cacheTag: 'staging' })
+// A production site that genuinely lives on a preview domain, and a staging target audited on
+// purpose: neither may be reported as linking to a development host just for being itself.
+const preview = () => run('own-dev-host-site.json', { url: 'https://acme.vercel.app/' })
+const stagingHost = () => run('own-dev-host-site.json', { url: 'https://staging.acme.test/', staging: true, cacheTag: 'staging-host' })
 
 test('every check is registrable, http-tier, and in the links dimension', () => {
   assert.ok(checks.length > 0)
@@ -81,6 +85,25 @@ test('links.to-dev-host blocks a production launch and is merely high on staging
   assert.match(evidenceText(found[0]), /localhost:3000/)
   assert.equal(of(await staging(), 'links.to-dev-host')[0].severity, 'high')
   assert.ok(!has(await good(), 'links.to-dev-host'))
+})
+
+test('links.to-dev-host exempts the audited site, and still reports a different host', async () => {
+  const found = of(await preview(), 'links.to-dev-host')
+  assert.equal(found.length, 1)
+  const evidence = evidenceText(found[0])
+  assert.match(evidence, /other\.vercel\.app/)
+  // Every internal link on this site is a *.vercel.app link, and none of them is a finding.
+  assert.ok(!evidence.includes('acme.vercel.app/about'))
+})
+
+test('a staging target the audit was pointed at is not a link to a development host', async () => {
+  assert.ok(!has(await stagingHost(), 'links.to-dev-host'))
+})
+
+test('a malformed percent escape in a mailto: or tel: href is reported, not thrown', async () => {
+  const findings = await bad()
+  assert.match(allEvidence(of(findings, 'links.mailto-invalid')), /mailto:jo%e@/)
+  assert.match(allEvidence(of(findings, 'links.tel-invalid')), /tel:\+1-555-100%/)
 })
 
 test('links.to-http-on-https names the plain-http links an https page carries', async () => {

@@ -536,3 +536,18 @@ test('a video inside inert content is not reported', () => {
   const p = parseHtml('<template><video src="/a.mp4" autoplay></video></template>', 'https://x.test/')
   assert.deepEqual(p.videos, [])
 })
+
+test('an empty action stays empty, and every other action is resolved', () => {
+  const p = parseHtml(
+    '<form action=""></form><form></form><form action="#"></form><form action="/contact"></form>',
+    'https://x.test/current-page',
+  )
+  assert.deepEqual(p.forms.map((f) => f.action), [
+    '', null, 'https://x.test/current-page#', 'https://x.test/contact',
+  ])
+})
+
+test('an apostrophe entity is decoded, so copy that uses one reads as written', () => {
+  const p = parseHtml("<p>Tom&apos;s shop</p>", 'https://x.test/')
+  assert.equal(p.text, "Tom's shop")
+})

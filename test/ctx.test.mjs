@@ -330,3 +330,17 @@ test('a probe set past its cap drops the overflow and says how much it dropped',
   assert.equal(ctx.probes.externals.size, 200)
   assert.equal(ctx.probes.caps.externals.dropped, 5)
 })
+
+test('a site hosted on a form-embed domain does not probe its own iframes as embeds', async () => {
+  const { ctx } = await probeCtx({
+    'https://acme.netlify.app/': htmlPage(
+      '<iframe src="/widget.html" title="Our widget"></iframe>' +
+      '<iframe src="https://js.hsforms.net/f.html" title="Enquiries"></iframe>' +
+      '<script src="/app.js"></script>',
+    ),
+    'https://js.hsforms.net/f.html': ok('text/html'),
+  }, 'https://acme.netlify.app/')
+  // The site's own host ends in .netlify.app, which is on the form-embed list — but its own pages
+  // are not embedded forms, and its own bundle is not an embedded form either.
+  assert.deepEqual([...ctx.probes.embeds.keys()], ['https://js.hsforms.net/f.html'])
+})

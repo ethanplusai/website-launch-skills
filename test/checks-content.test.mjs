@@ -99,7 +99,19 @@ test('content.broken-entity fires on an entity the reader can see', async () => 
   const evidence = evidenceText(found[0])
   assert.match(evidence, /&amp;/)
   assert.match(evidence, /&nbsp;/)
+  // &apos; is decoded like any other entity html.mjs knows, so an apostrophe is not a defect.
+  assert.ok(!evidence.includes('&apos;'))
   assert.ok(!has(await good(), 'content.broken-entity'))
+})
+
+test('a malformed percent escape in a tel: or mailto: href does not throw the dimension', async () => {
+  const findings = await bad()
+  // /placeholder carries mailto:jo%e@content.test and tel:+1-555-100%; both dimensions that decode
+  // an href run over them, and the run completes.
+  assert.ok(findings.length > 0)
+  assert.match(allEvidence(of(findings, 'content.email-variants')), /jo%e@content\.test/)
+  // The broken tel has seven digits, so it is not a phone number and not a second variant.
+  assert.ok(!allEvidence(of(findings, 'content.phone-variants')).includes('555-100%'))
 })
 
 test('content.mixed-spelling fires on color next to colour, and on nothing else', async () => {

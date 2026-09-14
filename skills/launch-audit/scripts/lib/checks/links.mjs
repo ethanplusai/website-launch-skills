@@ -71,6 +71,40 @@ const hostOf = (href) => {
 }
 const uniq = (values) => [...new Set(values)]
 
+// decodeURIComponent throws a URIError on a stray percent sign — and a stray percent sign in an
+// href is exactly the kind of malformed link this dimension exists to find, so a decode failure
+// must hand back the raw text rather than take the whole audit down with it. The raw text is also
+// the right thing to judge: `mailto:jo%e@` is not a usable address either way.
+const safeDecode = (value) => {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+// The hosts that are this site. A production site can perfectly well live on a preview domain —
+// `acme.vercel.app` is a real address a real business hands out — and a staging run is pointed at
+// a staging host on purpose. Reporting every internal link, or the site's own form action, as a
+// reference to a development host would make both of those audits unusable, so the audited host
+// (with its apex and www counterparts, and the host of the url the audit was given) is exempt. A
+// *different* host matching the same pattern is still reported.
+function ownHosts(ctx) {
+  const hosts = new Set()
+  const add = (host) => { if (typeof host === 'string' && host !== '') hosts.add(host.toLowerCase()) }
+  add(ctx.target.host)
+  add(ctx.target.apex)
+  if (ctx.target.hasWwwCounterpart) add(ctx.target.www)
+  try {
+    add(new URL(ctx.target.url).hostname)
+  } catch {
+    // target.url is the url the audit parsed to build the context; if it will not parse here there
+    // is nothing to add and nothing to exempt.
+  }
+  return hosts
+}
+
+
 // Every crawled url, reachable by the url the crawl asked for and by the url it landed on, so a
 // link written to either spelling finds the same result. The url-keyed pass runs first and wins:
 // a redirect target that was also crawled in its own right keeps its own entry.
@@ -175,9 +209,11 @@ export const toDevHost = define({
   run(ctx) {
     const staging = ctx.target.staging
     const extraHosts = ctx.target.devHosts
+    const own = ownHosts(ctx)
     return perPage(ctx, toDevHost, (entry) => webLinks(entry).filter((link) => {
       const host = hostOf(link.href)
-      return host !== null && scanText(host, DEV_HOSTS, { extraHosts }).length > 0
+      if (host === null || own.has(host)) return false
+      return scanText(host, DEV_HOSTS, { extraHosts }).length > 0
     }), (hits, entry) => ({
       severity: staging ? 'high' : 'blocker',
       title: staging ? 'A staging page links to a development host' : 'A link points at a development host',
@@ -258,7 +294,7 @@ export const mailtoInvalid = define({
   run(ctx) {
     return perPage(ctx, mailtoInvalid, (entry) => entry.page.links.filter((link) => {
       if (link.scheme !== 'mailto' || link.href === null) return false
-      const addresses = link.href.slice('mailto:'.length).split('?')[0].split(',').map((a) => decodeURIComponent(a).trim())
+      const addresses = link.href.slice('mailto:'.length).split('?')[0].split(',').map((a) => safeDecode(a).trim())
       return addresses.length === 0 || addresses.some((address) => !EMAIL.test(address))
     }), (hits, entry) => ({
       detail: `${hits.length} mailto: link${hits.length === 1 ? '' : 's'} on this page carr${hits.length === 1 ? 'ies' : 'y'} an address that is not an address. Clicking one opens a mail window with nothing to send to.`,
@@ -276,7 +312,7 @@ export const telInvalid = define({
   run(ctx) {
     return perPage(ctx, telInvalid, (entry) => entry.page.links.filter((link) => {
       if (link.scheme !== 'tel' || link.href === null) return false
-      const value = decodeURIComponent(link.href.slice('tel:'.length)).split(/[;,]/)[0].replace(TEL_STRIP, '')
+      const value = safeDecode(link.href.slice('tel:'.length)).split(/[;,]/)[0].replace(TEL_STRIP, '')
       const digits = value.startsWith('+') ? value.slice(1) : value
       return !/^\d{7,15}$/.test(digits)
     }), (hits, entry) => ({

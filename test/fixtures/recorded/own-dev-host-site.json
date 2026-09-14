@@ -1,0 +1,51 @@
+{
+  "https://acme.vercel.app/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://acme.vercel.app/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>A production site on a preview domain</title>\n</head>\n<body>\n<a class=\"skip-link\" href=\"#main\">Skip to content</a>\n<main id=\"main\">\n<a href=\"/about\">About the workshop</a>\n<a href=\"https://other.vercel.app/\">A different preview deployment</a>\n<form action=\"/contact\" method=\"post\">\n<label for=\"p-email\">Your email</label><input id=\"p-email\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n</main>\n</body>\n</html>\n"
+  },
+  "https://acme.vercel.app/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the workshop</title>\n</head>\n<body>\n<a class=\"skip-link\" href=\"#main\">Skip to content</a>\n<main id=\"main\">\n<a href=\"/\">Back to the front page</a>\n<form action=\"https://acme.vercel.app/contact\" method=\"post\">\n<label for=\"a-email\">Your email</label><input id=\"a-email\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n</main>\n</body>\n</html>\n"
+  },
+  "https://other.vercel.app/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Someone else</h1>"
+  },
+  "https://staging.acme.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://staging.acme.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>The staging target the audit was pointed at</title>\n</head>\n<body>\n<a class=\"skip-link\" href=\"#main\">Skip to content</a>\n<main id=\"main\">\n<a href=\"/pricing\">Pricing and lead times</a>\n<form action=\"/contact\" method=\"post\">\n<label for=\"s-email\">Your email</label><input id=\"s-email\" type=\"email\" name=\"email\">\n<input type=\"text\" name=\"website\" style=\"display:none\" tabindex=\"-1\" autocomplete=\"off\">\n<button type=\"submit\">Send</button>\n</form>\n</main>\n</body>\n</html>\n"
+  },
+  "https://staging.acme.test/pricing": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Pricing and lead times</title>\n</head>\n<body>\n<a class=\"skip-link\" href=\"#main\">Skip to content</a>\n<main id=\"main\"><a href=\"/\">Home</a></main>\n</body>\n</html>\n"
+  }
+}

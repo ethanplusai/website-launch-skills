@@ -79,7 +79,7 @@ const EMBED_LIMIT = 50
 // form even when it is mounted outside the <form> it replaces, which is how most of them work.
 const FORM_EMBED_HOSTS = [
   'hsforms.net', 'hubspot.com', 'typeform.com', 'jotform.com', 'formstack.com', 'cognitoforms.com',
-  'gravityforms', 'wufoo.com', 'tally.so', 'formspree.io', 'netlify', 'getform.io', 'basin.com',
+  'gravityforms', 'wufoo.com', 'tally.so', 'formspree.io', 'netlify.app', 'netlify.com', 'getform.io', 'basin.com',
   'formcarry.com', 'mailchimp.com', 'list-manage.com', 'calendly.com', 'acuityscheduling.com',
 ]
 
@@ -190,9 +190,12 @@ function imageUrls(crawl) {
   return collector.all()
 }
 
-// The embeds that could be a form: an iframe or an external script written inside a <form>, plus
-// anything from a host that exists to host forms, wherever it sits on the page. A same-origin
-// script outside a form is the site's own bundle, not an embed, and is left alone.
+// The embeds that could be a form: an iframe or a script written inside a <form>, plus anything
+// off-origin from a host that exists to host forms, wherever it sits on the page. Off-origin is
+// required for the host-list branch, because a site *hosted* on one of those domains matches its
+// own host: `https://acme.netlify.app/widget.html` in an <iframe> is that site's own page, not an
+// embedded form. A same-origin script outside a form is the site's own bundle, and is left alone
+// for the same reason.
 function embedUrls(crawl) {
   const collector = urlCollector()
   for (const entry of crawl.pages) {
@@ -203,26 +206,27 @@ function embedUrls(crawl) {
     } catch {
       origin = null
     }
-    const consider = (src, { requireOffOrigin }) => {
-      if (typeof src !== 'string' || src === '') return false
-      let parsed
+    const parse = (src) => {
+      if (typeof src !== 'string' || src === '') return null
       try {
-        parsed = new URL(src)
+        return new URL(src)
       } catch {
-        return false
+        return null
       }
-      if (requireOffOrigin && parsed.origin === origin) return false
-      return true
     }
+    // An iframe is a form embed when it sits inside a <form>, or when it comes from another origin
+    // that exists to host forms.
     for (const frame of entry.page.iframes) {
-      if (frame.src === null) continue
-      if (!consider(frame.src, { requireOffOrigin: false })) continue
-      if (frame.inForm || isFormEmbedHost(new URL(frame.src).hostname.toLowerCase())) collector.add(frame.src)
+      const parsed = parse(frame.src)
+      if (parsed === null) continue
+      if (frame.inForm || (parsed.origin !== origin && isFormEmbedHost(parsed.hostname.toLowerCase()))) collector.add(frame.src)
     }
+    // A script is only ever a form embed when it comes from another origin: a same-origin script is
+    // the site's own code, inside a <form> or not.
     for (const script of entry.page.scripts) {
-      if (script.src === null) continue
-      if (!consider(script.src, { requireOffOrigin: true })) continue
-      if (script.inForm || isFormEmbedHost(new URL(script.src).hostname.toLowerCase())) collector.add(script.src)
+      const parsed = parse(script.src)
+      if (parsed === null || parsed.origin === origin) continue
+      if (script.inForm || isFormEmbedHost(parsed.hostname.toLowerCase())) collector.add(script.src)
     }
   }
   return collector.all()

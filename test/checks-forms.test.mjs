@@ -10,6 +10,12 @@ const good = () => run('forms-good-site.json', { url: 'https://good-forms.test/'
 // embed and an action of "#".
 const bad = () => run('forms-site.json', { url: 'https://forms.test/' })
 const staging = () => run('forms-site.json', { url: 'https://forms.test/', staging: true, cacheTag: 'staging' })
+// Five actions on one page: an in-page anchor, a bare hash, an empty action, no action at all, and
+// the page's own url.
+const actions = () => run('form-actions-site.json', { url: 'https://form-actions.test/current-page' })
+// A production site on a preview domain, and a staging target audited on purpose.
+const preview = () => run('own-dev-host-site.json', { url: 'https://acme.vercel.app/' })
+const stagingHost = () => run('own-dev-host-site.json', { url: 'https://staging.acme.test/', staging: true, cacheTag: 'staging-host' })
 
 test('every check is registrable and in the forms dimension', () => {
   assert.ok(checks.length > 0)
@@ -51,6 +57,25 @@ test('forms.dead-action fires on no action, on javascript: and on "#"', async ()
   assert.match(evidence, /javascript:/)
   assert.match(evidence, /#/)
   assert.ok(!has(await good(), 'forms.dead-action'))
+})
+
+test('forms.dead-action flags "#", an empty action and a missing one, and nothing else', async () => {
+  const found = of(await actions(), 'forms.dead-action')
+  // The reason is the one plain-text evidence item each of these findings carries.
+  const reasons = found.map((f) => f.evidence.find((e) => e.type === 'text').value).sort()
+  assert.deepEqual(reasons, ['action=""', 'action="#"', 'no action attribute'])
+  // An in-page anchor goes somewhere, and posting to the page's own url is how a server-rendered
+  // form has always worked; neither is flagged.
+  assert.ok(!allEvidence(found).includes('#contact'))
+  assert.equal(of(await actions(), 'forms.inventory').length, 5)
+})
+
+test('forms.dev-endpoint exempts the audited site, on a preview domain or on staging', async () => {
+  // Both forms on this site post to acme.vercel.app — one by path, one by absolute url.
+  assert.ok(!has(await preview(), 'forms.dev-endpoint'))
+  assert.ok(!has(await stagingHost(), 'forms.dev-endpoint'))
+  // The site is still audited: its forms are inventoried.
+  assert.equal(of(await preview(), 'forms.inventory').length, 2)
 })
 
 test('forms.dev-endpoint blocks a production launch and is high on staging', async () => {
