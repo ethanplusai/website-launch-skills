@@ -561,7 +561,7 @@ const canonical = check({
     if (problems.length === 0) return []
     return [this.mk({
       title: 'A canonical is missing, relative, off-host or not self-referencing',
-      detail: `${problems.length} page${problems.length === 1 ? '' : 's'} declare a canonical that will not do what it looks like it does`,
+      detail: `${problems.length} ${problems.length === 1 ? 'page declares' : 'pages declare'} a canonical that will not do what it looks like it does`,
       evidence: listed(problems, html),
       fix: `Give every indexable page one absolute canonical on ${ctx.prodHost} pointing at its own url.`,
     })]

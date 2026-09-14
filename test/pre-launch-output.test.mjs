@@ -75,6 +75,25 @@ test('an internal reference that resolves to nothing fails, in HTML and in CSS',
 // failures were `window.location.href = d.url;` and a `href="${p.u}"` inside a template literal,
 // both of them script, neither of them a reference to anything. A gate that blocks a launch on
 // evidence that is not there is worse than one check short.
+// A line a person reads out loud has to be a sentence. "1 page declare a canonical" is what the
+// smoke run printed against a real repository.
+test('the canonical failure agrees with itself about how many pages it found', async () => {
+  const many = assertStatus(failing, 'output.canonical', 'fail', assert)
+  assert.match(many.detail, /\d+ pages declare/)
+
+  const { dir, cleanup } = outsideRepoDir('one-canonical')
+  try {
+    const { mkdirSync } = await import('node:fs')
+    const head = '<meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Home</title><meta name="description" content="A description long enough to be a real one and not a stub of any kind at all.">'
+    writeFileSync(join(dir, 'package.json'), '{}')
+    mkdirSync(join(dir, 'dist'))
+    writeFileSync(join(dir, 'dist', 'index.html'), `<!doctype html><html lang="en"><head>${head}<link rel="canonical" href="/"></head><body><h1>Home</h1></body></html>`)
+    const map = await group(checks, await ctxFor(dir))
+    const one = assertStatus(map, 'output.canonical', 'fail', assert)
+    assert.match(one.detail, /^1 page declares/, `ungrammatical detail: ${one.detail}`)
+  } finally { cleanup() }
+})
+
 test('script bodies are not scanned for references', () => {
   const found = passing.get('output.internal-refs')
   assert.ok(found !== undefined, 'output.internal-refs did not run')
