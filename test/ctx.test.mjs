@@ -159,10 +159,14 @@ test('every probe goes through net, and the 404 path comes from the injected ran
   const get = net.get
   net.get = (url) => { asked.push(url); return get(url) }
   net.head = (url) => net.get(url)
-  let certHost = null
-  net.cert = async (host) => { certHost = host; return { valid: true, altNames: ['good.test'], daysLeft: 90, error: null } }
+  const certHosts = []
+  net.cert = async (host) => { certHosts.push(host); return { valid: true, altNames: ['good.test'], daysLeft: 90, error: null } }
   const ctx = await buildAuditContext(net, createDns(fakeResolvers()), { url: 'https://good.test/', random: () => 'cafe1234' })
-  assert.equal(certHost, 'good.test')
+  // Both host variants are asked for their own certificate: they are routinely two certificates,
+  // and judging the www host by the apex's names invents a mismatch nobody would see.
+  assert.deepEqual([...certHosts].sort(), ['good.test', 'www.good.test'])
+  assert.equal(ctx.cert.altNames[0], 'good.test')
+  assert.deepEqual([...ctx.certs.keys()].sort(), ['good.test', 'www.good.test'])
   assert.equal(ctx.probes.notFound.url, 'https://good.test/this-page-should-not-exist-cafe1234')
   for (const url of [
     'https://good.test/robots.txt',

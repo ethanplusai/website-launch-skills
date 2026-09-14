@@ -20,7 +20,7 @@
 //  10. images              — every <img src> and srcset candidate, GET (the bytes are the evidence)
 //  11. embeds              — the iframes and scripts that could be a form: inside a <form>, or on a
 //                            host that exists to host forms
-//  12. cert                — net.cert(host)
+//  12. certs               — net.cert() per host variant; `cert` is the target host's
 //  13. old site            — only when `options.oldUrl` is given: the same crawl again over the
 //                            old origin (its own robots.txt and sitemap, the same caps), and then
 //                            every path that crawl found, requested once on the NEW origin, so the
@@ -446,8 +446,17 @@ export async function buildAuditContext(net, dns, options = {}) {
     },
   }
 
-  // 12. cert
-  const cert = typeof net.cert === 'function' ? await net.cert(host) : null
+  // 12. cert — the target host's, and the other host variant's when one exists. Two certificates,
+  // because they are routinely two: an apex on one provider and a www on a CDN in front of it each
+  // present their own, and judging the www host by the apex's subject alternative names invents a
+  // name mismatch no visitor would ever see.
+  const certHosts = wwwCounterpart ? [...new Set([host, host === www ? apex : www])] : [host]
+  const certs = new Map()
+  if (typeof net.cert === 'function') {
+    const results = await Promise.all(certHosts.map((name) => net.cert(name)))
+    certHosts.forEach((name, i) => certs.set(name, results[i]))
+  }
+  const cert = certs.get(host) ?? null
 
   // The email records, on the registrable domain rather than the www host: mail is authenticated
   // for `example.test`, and `www.example.test` never publishes its own SPF.
@@ -456,5 +465,5 @@ export async function buildAuditContext(net, dns, options = {}) {
 
   const browser = options.browser ?? null
 
-  return { target, crawl, oldCrawl, robots, sitemaps, probes, cert, dns, dnsRecords, browser, net, options, now }
+  return { target, crawl, oldCrawl, robots, sitemaps, probes, cert, certs, dns, dnsRecords, browser, net, options, now }
 }

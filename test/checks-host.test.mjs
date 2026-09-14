@@ -113,6 +113,46 @@ test('host.cert-missing-san stays quiet on a certificate issued for another host
   assert.deepEqual(of(found, 'host.cert-expiring'), [])
 })
 
+// Regression, from the smoke run against a real site: the apex certificate named only the apex,
+// the www host was served by a CDN in front of it with its own certificate that did cover www, and
+// the audit reported "any visitor who reaches an uncovered host gets a name-mismatch warning" —
+// about a host that answers over TLS without a warning of any kind.
+test('host.cert-missing-san stays quiet when the other host presents its own certificate', async () => {
+  const found = await run('https-site.json', {
+    url: 'https://good.test/',
+    cacheTag: 'own-www-cert',
+    cert: (name) => (name === 'www.good.test'
+      ? { ...defaultCert('good.test'), subject: 'www.good.test', altNames: ['www.good.test'] }
+      : { ...defaultCert('good.test'), altNames: ['good.test'] }),
+  })
+  assert.deepEqual(of(found, 'host.cert-missing-san'), [])
+})
+
+// The same certificate, and a www host that answers nothing: there is no visitor to warn, and the
+// check's own catch line says "while the other is still reachable".
+test('host.cert-missing-san stays quiet when the uncovered host does not answer at all', async () => {
+  const found = await run('https-site.json', {
+    url: 'https://good.test/',
+    cacheTag: 'no-www-host',
+    records: { 'https://www.good.test/': { error: 'ENOTFOUND www.good.test' } },
+    cert: (name) => (name === 'www.good.test'
+      ? { valid: false, subject: null, altNames: [], issuer: null, validFrom: null, validTo: null, daysLeft: null, error: 'ENOTFOUND' }
+      : { ...defaultCert('good.test'), altNames: ['good.test'] }),
+  })
+  assert.deepEqual(of(found, 'host.cert-missing-san'), [])
+})
+
+// And it still fires when www really is served by the same certificate that does not name it.
+test('host.cert-missing-san fires when the reachable www host has no certificate of its own', async () => {
+  const found = of(await run('https-site.json', {
+    url: 'https://good.test/',
+    cacheTag: 'shared-bad-cert',
+    cert: { ...defaultCert('good.test'), altNames: ['good.test'] },
+  }), 'host.cert-missing-san')
+  assert.equal(found.length, 1)
+  assert.match(evidenceText(found[0]), /www\.good\.test/)
+})
+
 test('host.cert-missing-san accepts a wildcard san', async () => {
   const found = of(await run('https-site.json', {
     url: 'https://good.test/',

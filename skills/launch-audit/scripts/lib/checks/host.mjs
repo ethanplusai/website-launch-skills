@@ -273,6 +273,13 @@ export const certExpiring = define({
   },
 })
 
+// Did this host variant answer at all? net.get follows redirects, so a www that 307s to the apex
+// still comes back with a status; a host that resolves to nothing comes back with an error.
+function variantAnswers(ctx, host) {
+  const probe = host === ctx.target.www ? ctx.probes.wwwRoot : (host === ctx.target.apex ? ctx.probes.apexRoot : null)
+  return probe !== null && probe !== undefined && typeof probe.status === 'number' && probe.status > 0
+}
+
 export const certMissingSan = define({
   id: 'host.cert-missing-san',
   severity: 'high',
@@ -282,7 +289,7 @@ export const certMissingSan = define({
     if (ctx.cert?.valid !== true) return [] // see cert-expiring: an invalid certificate is one finding
     const names = ctx.cert.altNames ?? []
     if (names.length === 0) return []
-    const covers = (host) => names.some((name) => {
+    const coveredBy = (list, host) => list.some((name) => {
       const candidate = String(name).toLowerCase()
       if (candidate === host) return true
       if (!candidate.startsWith('*.')) return false
@@ -290,7 +297,19 @@ export const certMissingSan = define({
       return host.endsWith(suffix) && host.slice(0, -suffix.length).includes('.') === false
     })
     const expected = ctx.target.hasWwwCounterpart ? [ctx.target.apex, ctx.target.www] : [ctx.target.host]
-    const uncovered = expected.filter((host) => !covers(host))
+    // Two things have to be true before a missing name is a warning anybody would ever see. The
+    // host has to answer — this check catches "one variant covered while the other is still
+    // reachable", and a www that resolves to nothing sends nobody anywhere. And the host has to be
+    // relying on *this* certificate: an apex on one provider with a CDN in front of www is two
+    // certificates, and the www one routinely names only www. The smoke run found exactly that
+    // shape and reported a name mismatch on a host that answers cleanly over TLS.
+    const uncovered = expected.filter((host) => {
+      if (coveredBy(names, host)) return false
+      if (!variantAnswers(ctx, host)) return false
+      const own = ctx.certs?.get?.(host)
+      if (own === undefined || own === null || own === ctx.cert) return true
+      return !(own.valid === true && coveredBy(own.altNames ?? [], host))
+    })
     if (uncovered.length === 0) return []
     return [emit(certMissingSan, {
       page: `https://${ctx.target.host}/`,

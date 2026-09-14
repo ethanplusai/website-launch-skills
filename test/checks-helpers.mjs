@@ -53,7 +53,12 @@ export async function buildCtxFromFixture(relPath, options = {}) {
   const net = recordedNet({ ...JSON.parse(readFixture(relPath)), ...records })
   net.head = (url) => net.get(url)
   const host = new URL(rest.url).hostname
-  net.cert = async () => (cert === undefined ? defaultCert(host) : cert)
+  // `cert` may be one object for every host, or a function of the host — a real site routinely
+  // presents two certificates, an apex on one provider and a www on the CDN in front of it.
+  net.cert = async (name = host) => {
+    if (cert === undefined) return defaultCert(name)
+    return typeof cert === 'function' ? cert(name) : cert
+  }
   const dns = createDns({ ...fakeResolvers(), ...resolvers })
   return buildAuditContext(net, dns, { random: () => 'deadbeef', now: NOW, ...rest })
 }
