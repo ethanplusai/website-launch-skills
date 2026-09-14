@@ -120,3 +120,32 @@ test('values.help and values.json are always booleans; values.config is path or 
   const r2 = p.parse(['--url', 'x', '--json'])
   assert.equal(r2.values.json, true)
 })
+
+// --- Fix round 1, finding 1: required is not enforced for type: 'list' flags ---
+test('a required list flag with no input is an error; with a value it passes', () => {
+  const rp = defineArgs({ name: 'req-list-demo', description: 'd', flags: {
+    checks: { type: 'list', required: true, help: 'which checks to run' },
+  }})
+  const missing = rp.parse([])
+  assert.match(missing.errors[0], /--checks is required/)
+  assert.deepEqual(missing.values.checks, [])
+  const present = rp.parse(['--checks', 'a'])
+  assert.deepEqual(present.errors, [])
+  assert.deepEqual(present.values.checks, ['a'])
+})
+
+// --- Fix round 1, finding 2: unknown-flag detection bypassed by inherited property names ---
+test('inherited Object.prototype property names are never treated as known flags', () => {
+  const r1 = p.parse(['--url', 'x', '--constructor', 'evil'])
+  assert.ok(r1.errors.includes('unknown flag --constructor'), r1.errors.join('; '))
+  assert.ok(r1.errors.includes('unexpected argument "evil"'), r1.errors.join('; '))
+
+  const r2 = p.parse(['--url', 'x', '--__proto__', 'evil'])
+  assert.ok(r2.errors.includes('unknown flag --__proto__'), r2.errors.join('; '))
+  assert.ok(r2.errors.includes('unexpected argument "evil"'), r2.errors.join('; '))
+})
+test('the --no-<flag> negation lookup also refuses to resolve inherited property names', () => {
+  const r = p.parse(['--url', 'x', '--no-constructor', 'evil'])
+  assert.ok(r.errors.includes('unknown flag --no-constructor'), r.errors.join('; '))
+  assert.ok(r.errors.includes('unexpected argument "evil"'), r.errors.join('; '))
+})

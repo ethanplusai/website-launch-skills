@@ -16,7 +16,10 @@ function coerce(type, raw, flagName) {
 }
 
 export function defineArgs(spec) {
-  const { name, description, flags = {} } = spec
+  const { name, description, flags: flagsSpec = {} } = spec
+  // Null-prototype copy: lookups like flags['constructor'] or flags['__proto__']
+  // must never resolve to an inherited Object.prototype property.
+  const flags = Object.assign(Object.create(null), flagsSpec)
   for (const k of Object.keys(flags)) {
     if (BUILTINS.has(k)) throw new Error(`flag "${k}" collides with a reserved built-in`)
   }
@@ -165,6 +168,9 @@ export function defineArgs(spec) {
           list = def.default
         } else {
           list = []
+        }
+        if (def.required && list.length === 0 && def.default === undefined) {
+          errors.push(`--${flagName} is required`)
         }
         values[flagName] = list
         continue
