@@ -1,0 +1,42 @@
+{
+  "https://a11y.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://a11y.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>The gallery</title>\n</head>\n<body>\n<header><a href=\"/\">The gallery</a></header>\n<h1>The gallery</h1>\n<h3>What we show</h3>\n<p>Prints, drawings and the occasional sculpture.</p>\n<img src=\"/wall.png\" alt=\"A wall of framed prints\">\n<img src=\"/room.png\">\n<div tabindex=\"2\">A panel you can tab to</div>\n<form action=\"/subscribe\" method=\"post\">\n<input type=\"email\" name=\"email\" autofocus>\n<button type=\"submit\">Subscribe</button>\n</form>\n<iframe src=\"https://maps.test/embed\"></iframe>\n<a href=\"/about\"><span></span></a>\n<a href=\"/about\">About the gallery</a>\n</body>\n</html>\n"
+  },
+  "https://a11y.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the gallery</title>\n</head>\n<body>\n<main>\n<h1>About the gallery</h1>\n<h2>Where we are</h2>\n<p>Two rooms above a bakery.</p>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://a11y.test/wall.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    }
+  },
+  "https://a11y.test/room.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    }
+  },
+  "https://a11y.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  }
+}

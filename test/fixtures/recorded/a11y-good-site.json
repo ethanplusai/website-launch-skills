@@ -1,0 +1,36 @@
+{
+  "https://a11y-good.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://a11y-good.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>The bindery</title>\n</head>\n<body>\n<header><a href=\"/\">The bindery</a></header>\n<main>\n<h1>The bindery</h1>\n<h2>What we do</h2>\n<h3>Repairs</h3>\n<p>We rebind books and box the ones that cannot be rebound.</p>\n<img src=\"/press.png\" alt=\"A nipping press on a bench\">\n<form action=\"/subscribe\" method=\"post\">\n<label for=\"email\">Your email address</label>\n<input id=\"email\" type=\"email\" name=\"email\">\n<button type=\"submit\">Subscribe</button>\n</form>\n<iframe src=\"https://maps.test/embed\" title=\"Where the bindery is\"></iframe>\n<a href=\"/about\">About the bindery</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://a11y-good.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the bindery</title>\n</head>\n<body>\n<main>\n<h1>About the bindery</h1>\n<h2>Where we are</h2>\n<p>Behind the market.</p>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://a11y-good.test/press.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png"
+    }
+  },
+  "https://a11y-good.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  }
+}
