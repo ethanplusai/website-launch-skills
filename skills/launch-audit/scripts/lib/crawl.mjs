@@ -67,11 +67,24 @@ export async function crawlSite(net, opts) {
   if (startUrl === null) throw new Error(`crawlSite: invalid start url: ${url}`)
   const startOrigin = originOf(startUrl)
 
+  const dropped = new Map()
+  function recordDrop(u, reason) {
+    if (dropped.has(u)) return
+    dropped.set(u, { url: u, reason })
+  }
+
+  // Off-origin sitemap URLs are never fetched — the crawl only ever touches the start origin.
+  // Each is recorded once in `dropped` as 'off-origin' and excluded from every other output
+  // (pages, orphans, unlisted): it never becomes a seed at all.
   const normalizedSitemapUrls = []
   const sitemapSet = new Set()
   for (const raw of sitemapUrls) {
     const n = normalizeUrl(raw, startUrl)
     if (n === null) continue
+    if (originOf(n) !== startOrigin) {
+      recordDrop(n, 'off-origin')
+      continue
+    }
     normalizedSitemapUrls.push(n)
     sitemapSet.add(n)
   }
@@ -101,12 +114,6 @@ export async function crawlSite(net, opts) {
   for (const s of normalizedSitemapUrls) {
     markOrigin(s, 'sitemap')
     seed(s)
-  }
-
-  const dropped = new Map()
-  function recordDrop(u, reason) {
-    if (dropped.has(u)) return
-    dropped.set(u, { url: u, reason })
   }
 
   const internalLinks = new Map()

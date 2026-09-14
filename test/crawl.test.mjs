@@ -250,3 +250,70 @@ test('crawlSite ignores non-http(s) links entirely (not internal, not external)'
   assert.equal(result.externalLinks.size, 0)
   assert.equal(result.pages.length, 1)
 })
+
+// --- fix round 1 ---
+
+test('off-origin sitemap URLs are never fetched, dropped once as off-origin, and excluded from orphans', async () => {
+  const calls = []
+  const net = {
+    async get(url) {
+      calls.push(url)
+      if (url === 'https://a.test/') {
+        return {
+          url, finalUrl: url, status: 200, ok: true, headers: { 'content-type': 'text/html' },
+          body: '<html><body>home</body></html>', bodyBytes: null, chain: [], error: null,
+          timedOut: false, bytes: 30, truncated: false,
+        }
+      }
+      return {
+        url, finalUrl: url, status: 0, ok: false, headers: {}, body: null, bodyBytes: null,
+        chain: [], error: 'not recorded', timedOut: false, bytes: 0, truncated: false,
+      }
+    },
+    async map(items, fn) {
+      return Promise.all(items.map(fn))
+    },
+  }
+
+  const result = await crawlSite(net, {
+    url: 'https://a.test/',
+    sitemapUrls: ['https://other.test/page'],
+  })
+
+  assert.ok(!result.pages.some((p) => p.url === 'https://other.test/page'))
+  assert.deepEqual(
+    result.dropped.find((d) => d.url === 'https://other.test/page'),
+    { url: 'https://other.test/page', reason: 'off-origin' },
+  )
+  assert.deepEqual(result.orphans, [])
+  assert.ok(!calls.includes('https://other.test/page'))
+})
+
+test('recordedNet honors a fixture-provided finalUrl/chain, and links resolve against finalUrl', async () => {
+  const net = recordedNet({
+    'https://s.test/old': {
+      status: 200,
+      finalUrl: 'https://s.test/new',
+      chain: [{ url: 'https://s.test/old', status: 301, location: '/new' }],
+      headers: { 'content-type': 'text/html' },
+      body: '<a href="/x">x</a>',
+    },
+    'https://s.test/new': {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+      body: '<html><body>new</body></html>',
+    },
+  })
+
+  const result = await crawlSite(net, { url: 'https://s.test/old', sitemapUrls: [] })
+
+  const redirected = result.pages.filter((p) => p.finalUrl === 'https://s.test/new')
+  assert.equal(redirected.length, 1)
+  assert.equal(redirected[0].url, 'https://s.test/old')
+  assert.deepEqual(redirected[0].response.chain, [
+    { url: 'https://s.test/old', status: 301, location: '/new' },
+  ])
+
+  // The link on the redirected page was resolved against its finalUrl, not the requested url.
+  assert.ok(result.internalLinks.has('https://s.test/x'))
+})
