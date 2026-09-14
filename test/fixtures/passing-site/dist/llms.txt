@@ -1,0 +1,8 @@
+# Ridgeline Survey
+
+> Field mapping for small planning teams: rural parcel surveys with a two-week turnaround.
+
+## Pages
+
+- [About](https://passing.test/about): who we are and how we scope a parcel
+- [Contact](https://passing.test/contact): request a quote, or call the Kirkwall office

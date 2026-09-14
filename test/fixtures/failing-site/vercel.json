@@ -1,0 +1,8 @@
+{
+  "redirects": [
+    { "source": "/legacy/:path*", "destination": "/", "permanent": true },
+    { "source": "/old-team", "destination": "/team", "permanent": true },
+    { "source": "/team", "destination": "/about", "permanent": true },
+    { "source": "/old-pricing", "destination": "/gone", "permanent": true }
+  ]
+}

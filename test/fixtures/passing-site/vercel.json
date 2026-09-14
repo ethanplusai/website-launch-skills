@@ -1,0 +1,6 @@
+{
+  "redirects": [
+    { "source": "/old-about", "destination": "/about", "permanent": true },
+    { "source": "/team", "destination": "/about", "permanent": true }
+  ]
+}

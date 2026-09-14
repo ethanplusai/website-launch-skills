@@ -1,0 +1,5 @@
+:root { color-scheme: light dark; }
+body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 42rem; padding: 2rem 1rem; }
+header { border-bottom: 1px solid currentColor; padding-bottom: 1rem; }
+.hero { background-image: url("/og.png"); background-size: cover; }
+img { max-width: 100%; height: auto; }
