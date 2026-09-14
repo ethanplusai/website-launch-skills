@@ -143,14 +143,19 @@ export function gitState(exec, dir) {
   const run = (...args) => exec('git', args, { cwd: dir })
   const inside = run('rev-parse', '--is-inside-work-tree')
   if (inside.code !== 0 || inside.stdout.trim() !== 'true') {
-    return { isRepo: false, dirty: [], upstream: null, ahead: null, tracked: [] }
+    return { isRepo: false, root: null, dirty: [], upstream: null, ahead: null, tracked: [] }
   }
   const status = run('status', '--porcelain')
   const upstream = run('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}')
   const ahead = upstream.code === 0 ? run('rev-list', '--count', '@{u}..HEAD') : null
   const tracked = run('ls-files')
+  // Which repository answered. `git status` reports the whole repository whatever directory it was
+  // asked from, and its paths are relative to this root — not to --dir. Gating an app inside a
+  // monorepo is a normal thing to do, and the findings have to say where their paths start.
+  const top = run('rev-parse', '--show-toplevel')
   return {
     isRepo: true,
+    root: top.code === 0 && top.stdout.trim() !== '' ? top.stdout.trim() : null,
     dirty: porcelainPaths(status.stdout),
     upstream: upstream.code === 0 ? upstream.stdout.trim() : null,
     ahead: ahead !== null && ahead.code === 0 ? Number(ahead.stdout.trim()) : null,

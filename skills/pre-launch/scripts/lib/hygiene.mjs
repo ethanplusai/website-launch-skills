@@ -9,7 +9,7 @@
 // reporting a clean repository, because a skip is not a pass.
 
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative, sep } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 import { defineCheck, SkipCheck } from '../../../launch-audit/scripts/lib/registry.mjs'
 import { SECRETS, scanText } from '../../../launch-audit/scripts/lib/detect/placeholders.mjs'
 import { lockfilesIn } from './context.mjs'
@@ -139,6 +139,19 @@ const LOCKFILE_NAMES = new Set(['package-lock.json', 'pnpm-lock.yaml', 'yarn.loc
 const MAX_SCAN_BYTES = 1024 * 1024
 const NUL = String.fromCharCode(0)
 
+// git answers about the whole repository, whatever directory it was asked from, and the paths in
+// `git status` start at the repository root. When --dir is a subdirectory of one — an app inside a
+// monorepo, or a fixture inside a tool's own checkout — a reader handed `README.md` will look for
+// it under --dir, not find it, and stop believing the line. So the findings that report
+// repository-wide facts say which repository, and where its root is from here.
+function repoScope(ctx) {
+  const root = ctx.git.root
+  if (typeof root !== 'string' || root === '') return []
+  if (resolve(root) === resolve(ctx.dir)) return []
+  const up = relative(ctx.dir, root).split(sep).join('/')
+  return [text(`answered by the repository rooted at ${up === '' ? '.' : up}, relative to --dir; these paths start at that root`)]
+}
+
 const cleanTree = check({
   id: 'hygiene.clean-tree',
   title: 'Uncommitted changes in the working tree',
@@ -149,7 +162,7 @@ const cleanTree = check({
     return [this.mk({
       title: 'Uncommitted changes in the working tree',
       detail: `${ctx.git.dirty.length} path${ctx.git.dirty.length === 1 ? '' : 's'} differ from HEAD, so what is about to be deployed is in no commit`,
-      evidence: listed(ctx.git.dirty, file),
+      evidence: [...listed(ctx.git.dirty, file), ...repoScope(ctx)],
       fix: 'Commit or stash every change, then build and run the gate again.',
     })]
   },
@@ -165,7 +178,7 @@ const pushed = check({
       return [this.mk({
         title: 'The current branch has no upstream',
         detail: 'this branch has no upstream, so the commit being deployed exists on this machine only',
-        evidence: [text('git rev-parse --abbrev-ref --symbolic-full-name @{u} reported no upstream')],
+        evidence: [text('git rev-parse --abbrev-ref --symbolic-full-name @{u} reported no upstream'), ...repoScope(ctx)],
         fix: 'Push the branch and set its upstream (git push -u <remote> <branch>), then run the gate again.',
       })]
     }
@@ -173,7 +186,7 @@ const pushed = check({
     return [this.mk({
       title: 'Commits on HEAD are not pushed',
       detail: `${ctx.git.ahead} commit${ctx.git.ahead === 1 ? '' : 's'} ahead of ${ctx.git.upstream}`,
-      evidence: [text(`git rev-list --count @{u}..HEAD = ${ctx.git.ahead}`)],
+      evidence: [text(`git rev-list --count @{u}..HEAD = ${ctx.git.ahead}`), ...repoScope(ctx)],
       fix: 'Push the branch, then run the gate again.',
     })]
   },

@@ -44,7 +44,7 @@ test('the passing fixture produces a context with its build output read in', asy
 
 test('git state is collected through exec, and a missing work tree says so rather than throwing', async () => {
   const clean = await buildGateContext({ dir: PASSING, options: options(), exec: cleanGit() })
-  assert.deepEqual(clean.git, { isRepo: true, dirty: [], upstream: 'origin/main', ahead: 0, tracked: clean.git.tracked })
+  assert.deepEqual(clean.git, { isRepo: true, root: PASSING, dirty: [], upstream: 'origin/main', ahead: 0, tracked: clean.git.tracked })
   assert.ok(clean.git.tracked.includes('package.json'))
 
   const dirty = await buildGateContext({ dir: FAILING, options: options({ productionUrl: FAILING_URL }), exec: dirtyGit() })
@@ -53,6 +53,7 @@ test('git state is collected through exec, and a missing work tree says so rathe
 
   const none = await buildGateContext({ dir: PASSING, options: options(), exec: noGit() })
   assert.equal(none.git.isRepo, false)
+  assert.equal(none.git.root, null)
   assert.deepEqual(none.git.tracked, [])
 })
 

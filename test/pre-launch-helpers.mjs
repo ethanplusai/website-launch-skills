@@ -59,6 +59,7 @@ export const GIT_STATUS = 'git status --porcelain'
 export const GIT_UPSTREAM = 'git rev-parse --abbrev-ref --symbolic-full-name @{u}'
 export const GIT_AHEAD = 'git rev-list --count @{u}..HEAD'
 export const GIT_FILES = 'git ls-files'
+export const GIT_TOPLEVEL = 'git rev-parse --show-toplevel'
 
 export function cleanGit(extra = {}) {
   return execFake({
@@ -67,6 +68,7 @@ export function cleanGit(extra = {}) {
     [GIT_UPSTREAM]: done('origin/main\n'),
     [GIT_AHEAD]: done('0\n'),
     [GIT_FILES]: done(['package.json', 'astro.config.mjs', 'vercel.json', 'src/index.html', '.env.example'].join('\n') + '\n'),
+    [GIT_TOPLEVEL]: (opts) => done(`${opts.cwd}\n`),
     ...extra,
   })
 }
@@ -78,6 +80,7 @@ export function dirtyGit(extra = {}) {
     [GIT_UPSTREAM]: failed('fatal: no upstream configured for branch \'work\'\n', 128),
     [GIT_AHEAD]: failed('fatal: no upstream configured\n', 128),
     [GIT_FILES]: done(['package.json', '.env', 'src/config.js', 'src/home.html', 'vercel.json'].join('\n') + '\n'),
+    [GIT_TOPLEVEL]: (opts) => done(`${opts.cwd}\n`),
     ...extra,
   })
 }

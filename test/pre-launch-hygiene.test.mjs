@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { Buffer } from 'node:buffer'
 import { join } from 'node:path'
 import { checks, satisfiesRange } from '../skills/pre-launch/scripts/lib/hygiene.mjs'
-import { PASSING, FAILING, cleanGit, dirtyGit, noGit, execFake, copyFixture, GIT_STATUS, GIT_FILES, GIT_AHEAD, GIT_UPSTREAM } from './pre-launch-helpers.mjs'
+import { PASSING, FAILING, cleanGit, dirtyGit, noGit, execFake, copyFixture, GIT_STATUS, GIT_FILES, GIT_AHEAD, GIT_UPSTREAM, GIT_TOPLEVEL } from './pre-launch-helpers.mjs'
 import { ctxFor, group, assertStatus } from './pre-launch-check-helpers.mjs'
 
 test('a clean, pushed, lockfiled repository passes every hygiene check', async () => {
@@ -156,4 +156,28 @@ test('every hygiene check declares itself as a pre-launch repo-tier check', () =
     assert.equal(check.tier, 'repo')
     assert.equal(check.dimension, 'hygiene')
   }
+})
+
+// Regression, from the smoke run. git answers about the whole repository whatever directory it is
+// asked from, so gating an app inside a monorepo reports the monorepo's uncommitted files, with
+// paths relative to the monorepo root. A reader told `--dir apps/site` and handed "README.md" will
+// look for `apps/site/README.md`, find it clean, and learn to distrust the line.
+test('a gated directory inside a larger repository says whose repository answered', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'monorepo-app')
+  try {
+    const exec = cleanGit({
+      [GIT_STATUS]: { code: 0, stdout: ' M README.md\n?? unrelated/\n', stderr: '' },
+      [GIT_TOPLEVEL]: { code: 0, stdout: `${join(dir, '..', '..')}\n`, stderr: '' },
+    })
+    const map = await group(checks, await ctxFor(dir, { exec }))
+    const tree = assertStatus(map, 'hygiene.clean-tree', 'fail', assert)
+    const said = tree.evidence.map((e) => e.value).join(' | ')
+    assert.match(said, /\.\.\/\.\./, 'the evidence must name the repository root these paths are relative to')
+  } finally { cleanup() }
+})
+
+test('a gated directory that is the repository root says nothing extra', async () => {
+  const map = await group(checks, await ctxFor(PASSING, { exec: dirtyGit() }))
+  const tree = assertStatus(map, 'hygiene.clean-tree', 'fail', assert)
+  assert.ok(!tree.evidence.some((e) => /repository rooted at/.test(e.value)))
 })

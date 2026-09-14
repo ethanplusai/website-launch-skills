@@ -28,14 +28,5 @@
     <img src="/og.png" width="1200" height="630" alt="A surveyed ridgeline with contour lines drawn over it">
   </main>
   <footer><p>Ridgeline Survey, Kirkwall.</p></footer>
-  <script>
-    // Two shapes that look like references and are not: an assignment in script, and a template
-    // literal a browser fills in at runtime. Neither is a path that has to exist in the build.
-    document.querySelector('nav a').addEventListener('click', function (event) {
-      var next = event.target.dataset;
-      if (next && next.url) window.location.href = next.url;
-    });
-    var row = function (p) { return '<a href="${p.href}">' + p.name + '</a>'; };
-  </script>
 </body>
 </html>
