@@ -207,3 +207,14 @@ violations.
 - `cutover` mode reports only its own 21 checks, so day 1 of the watch surfaced two high findings
   the cutover did not. That is what the documentation says happens, and it still means the report
   read before an announcement is narrower than the one read the next morning. Noted for v0.1.1.
+
+**Post-smoke fix wave — 14 September 2026.** `01af93e` (the vendor scan skipped the one tracked
+file that carried vendor names), `eabdffe` (a site that never answered reported `blocker 0`),
+`eae7214` (three always-emit checks stated facts nobody observed), `d985c29` (800 dropped urls
+printed 800 lines; a cutover report never said it covers 21 of 176 checks; a malformed
+`notCovered` was coerced to `[]`), `37fe15e` (`net.cert()` had no timeout; `maxBytes` capped what
+was kept rather than what was read; undrained redirect bodies; an uncancelled resolver),
+`9d5db2a` (four head assertions that could not fail; a `<script>` tag that ended at a `>` inside a
+quoted attribute), `a9bda93` (docs and manifest polish). **The smoke runs above predate these
+fixes** — the verdict table and the counts describe the bundles produced before this wave, not the
+code at the tag.
