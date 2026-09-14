@@ -442,3 +442,45 @@ test('without an old url there is no old crawl and nothing is probed on the new 
   assert.equal(ctx.probes.oldPaths.size, 0)
   assert.deepEqual(ctx.probes.caps.oldPaths, { cap: 200, dropped: 0 })
 })
+
+test('a sampled stylesheet is fetched with GET, and every other asset kind with HEAD', async () => {
+  const page = {
+    status: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+    body: '<!doctype html><html lang="en"><head><title>Styled</title><link rel="stylesheet" href="/s.css">'
+      + '<script src="/app.js"></script></head><body><main><h1>Styled</h1><img src="/a.png" alt="A"></main></body></html>',
+  }
+  const net = recordedNet({
+    'https://styled.test/': page,
+    'https://styled.test/s.css': { status: 200, headers: { 'content-type': 'text/css' }, body: '.page { color: #222 }' },
+    'https://styled.test/app.js': { status: 200, headers: { 'content-type': 'application/javascript' }, body: 'console.log(1)' },
+    'https://styled.test/a.png': { status: 200, headers: { 'content-type': 'image/png' } },
+  })
+  const asked = []
+  const get = net.get
+  net.get = (u) => { asked.push(`GET ${u}`); return get(u) }
+  // A real server answers HEAD with the headers and no body at all, which is why a stylesheet the
+  // checks have to read the text of cannot be sampled with it.
+  net.head = async (u) => { asked.push(`HEAD ${u}`); return { ...(await get(u)), body: null, bodyBytes: null } }
+  net.cert = async () => ({ valid: true, altNames: ['styled.test'], daysLeft: 90, error: null })
+  const ctx = await buildAuditContext(net, createDns(fakeResolvers()), { url: 'https://styled.test/', random: () => 'deadbeef' })
+
+  const sheet = ctx.probes.assets.find((asset) => asset.kind === 'styles')
+  assert.equal(sheet.url, 'https://styled.test/s.css')
+  assert.equal(sheet.response.body, '.page { color: #222 }')
+  assert.ok(asked.includes('GET https://styled.test/s.css'))
+  assert.ok(!asked.includes('HEAD https://styled.test/s.css'))
+  assert.ok(asked.includes('HEAD https://styled.test/app.js'))
+})
+
+test('an old url on the same origin as the new site is not crawled a second time', async () => {
+  const { ctx, asked } = await cutoverCtx({ oldUrl: 'https://new.test/' })
+  assert.equal(ctx.oldCrawl, null)
+  assert.equal(ctx.probes.oldPaths.size, 0)
+  assert.deepEqual(ctx.probes.caps.oldPaths, {
+    cap: 0,
+    dropped: 0,
+    skipped: 'old-url has the same origin as url',
+  })
+  assert.deepEqual(asked.filter((u) => u.startsWith('https://old.test')), [])
+})

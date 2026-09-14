@@ -15,17 +15,21 @@
 //   bestMatch(oldPath, newPaths)                       → the new page that url probably became
 //   toCsv(rows)                                        → RFC 4180
 //
-// A row's `status_on_new` is one of five, and the fifth matters as much as the others:
+// A row's `status_on_new` is a category, and `new_status` is the status the new origin actually
+// answered with, so the two are never confused:
 //
 //   same-path-200   the same path serves a page on the new site; nothing to do
 //   redirect-200    it redirects, and lands on a page
-//   redirect-to-404 it redirects, and lands on an error — worse than no redirect, because the
-//                   server looks like it handled the url
-//   would-404       nothing is there and nothing redirects
+//   redirect-to-404 it redirects, and lands on a 404 or a 410 — worse than no redirect, because
+//                   the server looks like it handled the url
+//   would-404       a 404 or a 410, and nothing redirects
+//   error           any other failure: a 500, a 403, a 451. The page is not *missing*; the new
+//                   site is broken or locked down at that url, and the fix is not a redirect
 //   unknown         the audit did not probe it (the page cap) or the new site did not answer
 //
-// `unknown` is never reported as a failure. A url the audit did not look at is a url nobody should
-// draw a conclusion about, in either direction.
+// `unknown` is never reported as a failure, and neither is `error` reported as a missing page. A
+// url the audit did not look at is a url nobody should draw a conclusion about, and a url that
+// answered 500 has not been shown to be gone.
 //
 // bestMatch is a suggestion, never an instruction. It tokenizes both paths — split on `/` and `-`,
 // lowercased, numbers and the smallest stop words dropped — takes the Jaccard overlap of the two
@@ -51,7 +55,7 @@ const SLUG_CREDIT = 0.15
 // Words that carry no information about which page a path is.
 const STOP_TOKENS = new Set(['the', 'a', 'an', 'and', 'of'])
 
-const CSV_COLUMNS = ['old_url', 'status_on_new', 'final_url', 'recommendation', 'confidence']
+const CSV_COLUMNS = ['old_url', 'status_on_new', 'final_url', 'recommendation', 'confidence', 'new_status']
 export const CSV_HEADER = CSV_COLUMNS.join(',')
 
 const url = (value) => ({ type: 'url', value })
@@ -129,14 +133,17 @@ export function newSitePaths(crawl) {
   return [...paths]
 }
 
-// One row per old url. Rows carry `hops` and `old_path` beyond the five CSV columns, because the
-// checks need them and the csv writer only ever reads the five.
+// One row per old url. Rows carry `hops` and `old_path` beyond the six CSV columns, because the
+// checks need them and the csv writer only ever reads the six.
 export function redirectMap(oldCrawl, probes, newOrigin, newPaths = []) {
   const rows = []
   for (const { url: oldUrl, path } of oldPageEntries(oldCrawl)) {
     const asked = `${newOrigin}${path}`
     const response = probes?.oldPaths?.get(path)
-    const row = { old_url: oldUrl, old_path: path, status_on_new: 'unknown', final_url: asked, recommendation: '', confidence: null, hops: 0 }
+    const row = {
+      old_url: oldUrl, old_path: path, status_on_new: 'unknown', final_url: asked,
+      recommendation: '', confidence: null, new_status: null, hops: 0,
+    }
 
     if (response === undefined) {
       row.recommendation = 'not probed — the audit stopped at its page limit; check this url by hand'
@@ -146,6 +153,7 @@ export function redirectMap(oldCrawl, probes, newOrigin, newPaths = []) {
 
     row.hops = Array.isArray(response.chain) ? response.chain.length : 0
     row.final_url = response.finalUrl ?? asked
+    row.new_status = response.status
 
     if (response.status === 0) {
       row.recommendation = `the new site did not answer (${response.error ?? 'no response'}) — check this url by hand`
@@ -154,13 +162,17 @@ export function redirectMap(oldCrawl, probes, newOrigin, newPaths = []) {
     }
 
     const served = response.status >= 200 && response.status < 300
+    // 404 and 410 are the two statuses that mean "no page here". Everything else that is not a
+    // success — a 500, a 403, a 451, a stray 3xx — means something other than missing, and calling
+    // it a 404 would send somebody off to write a redirect for a page that is fine.
+    const gone = response.status === 404 || response.status === 410
     if (served && row.hops === 0) {
       row.status_on_new = 'same-path-200'
       row.recommendation = 'no redirect needed — the same path serves a page on the new site'
     } else if (served) {
       row.status_on_new = 'redirect-200'
       row.recommendation = `already redirects to ${row.final_url}`
-    } else {
+    } else if (gone) {
       row.status_on_new = row.hops > 0 ? 'redirect-to-404' : 'would-404'
       const match = bestMatch(path, newPaths)
       if (match === null) {
@@ -169,6 +181,9 @@ export function redirectMap(oldCrawl, probes, newOrigin, newPaths = []) {
         row.recommendation = `redirect to ${match.path}`
         row.confidence = match.confidence
       }
+    } else {
+      row.status_on_new = 'error'
+      row.recommendation = 'server error on the new site — retry after the cutover stabilizes'
     }
     rows.push(row)
   }
@@ -212,14 +227,14 @@ export const would404 = define({
   id: 'redirects.would-404',
   severity: 'high',
   title: 'An old url has nothing waiting for it on the new site',
-  catches: 'A url the old site served that the new site answers with a 404 and does not redirect — every link and bookmark to it is now dead.',
+  catches: 'A url the old site served that the new site answers with a 404 or a 410 and does not redirect — every link and bookmark to it is now dead.',
   run(ctx) {
     const rows = mapFor(ctx)
     if (rows === null) return []
     return rows.filter((row) => row.status_on_new === 'would-404').map((row) => emit(would404, {
       page: row.old_url,
-      detail: `${row.old_url} is a page the old site serves. On the new site the same path answers 404 and nothing redirects it. Every link anybody has to that page — from search results, from other sites, from somebody's bookmarks — now lands on an error, and the search ranking that url earned goes with it. Suggested destination: ${row.recommendation}.`,
-      evidence: [url(row.old_url), status(404), url(row.final_url), recommendationEvidence(row)],
+      detail: `${row.old_url} is a page the old site serves. On the new site the same path answers ${row.new_status} and nothing redirects it. Every link anybody has to that page — from search results, from other sites, from somebody's bookmarks — now lands on an error, and the search ranking that url earned goes with it. Suggested destination: ${row.recommendation}.`,
+      evidence: [url(row.old_url), status(row.new_status), url(row.final_url), recommendationEvidence(row)],
       fix: `Add a 301 from ${row.old_path} to the page that replaced it${row.confidence === null ? '' : ` — ${row.recommendation} is the closest match the audit found`}.`,
     }))
   },
@@ -229,15 +244,32 @@ export const to404 = define({
   id: 'redirects.to-404',
   severity: 'high',
   title: 'A redirect sends an old url to an error page',
-  catches: 'An old url that does redirect — and lands on a 404. Worse than no redirect, because the server looks like it handled it.',
+  catches: 'An old url that does redirect — and lands on a 404 or a 410. Worse than no redirect, because the server looks like it handled it.',
   run(ctx) {
     const rows = mapFor(ctx)
     if (rows === null) return []
     return rows.filter((row) => row.status_on_new === 'redirect-to-404').map((row) => emit(to404, {
       page: row.old_url,
-      detail: `${row.old_url} redirects to ${row.final_url}, which answers 404. Somebody wrote a redirect rule for this url and it points at a page that is not there — so the visitor waits for a redirect and still lands on an error, and nothing in the server logs looks wrong. Suggested destination: ${row.recommendation}.`,
-      evidence: [url(row.old_url), url(row.final_url), status(404), recommendationEvidence(row)],
+      detail: `${row.old_url} redirects to ${row.final_url}, which answers ${row.new_status}. Somebody wrote a redirect rule for this url and it points at a page that is not there — so the visitor waits for a redirect and still lands on an error, and nothing in the server logs looks wrong. Suggested destination: ${row.recommendation}.`,
+      evidence: [url(row.old_url), url(row.final_url), status(row.new_status), recommendationEvidence(row)],
       fix: 'Point the existing redirect rule at a page that exists, or remove it and write the right one.',
+    }))
+  },
+})
+
+export const newSiteError = define({
+  id: 'redirects.new-site-error',
+  severity: 'high',
+  title: 'An old url hits an error on the new site that is not a missing page',
+  catches: 'An old url the new origin answers with a 500, a 403 or anything else that is neither a success nor a 404 — broken or locked down, not gone.',
+  run(ctx) {
+    const rows = mapFor(ctx)
+    if (rows === null) return []
+    return rows.filter((row) => row.status_on_new === 'error').map((row) => emit(newSiteError, {
+      page: row.old_url,
+      detail: `${row.old_url} is a page the old site serves. Asking the new site for the same path returns ${row.new_status}${row.hops > 0 ? `, after ${row.hops} redirect ${plural(row.hops, 'hop', 'hops')}` : ''}. That is not a missing page — the url is not gone, the new site is failing or refusing at it — so a redirect is the wrong fix and would hide the real problem. Until it answers properly, nothing here can say whether that url survived the cutover.`,
+      evidence: [url(row.old_url), status(row.new_status), url(row.final_url), text(row.recommendation)],
+      fix: 'Find out why the new site answers that status at this path — a server error, an auth wall, a blocked bot — fix it, and run the audit again.',
     }))
   },
 })
@@ -271,7 +303,8 @@ export const wildcardSmell = define({
     if (probed.length === 0) return []
     const byTarget = new Map()
     for (const row of probed) {
-      if (row.status_on_new !== 'redirect-200' && row.status_on_new !== 'redirect-to-404') continue
+      // Any row that actually redirected, whatever it landed on.
+      if (row.hops === 0) continue
       // A redirect that lands on the old url's own path is a normalization rule — a trailing
       // slash, a case fix — and not a catch-all, however many urls go through it.
       let targetPath = null
@@ -314,7 +347,7 @@ export const summary = define({
     if (rows.length === 0) return []
     const counts = new Map()
     for (const row of rows) counts.set(row.status_on_new, (counts.get(row.status_on_new) ?? 0) + 1)
-    const order = ['same-path-200', 'redirect-200', 'redirect-to-404', 'would-404', 'unknown']
+    const order = ['same-path-200', 'redirect-200', 'redirect-to-404', 'would-404', 'error', 'unknown']
     const present = order.filter((name) => counts.has(name))
     return [emit(summary, {
       detail: `${rows.length} old ${plural(rows.length, 'url was', 'urls were')} checked against the new site: ${present.map((name) => `${counts.get(name)} ${name}`).join(', ')}. The full row-by-row map, with a suggested destination for each url that needs one, is in redirects.csv beside this report — edit it and hand it to whoever owns the server.`,
@@ -327,6 +360,27 @@ export const summary = define({
   },
 })
 
+// Why the redirect map is empty, when it is: either nothing was asked for, or what was asked for
+// was the site itself. The two get different findings because they need different answers.
+const skippedReason = (ctx) => ctx.probes?.caps?.oldPaths?.skipped ?? null
+const wasAskedForAnOldSite = (ctx) => typeof ctx.options.oldUrl === 'string' && ctx.options.oldUrl !== ''
+
+export const oldUrlSameOrigin = define({
+  id: 'redirects.old-url-same-origin',
+  severity: 'info',
+  title: 'The old url given is the same site being audited',
+  catches: 'An --old-url on the origin under audit, which cannot produce a redirect map: every path would trivially match itself.',
+  run(ctx) {
+    const reason = skippedReason(ctx)
+    if (reason === null) return []
+    return [emit(oldUrlSameOrigin, {
+      detail: `--old-url was given as ${ctx.options.oldUrl}, which is the same site as ${ctx.target.url}. No old site was crawled and no redirect map was built: asking an origin about its own paths answers "the same path serves a page" every time, which proves nothing about a cutover. If this site replaces one at a different address, point --old-url there; if it replaces nothing, leave the flag off.`,
+      evidence: [text(reason), url(ctx.options.oldUrl), url(ctx.target.url)],
+      fix: 'Re-run with --old-url pointing at the site being replaced, on the origin it is actually served from.',
+    })]
+  },
+})
+
 export const oldUrlRequired = define({
   id: 'redirects.old-url-required',
   severity: 'info',
@@ -334,6 +388,8 @@ export const oldUrlRequired = define({
   catches: 'A launch-audit run with no --old-url: if this site replaces an existing one, nothing here says whether its urls survived.',
   run(ctx) {
     if (ctx.oldCrawl) return []
+    // A same-origin --old-url has its own finding, which says something more useful than this one.
+    if (wasAskedForAnOldSite(ctx)) return []
     return [emit(oldUrlRequired, {
       detail: 'This audit was not told about an old site, so it checked no old urls. If the site being launched replaces one that is already live, every url the old site serves needs somewhere to land — a rebuild that drops them loses the search rankings, the inbound links and the bookmarks all at once, and the loss is not visible on the new site at all. If this is a genuinely new site with no predecessor, there is nothing to do.',
       evidence: [text('no --old-url was given, so the redirect map is empty'), text('unchecked: every url of the site this one replaces')],
@@ -345,8 +401,10 @@ export const oldUrlRequired = define({
 export const checks = [
   would404,
   to404,
+  newSiteError,
   chain,
   wildcardSmell,
   summary,
+  oldUrlSameOrigin,
   oldUrlRequired,
 ]

@@ -76,6 +76,27 @@ test('dkim() returns every selector that answers', async () => {
   assert.match(dkim.found[0].record, /v=DKIM1/)
 })
 
+test('dkim() looks every selector up at once, and still reports them in list order', async () => {
+  let concurrent = 0
+  let peak = 0
+  const dns = createDns({
+    resolveTxt: async (name) => {
+      concurrent++
+      peak = Math.max(peak, concurrent)
+      await new Promise((resolve) => setImmediate(resolve))
+      concurrent--
+      return name === 's2._domainkey.example.test' || name === 'default._domainkey.example.test'
+        ? [['v=DKIM1; p=AAAA']]
+        : []
+    },
+  })
+  const dkim = await dns.dkim('example.test')
+  // DKIM_SELECTORS is ['default', 'google', 'selector1', 'selector2', 'k1', 's1', 's2'], so the
+  // answers come back in that order however they were resolved.
+  assert.deepEqual(dkim.found.map((f) => f.selector), ['default', 's2'])
+  assert.ok(peak > 1, `expected the selectors to be resolved together, peak concurrency was ${peak}`)
+})
+
 test('dkim() honours an explicit selector list and reports nothing when none answer', async () => {
   const dns = createDns({ resolveTxt: txtFor({ 'custom._domainkey.example.test': [['v=DKIM1; p=BBBB']] }) })
   assert.deepEqual((await dns.dkim('example.test', ['custom'])).found.map((f) => f.selector), ['custom'])

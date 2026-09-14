@@ -343,10 +343,13 @@ export async function buildAuditContext(net, dns, options = {}) {
   const byProbeUrl = new Map(probeUrls.map((probeUrl, i) => [probeUrl, probeResponses[i]]))
   const at = (probeUrl) => byProbeUrl.get(probeUrl)
 
-  // 7. a sample of the static assets the crawl actually saw
+  // 7. a sample of the static assets the crawl actually saw. HEAD is enough for a script or an
+  // image, where only the headers are ever read — but a stylesheet is one of the few assets a
+  // check reads the *text* of (`perf.font-display-missing` looks for @font-face blocks), and a
+  // real server answers HEAD with no body at all, so stylesheets are fetched with GET.
   const assetPicks = sampleAssets(crawl.assets, origin)
   const fetchAsset = typeof net.head === 'function' ? (u) => net.head(u) : (u) => net.get(u)
-  const assetResponses = await net.map(assetPicks.map((a) => a.url), fetchAsset)
+  const assetResponses = await net.map(assetPicks, (pick) => (pick.kind === 'styles' ? net.get(pick.url) : fetchAsset(pick.url)))
   const assets = assetPicks.map((pick, i) => ({ ...pick, response: assetResponses[i] }))
 
   // 8. every head asset the crawl saw, fetched once each. net.get rather than net.head, because
@@ -379,8 +382,14 @@ export async function buildAuditContext(net, dns, options = {}) {
   let oldCrawl = null
   let oldPathPick = { urls: [], caps: { cap: maxPages, dropped: 0 } }
   const oldPaths = new Map()
-  if (typeof options.oldUrl === 'string' && options.oldUrl !== '') {
-    const oldStart = new URL(options.oldUrl)
+  const oldStart = typeof options.oldUrl === 'string' && options.oldUrl !== '' ? new URL(options.oldUrl) : null
+  // An old url on the origin being audited is the same site, not a cutover: crawling it would
+  // fetch every page twice and then ask the new origin about its own paths, which answers
+  // `same-path-200` for all of them and proves nothing. The cap records the skip so the report can
+  // say why the redirect map is empty instead of implying every old url survived.
+  if (oldStart !== null && oldStart.origin === origin) {
+    oldPathPick = { urls: [], caps: { cap: 0, dropped: 0, skipped: 'old-url has the same origin as url' } }
+  } else if (oldStart !== null) {
     const oldOrigin = oldStart.origin
     const oldRobotsResponse = await net.get(`${oldOrigin}/robots.txt`)
     const oldRobotsText = oldRobotsResponse.status === 200 && typeof oldRobotsResponse.body === 'string'

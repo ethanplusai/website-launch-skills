@@ -54,13 +54,15 @@ export function createDns({
     return { present: true, record: value, policy: named !== null && DMARC_POLICIES.has(named) ? named : null }
   }
 
+  // Every selector is looked up at once — they are independent lookups and a sequential loop pays
+  // the full DNS round trip seven times over — and the answers are reassembled in the order the
+  // selector list gave, so `found` reads the same however fast each lookup came back.
   async function dkim(host, selectors = DKIM_SELECTORS) {
-    const found = []
-    for (const selector of selectors) {
+    const answers = await Promise.all(selectors.map(async (selector) => {
       const record = (await txt(`${selector}._domainkey.${host}`)).find((r) => /v=DKIM1|(^|;)\s*p\s*=/i.test(r))
-      if (record !== undefined) found.push({ selector, record: record.trim() })
-    }
-    return { found }
+      return record === undefined ? null : { selector, record: record.trim() }
+    }))
+    return { found: answers.filter((answer) => answer !== null) }
   }
 
   async function addresses(host) {
