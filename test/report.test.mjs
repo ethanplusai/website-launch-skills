@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, existsSync, writeFileSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpDir } from './helpers.mjs'
 import { finding } from '../skills/launch-audit/scripts/lib/findings.mjs'
@@ -390,6 +390,56 @@ test('writeBundle refuses an extra name that would escape the bundle, before wri
     )
     assert.ok(!existsSync(join(outDir, 'report.md')), 'nothing is written when an extra name is refused')
     assert.ok(!existsSync(join(dir, 'escaped.json')))
+  } finally {
+    cleanup()
+  }
+})
+
+// --- writeBundle: files the run wrote through another hand ---
+//
+// From the smoke run: the browser tier writes its screenshots straight into the bundle, so they
+// appeared in neither the manifest nor the stale-file sweep. A manifest that does not list what
+// the run produced is the same lie as a silent cap, and a rerun of a shrinking site left the old
+// pages' screenshots sitting in the bundle for a reader to open as if they were this run's.
+test('writeBundle lists files written by another hand, and sweeps them when a rerun does not', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-alsowritten')
+  try {
+    const outDir = join(dir, 'out')
+    mkdirSync(join(outDir, 'screenshots', 'x-test'), { recursive: true })
+    writeFileSync(join(outDir, 'screenshots', 'x-test', 'mobile.png'), 'png')
+    writeBundle(outDir, {
+      report: '# run1\n', findings: [], crawl: emptyCrawl(), baseline: {},
+      alsoWritten: ['screenshots/x-test/mobile.png'],
+    })
+    const first = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.ok(first.files.includes('screenshots/x-test/mobile.png'), 'the manifest must name the screenshot')
+
+    writeBundle(outDir, { report: '# run2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+    assert.ok(!existsSync(join(outDir, 'screenshots', 'x-test', 'mobile.png')), 'a stale screenshot should be swept')
+    assert.ok(!existsSync(join(outDir, 'screenshots', 'x-test')), 'and the directory it emptied should go too')
+    const second = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.ok(!second.files.some((name) => name.startsWith('screenshots/')))
+  } finally {
+    cleanup()
+  }
+})
+
+// --out is whatever the person typed. `./bundle`, or a path with a `.` segment in the middle, gets
+// normalised by join() on the way to the file but not on the way into the prefix test — which is
+// how the first version of the empty-directory sweep quietly did nothing on every real run.
+test('writeBundle sweeps emptied subdirectories however the out directory was spelled', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-outdir-spelling')
+  try {
+    const outDir = join(dir, '.', 'out', '.')
+    mkdirSync(join(dir, 'out', 'shots'), { recursive: true })
+    writeFileSync(join(dir, 'out', 'shots', 'a.png'), 'png')
+    writeBundle(outDir, {
+      report: '# r\n', findings: [], crawl: emptyCrawl(), baseline: {}, alsoWritten: ['shots/a.png'],
+    })
+    writeBundle(outDir, { report: '# r2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+    assert.ok(!existsSync(join(dir, 'out', 'shots', 'a.png')))
+    assert.ok(!existsSync(join(dir, 'out', 'shots')), 'the emptied directory should be gone')
+    assert.ok(existsSync(join(dir, 'out', 'report.md')), 'the bundle itself stays')
   } finally {
     cleanup()
   }

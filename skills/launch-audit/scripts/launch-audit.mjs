@@ -42,7 +42,7 @@ import { recordedNetFromPath, offlineDnsResolvers } from './lib/recorded-net.mjs
 import { createRegistry, SkipCheck } from './lib/registry.mjs'
 import { validateFinding, sortFindings, SEVERITIES } from './lib/findings.mjs'
 import { buildAuditContext } from './lib/checks/_ctx.mjs'
-import { buildNotCovered, insertBeforeFixed, renderReport, writeBundle, resolveOutDir } from './lib/report.mjs'
+import { buildNotCovered, insertBeforeFixed, renderReport, writeBundle, resolveOutDir, screenshotNames } from './lib/report.mjs'
 import { makeBaseline, diffBaseline } from './lib/baseline.mjs'
 import { detectAnalytics } from './lib/detect/analytics.mjs'
 import { slugify } from './lib/slug.mjs'
@@ -440,6 +440,7 @@ export async function runAudit({ net, dns, browser = null, options = {}, now = n
       baseline,
       redirectsCsv: csv === null ? undefined : csv,
       extra,
+      alsoWritten: screenshotNames(tier, bundleDir),
     })
 
     return { findings: sorted, crawl: ctx.crawl, baseline, baselineDiff, notCovered, ops: opsList, summary, bundleDir, files }

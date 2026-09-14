@@ -4,8 +4,8 @@
 // Every export here is pure except `writeBundle`, which is the one function in this module that
 // touches the filesystem.
 
-import { join, dirname, isAbsolute, normalize } from 'node:path'
-import { writeFileSync, unlinkSync, existsSync, mkdirSync } from 'node:fs'
+import { join, dirname, isAbsolute, normalize, relative, resolve, sep } from 'node:path'
+import { writeFileSync, unlinkSync, existsSync, mkdirSync, rmdirSync } from 'node:fs'
 import { ensureDir, writeJson, readJson } from './fs-util.mjs'
 import { sortFindings } from './findings.mjs'
 
@@ -178,6 +178,23 @@ function projectCrawl(crawl) {
   }
 }
 
+// The bundle-relative names of the screenshots a browser tier wrote into this bundle. Playwright
+// writes them as it takes them, so writeBundle never sees their content — but the manifest has to
+// name them all the same, or the bundle's own record of what the run produced is short by the one
+// artefact a person is told to open first.
+export function screenshotNames(tier, outDir) {
+  const names = new Set()
+  for (const render of (tier?.renders ?? new Map()).values()) {
+    for (const path of Object.values(render?.screenshots ?? {})) {
+      if (typeof path !== 'string' || path === '') continue
+      const rel = relative(outDir, path)
+      if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) continue
+      names.add(rel.split(sep).join('/'))
+    }
+  }
+  return [...names].sort()
+}
+
 // Reads a prior run's manifest (if any) and deletes whichever of its files this run is not about
 // to rewrite. `thisRunNames` (basenames only) must be computed before this runs, from the same
 // inputs that decide what gets written below, so the two never drift apart. A file this bundle
@@ -194,11 +211,32 @@ function cleanStale(outDir, thisRunNames) {
   if (!prev || !Array.isArray(prev.files)) return
   for (const name of prev.files) {
     if (name === MANIFEST_NAME || thisRunNames.includes(name)) continue
+    const path = bundlePath(outDir, name)
     try {
-      unlinkSync(bundlePath(outDir, name))
+      unlinkSync(path)
     } catch {
       // already gone
     }
+    pruneEmptyDirs(outDir, dirname(path))
+  }
+}
+
+// A swept file may have been the only thing in its subdirectory — `screenshots/<page>/mobile.png`
+// for a page this run no longer reaches. An empty directory left behind is not a lie, but it is a
+// bundle that looks like it still covers that page. Climbs no higher than `outDir`, and rmdir on a
+// directory that still holds something fails and stops the climb, which is the wanted behaviour.
+function pruneEmptyDirs(outDir, from) {
+  // Both sides resolved: `--out ./bundle` reaches here as a relative outDir while the file paths
+  // have been through join(), and a prefix test between the two spellings never matches.
+  const root = resolve(outDir)
+  let dir = resolve(from)
+  while (dir.startsWith(root + sep) && dir !== root) {
+    try {
+      rmdirSync(dir)
+    } catch {
+      return
+    }
+    dir = dirname(dir)
   }
 }
 
@@ -219,8 +257,8 @@ function bundlePath(outDir, name) {
 // the same `outDir` that this run won't rewrite — an old `redirects.csv` or `extra` file that a
 // rerun no longer produces — is removed, per the manifest that run left behind, so a rerun never
 // leaves a stale artifact for a fresher one to hide behind. `manifest.json` itself is written
-// last, listing exactly the basenames this run produced.
-export function writeBundle(outDir, { report, findings, crawl, baseline, redirectsCsv, extra = [] } = {}) {
+// last, listing exactly the names this run produced, `alsoWritten` included.
+export function writeBundle(outDir, { report, findings, crawl, baseline, redirectsCsv, extra = [], alsoWritten = [] } = {}) {
   ensureDir(outDir)
 
   const thisRunNames = ['report.md', 'findings.json', 'crawl.json', 'baseline.json']
@@ -230,6 +268,14 @@ export function writeBundle(outDir, { report, findings, crawl, baseline, redirec
   for (const item of extra) {
     bundlePath(outDir, item.name)
     thisRunNames.push(item.name)
+  }
+  // Files this run already wrote into the bundle by another hand — the browser tier's screenshots,
+  // which Playwright writes as it takes them. They are not rewritten here; they are named, so the
+  // manifest lists what the run actually produced and the next rerun can sweep the ones it does
+  // not produce again.
+  for (const name of alsoWritten) {
+    bundlePath(outDir, name)
+    if (!thisRunNames.includes(name)) thisRunNames.push(name)
   }
 
   cleanStale(outDir, thisRunNames)

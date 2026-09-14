@@ -32,7 +32,7 @@ import { detectAnalytics } from '../../../launch-audit/scripts/lib/detect/analyt
 import { createRegistry, SkipCheck } from '../../../launch-audit/scripts/lib/registry.mjs'
 import { validateFinding, sortFindings } from '../../../launch-audit/scripts/lib/findings.mjs'
 import {
-  buildNotCovered, insertBeforeFixed, inline, writeBundle, resolveOutDir,
+  buildNotCovered, insertBeforeFixed, inline, writeBundle, resolveOutDir, screenshotNames,
 } from '../../../launch-audit/scripts/lib/report.mjs'
 import { slugify } from '../../../launch-audit/scripts/lib/slug.mjs'
 import { checks as cutoverChecks, CUTOVER_ORDER, VERIFIABLE } from './checks/cutover.mjs'
@@ -539,6 +539,7 @@ export async function runCutover({ net, dns, browser = null, options = {}, now =
       crawl: ctx.crawl,
       baseline: ctx.productionBaseline,
       extra,
+      alsoWritten: screenshotNames(ctx.browser, bundleDir),
     })
 
     return {

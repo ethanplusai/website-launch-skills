@@ -19,7 +19,7 @@ import { existsSync } from 'node:fs'
 
 import { ensureDir, readJson, writeJson } from '../../../launch-audit/scripts/lib/fs-util.mjs'
 import { slugify } from '../../../launch-audit/scripts/lib/slug.mjs'
-import { writeBundle } from '../../../launch-audit/scripts/lib/report.mjs'
+import { writeBundle, screenshotNames } from '../../../launch-audit/scripts/lib/report.mjs'
 import { sortFindings } from '../../../launch-audit/scripts/lib/findings.mjs'
 
 import * as inventory from '../../../launch-audit/scripts/lib/checks/inventory.mjs'
@@ -130,6 +130,7 @@ export async function runWatch({ net, dns, browser = null, options = {}, now = n
       crawl: ctx.crawl,
       baseline: ctx.productionBaseline,
       extra,
+      alsoWritten: screenshotNames(ctx.browser, bundleDir),
     })
 
     // Written after the bundle, and deliberately not part of it: watch.json outlives any one run,
