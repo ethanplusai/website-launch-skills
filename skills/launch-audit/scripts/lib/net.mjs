@@ -96,8 +96,16 @@ export function createNet({
       const status = response.status
       const location = response.headers.get('location')
       if (REDIRECT_STATUSES.has(status) && location) {
-        const nextUrl = new URL(location, currentUrl).href
         chain.push({ url: currentUrl, status, location })
+        let nextUrl
+        try {
+          nextUrl = new URL(location, currentUrl).href
+        } catch {
+          return {
+            url, finalUrl: currentUrl, status: 0, ok: false, headers: {}, body: null, bodyBytes: null,
+            chain, error: `invalid redirect location: ${location}`, timedOut: false, bytes: 0, truncated: false,
+          }
+        }
         if (visited.has(nextUrl)) {
           return {
             url, finalUrl: nextUrl, status: 0, ok: false, headers: {}, body: null, bodyBytes: null,
@@ -180,10 +188,14 @@ export function createNet({
               error: null,
             })
           } catch (error) {
+            try { sock.destroy() } catch { /* ignore */ }
             finish(emptyCertResult(String((error && error.message) || error)))
           }
         })
-        sock.on('error', (error) => finish(emptyCertResult(String((error && error.message) || error))))
+        sock.on('error', (error) => {
+          try { sock.destroy() } catch { /* ignore */ }
+          finish(emptyCertResult(String((error && error.message) || error)))
+        })
       } catch (error) {
         finish(emptyCertResult(String((error && error.message) || error)))
       }

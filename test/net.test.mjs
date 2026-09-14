@@ -93,3 +93,34 @@ test('head() falls back to GET on 501', async () => {
   const r = await net.head('https://h501.test/')
   assert.equal(r.status, 200); assert.equal(r.body, 'got-it-2')
 })
+
+// Fix round 1, finding 1: a malformed Location header must resolve, not reject
+test('a malformed redirect Location resolves with status 0 and an invalid-location error', async () => {
+  const net = createNet({ fetchImpl: fakeFetch({ 'https://bad.test/start': { status: 302, headers: { location: 'http://[not a valid host/path' } } }) })
+  const r = await net.get('https://bad.test/start')
+  assert.equal(r.status, 0)
+  assert.match(r.error, /invalid redirect location/)
+  assert.equal(r.chain.length, 1)
+})
+
+// Fix round 1, finding 2: cert() must close the socket on a parse error or a socket error
+test('cert() destroys the socket when reading the peer certificate throws', async () => {
+  let destroyed = false, ended = false
+  const fakeTls = (opts, cb) => {
+    const sock = {
+      getPeerCertificate: () => { throw new Error('boom') },
+      authorized: true,
+      end() { ended = true },
+      destroy() { destroyed = true },
+      on() {},
+    }
+    setTimeout(cb, 0)
+    return sock
+  }
+  const net = createNet({ tlsConnect: fakeTls })
+  const c = await net.cert('a.test')
+  assert.equal(c.valid, false)
+  assert.match(c.error, /boom/)
+  assert.equal(destroyed, true)
+  assert.equal(ended, false)
+})
