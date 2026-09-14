@@ -6,7 +6,7 @@ description: Gate a website launch from its repository — repo hygiene, placeho
 # pre-launch
 
 The gate. It inspects the repository and the build, and it blocks the launch if anything
-mechanical is wrong. Then it hands you the nine things no script can check.
+mechanical is wrong. Then it hands you up to nine things no script can check.
 
 ## The two rules
 
@@ -56,10 +56,13 @@ exists, read it and confirm it is current rather than re-asking.
 
 Run the script; never read its source, and never reimplement what it does.
 
-    node scripts/pre-launch.mjs --dir <repo> --production-url <url>
+    node scripts/pre-launch.mjs --dir <repo> --production-url <url> --out <dir>
 
 The path is relative to this skill's own directory — run the command from there, and point
-`--dir` at the repository being launched.
+`--dir` at the repository being launched. The bundle is written under the **current working
+directory**, not under `--dir` and not next to the skill: without `--out` it lands in
+`./website-launch/<host>-pre-launch-<date>/`, which with the command above means inside this
+skill's own directory. Write the bundle wherever the work lives with `--out`.
 
 Other flags: `--predecessor-url <url>`, `--build-dir <dir>`, `--required-env <NAME>` (repeatable),
 `--dev-host <host>` (repeatable), `--strict`, `--skip-build`, `--out <dir>`, `--config <path>`,

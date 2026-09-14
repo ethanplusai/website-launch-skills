@@ -13,7 +13,11 @@
 ## Global Constraints
 
 - Node ≥ 20; `package.json` `"engines": {"node": ">=20"}`; zero `dependencies`; zero `devDependencies`.
-- Tests: `node --test "test/**/*.test.mjs"`, no network, no browser, no filesystem writes outside `test/tmp/` (cleaned in `after`).
+- Tests: `node --test "test/**/*.test.mjs"`, no network, no browser, no filesystem writes outside
+  `test/tmp/` (cleaned in `after`) — with one exception: a test whose subject is how a script behaves
+  *outside* this repository (git hygiene answers about the checkout it is run in, so a fixture inside
+  `test/tmp/` is inside this repo's working tree) may write under `os.tmpdir()`, and must clean up the
+  same way.
 - Every script supports `--help` and `--json`; scripts are black boxes to agents.
 - Every `SKILL.md` ≤ 200 lines; frontmatter `name` equals its directory name, ≤ 64 chars, `[a-z0-9-]`, no leading/trailing/double hyphen; `description` 1–1024 chars.
 - No agent-specific paths or variables (no `${CLAUDE_PLUGIN_ROOT}`); script paths in SKILL.md are relative to the skill directory.

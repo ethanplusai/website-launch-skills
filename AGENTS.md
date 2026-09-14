@@ -17,7 +17,8 @@ for a human to act on. The gate never softens either: there is no flag that turn
 warning, and if a check is wrong about a site, the fix is to correct the check and say so, not to
 route around it.
 
-Every report ends with a section called **Not covered**, and it is never a pass. It names every
+Every report always contains a section called **Not covered** (in the gate, the human checklist
+follows it; everywhere else it is the last section), and it is never a pass. It names every
 bound on coverage — page and depth caps, sampled pages, unverifiable external links, tools that
 were not installed, inputs nobody supplied — and every check that was skipped, with its reason. A
 skip is not a pass either. When you summarise a run to a person, repeat that section verbatim:

@@ -67,9 +67,12 @@ Run the script; never read its source, and never reimplement what it does.
     node scripts/post-launch.mjs --mode cutover --url <production url> \
       --baseline <path to baseline.json> --redirects <path to redirects.csv> \
       --old-url <old site url> --staging-url <staging url> \
-      --expect-analytics <measurement id> --expect-dns apex=<ip>,www=<host>
+      --expect-analytics <measurement id> --expect-dns apex=<ip>,www=<host> --out <dir>
 
-The path is relative to this skill's own directory — run the command from there.
+The path is relative to this skill's own directory — run the command from there. The bundle is
+written under the **current working directory**: without `--out` it lands in
+`./website-launch/<host>-post-launch-<date>/`, which with the command above means inside this
+skill's own directory. Write the bundle wherever the work lives with `--out`.
 
 Other flags: `--dev-host <host>` (repeatable), `--browser auto|on|off`, `--out <dir>`,
 `--config <path>`, `--json`, `--help`.

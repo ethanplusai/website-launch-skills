@@ -66,7 +66,7 @@ The order is a dependency order, not a ranking.
     report.md        the verdict, every finding with evidence, Not covered, the human checklist
     findings.json    the same findings, machine-readable
     gate.json        the full results object — every check, its status, detail and evidence
-    manifest.json    exactly which files this run wrote
+    manifest.json    exactly which files this run wrote, itself excluded
 
 Read `report.md` top to bottom. It opens with the verdict, so there is nothing to hunt for.
 

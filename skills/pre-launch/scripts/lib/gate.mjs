@@ -44,6 +44,8 @@ import { checks as predecessorChecks } from './predecessor.mjs'
 
 export const PHASE = 'pre-launch'
 
+const MANIFEST_NAME = 'manifest.json'
+
 // Execution order is dependency order: the build has to run before anything reads its output, and
 // the predecessor comparison is last because it is the only one that touches the network.
 export const GROUP_ORDER = ['hygiene', 'placeholders', 'build', 'output', 'framework', 'predecessor']
@@ -222,12 +224,16 @@ export function renderGateReport({ results, target, generatedAt }) {
 // and a manifest naming exactly what this run wrote.
 export function writeGateBundle(outDir, { report, findings, gate }) {
   ensureDir(outDir)
-  const files = ['report.md', 'findings.json', 'gate.json', 'manifest.json']
+  // The manifest is the record, not one of the things recorded — which is what the audit's
+  // manifest means, and the two have to mean the same thing or neither is readable without
+  // knowing which run wrote it. (report.mjs's stale-file sweep skips `manifest.json` by name for
+  // the same reason.)
+  const files = ['report.md', 'findings.json', 'gate.json']
   writeFileSync(join(outDir, 'report.md'), report)
   writeJson(join(outDir, 'findings.json'), findings.map((f) => ({ ...f, evidence: f.evidence.map((e) => ({ ...e })) })))
   writeJson(join(outDir, 'gate.json'), gate)
-  writeJson(join(outDir, 'manifest.json'), { generatedAt: new Date().toISOString(), files })
-  return files.map((name) => join(outDir, name))
+  writeJson(join(outDir, MANIFEST_NAME), { generatedAt: new Date().toISOString(), files })
+  return [...files, MANIFEST_NAME].map((name) => join(outDir, name))
 }
 
 export function gateOutDir({ options, now, cwd }) {

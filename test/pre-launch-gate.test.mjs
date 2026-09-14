@@ -299,3 +299,16 @@ test('a check whose notCovered is not an array of strings fails closed', async (
   assert.equal(fine.status, 'pass')
   assert.deepEqual(fine.notCovered, [])
 })
+
+// M5: the audit's manifest lists what the run wrote *besides* the manifest — `manifest.json` is
+// the record, not one of the things recorded, and the sweep that clears a stale bundle skips it by
+// name for exactly that reason. The gate listed itself, so the two bundles' manifests meant
+// different things while looking identical.
+test('the gate manifest lists what the run wrote and not itself, the same way the audit does', async () => {
+  const { results, cleanup } = await gateOn(FAILING, { requiredEnv: ['PUBLIC_API_BASE'] }, { exec: dirtyGit() })
+  try {
+    const manifest = JSON.parse(readFileSync(join(results.bundleDir, 'manifest.json'), 'utf8'))
+    assert.deepEqual(manifest.files, ['report.md', 'findings.json', 'gate.json'])
+    assert.ok(existsSync(join(results.bundleDir, 'manifest.json')), 'the manifest is still written')
+  } finally { cleanup() }
+})

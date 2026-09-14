@@ -12,7 +12,7 @@ how to treat **Not covered**, and how to phrase all of it to somebody who paid f
     findings.json    the same findings, machine-readable
     crawl.json       every url reached, its status, depth and how it was found
     baseline.json    a snapshot of the site, for post-launch to diff against
-    manifest.json    exactly which files this run wrote
+    manifest.json    exactly which files this run wrote, itself excluded
     redirects.csv    one row per old url (only with --old-url)
     screenshots/     desktop, tablet and mobile, per rendered page (browser tier only)
     lighthouse/      the scores and metrics Lighthouse measured, per rendered page and form factor

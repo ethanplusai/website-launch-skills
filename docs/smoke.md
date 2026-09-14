@@ -23,13 +23,13 @@ Note before you start, so you can score the report against reality:
 - whether it is behind a CDN, and which one
 - whether it replaced an earlier site, and at what url
 
-## The five runs
+## The six runs
 
 Run each from the skill's own directory. Keep every bundle; you will be comparing them.
 
 **1. `launch-audit` with the browser tier off.** The floor: everything the HTTP tier alone can see.
 
-    node scripts/launch-audit.mjs --url <site url> --browser off --out ../../smoke/audit-nobrowser
+    node scripts/launch-audit.mjs --url <site url> --browser off --out ../../smoke/audit-http
 
 **2. `launch-audit` with the browser tier installed.** Install the optional tier first, **at the
 root of this cloned `website-launch-skill` repository** — not in the site being audited; the
@@ -63,17 +63,27 @@ one behind the site in run 1. Expect failures; the point is whether they are *tr
     node scripts/pre-launch.mjs --dir <path to a real repo> --production-url <site url>
 
 **5. `post-launch --mode cutover` using the audit's baseline.** The site is already live, so treat
-this as "did anything drift since the audit an hour ago". Feed it the `baseline.json` from run 2:
+this as "did anything drift since the audit an hour ago". Feed it the `baseline.json` from run 1,
+the `audit-http` bundle — the HTTP tier is what a cutover run compares against:
 
     node scripts/post-launch.mjs --mode cutover --url <site url> \
-      --baseline ../../smoke/audit-browser/baseline.json
+      --baseline ../../smoke/audit-http/baseline.json --out ../../smoke/cutover
 
 Its findings should be near-empty. Anything it reports as changed, when nothing changed, is a false
 positive in the baseline diff, and those are the ones that will be loudest on a real cutover day.
 
+**6. `post-launch --mode watch --day 1`.** The cutover run checks 21 conditions; a watch day also
+re-runs the audit's link, head, indexability and inventory dimensions, so it is the run that shows
+what a cutover report deliberately does not cover:
+
+    node scripts/post-launch.mjs --mode watch --url <site url> --day 1 --out ../../smoke/watch
+
+Expect it to surface findings the cutover run did not. That is the design, and the cutover report
+says so in `Not covered` — check that it does.
+
 ## Score every line
 
-Read **every finding** and **every `Not covered` line** from all five runs. Not the blockers, not a
+Read **every finding** and **every `Not covered` line** from all six runs. Not the blockers, not a
 sample — every one. Record the verdicts in a table like this:
 
 | run | check id | severity | what it said | verdict | note |
@@ -99,7 +109,7 @@ this tool has, because it is the one that makes a clean report a lie.
 
 ## Before you tag a release
 
-- [ ] All five runs completed and their bundles kept
+- [ ] All six runs completed and their bundles kept
 - [ ] Every finding in every run has a verdict recorded
 - [ ] Every `Not covered` line has a verdict recorded
 - [ ] Zero false positives outstanding — each one has a regression fixture and a fix
