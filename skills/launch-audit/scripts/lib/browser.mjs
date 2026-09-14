@@ -85,20 +85,25 @@ const HORIZONTAL_OVERFLOW = `(() => {
   return document.documentElement.scrollWidth > window.innerWidth + 2
 })()`
 
-// null when the page has no nav at all — "this site has no navigation" is not this check's finding
-// to make. Otherwise: a visible toggle, and a link list that is not visible, is a collapsed nav.
-const NAV_COLLAPSED = `(() => {
+// Three answers, not two, and the third one is the point. `null` means there was nothing here to
+// judge — no nav, or no visible toggle inside it — and a page with nothing to judge must not be
+// reported as a broken one. The smoke run found a site whose burger sits beside its <nav> rather
+// than inside it, and read "no toggle in the nav" as "the nav does not collapse" on five pages.
+// `true` is a visible toggle over a hidden link list: a collapsed nav. `false` is a visible toggle
+// over a visible link list, which is the half-finished responsive header this check exists for.
+export const NAV_COLLAPSED = `(() => {
   /* nav-collapsed */
   ${VISIBLE}
   const nav = document.querySelector('nav, [role=navigation]')
   if (!nav) return null
   const toggle = Array.from(nav.querySelectorAll('button, [aria-expanded]')).some(visible)
+  if (!toggle) return null
   const lists = Array.from(nav.querySelectorAll('ul, ol'))
   // A nav with no list still has links; they are just not wrapped. Looking only at direct children
   // would miss every nav that puts its anchors in a div.
   const targets = lists.length > 0 ? lists : Array.from(nav.querySelectorAll('a'))
   const linksShowing = targets.some(visible)
-  return toggle && !linksShowing
+  return !linksShowing
 })()`
 
 // Read from the live DOM, so a canonical or a robots meta a script injected after load is the one

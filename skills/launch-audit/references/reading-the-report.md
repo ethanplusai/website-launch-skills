@@ -69,8 +69,10 @@ Open the mobile and desktop shots of the same page side by side, and look for:
    almost always in a language with longer words than the one the design was made in.
 5. **Navigation that does not collapse.** At phone width the menu should be a button, or the links
    should fit. Links still spread across the top, or spilling off the edge, is a half-finished
-   responsive nav. `browser.nav-not-collapsed` reports the common shape of this; the screenshot
-   catches the rest.
+   responsive nav. `browser.nav-not-collapsed` reports the common shape of this — a toggle inside
+   the `<nav>` with its links still on screen — and says nothing at all when the toggle sits beside
+   the `<nav>` rather than inside it, which is how several component libraries write a header. The
+   screenshot catches the rest, and on that shape the screenshot is all you have.
 6. **Placeholder imagery.** Stock photography that survived to launch, a grey box where a portrait
    should be, the same photo three times, a logo at the wrong aspect ratio. Nothing mechanical can
    find this. It is the single most common embarrassing thing left on a launched site.

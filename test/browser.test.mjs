@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpDir } from './helpers.mjs'
-import { createBrowser } from '../skills/launch-audit/scripts/lib/browser.mjs'
+import { createBrowser, NAV_COLLAPSED } from '../skills/launch-audit/scripts/lib/browser.mjs'
 
 const WHERE = 'in the website-launch-skill checkout, not the audited site'
 const PLAYWRIGHT_MISSING = `Playwright not installed. Optional, ${WHERE}: npm i --no-save playwright && npx playwright install chromium`
@@ -460,4 +460,55 @@ test('axe() reports a page that never loaded as unavailable rather than as clean
 test('close() is safe when nothing was ever launched', async () => {
   const browser = createBrowser({ mode: 'off' })
   await browser.close()
+})
+
+// The nav-collapsed heuristic, run against a fake DOM rather than a stubbed answer.
+//
+// Every other test here stubs `evaluate`, which proves browser.mjs asks the question at the right
+// width and never proves the question is the right one. The smoke run against a real site showed
+// it was not: the page's burger button sits beside the <nav> rather than inside it, the script
+// found no toggle, and "no toggle" came back as `false` — the same answer as a nav whose menu
+// never closes. Five pages were reported as having a broken mobile header. So the script is
+// exercised here directly.
+const fakeDom = (nav) => {
+  const el = (spec) => ({
+    tag: spec.tag,
+    hidden: spec.hidden === true,
+    getBoundingClientRect: () => (spec.hidden === true ? { width: 0, height: 0 } : { width: 40, height: 20 }),
+  })
+  const nodes = nav === null ? [] : nav.map(el)
+  const navEl = nav === null ? null : {
+    querySelectorAll: (selector) => {
+      if (selector === 'button, [aria-expanded]') return nodes.filter((n) => n.tag === 'button')
+      if (selector === 'ul, ol') return nodes.filter((n) => n.tag === 'ul')
+      return nodes.filter((n) => n.tag === 'a')
+    },
+  }
+  return {
+    document: { querySelector: () => navEl },
+    getComputedStyle: (node) => ({ display: node.hidden ? 'none' : 'block', visibility: 'visible', opacity: '1' }),
+  }
+}
+
+const runNavCollapsed = (nav) => {
+  const { document, getComputedStyle } = fakeDom(nav)
+  // eslint-disable-next-line no-new-func
+  return new Function('document', 'getComputedStyle', `return ${NAV_COLLAPSED}`)(document, getComputedStyle)
+}
+
+test('nav-collapsed answers null when there is no nav, and null when the nav holds no visible toggle', () => {
+  assert.equal(runNavCollapsed(null), null)
+  // The real shape from the smoke run: a nav of links, hidden at phone width, and the burger
+  // button outside it. Nothing here is evidence of anything, and the answer must say so.
+  assert.equal(runNavCollapsed([{ tag: 'a', hidden: true }, { tag: 'a', hidden: true }]), null)
+  // A nav whose links are visible and which has no toggle at all is also not this check's finding.
+  assert.equal(runNavCollapsed([{ tag: 'a' }, { tag: 'a' }]), null)
+})
+
+test('nav-collapsed answers true for a burger over a hidden menu and false for one over a visible menu', () => {
+  assert.equal(runNavCollapsed([{ tag: 'button' }, { tag: 'ul', hidden: true }]), true)
+  assert.equal(runNavCollapsed([{ tag: 'button' }, { tag: 'ul' }]), false)
+  // No list, just anchors: the same judgement.
+  assert.equal(runNavCollapsed([{ tag: 'button' }, { tag: 'a', hidden: true }]), true)
+  assert.equal(runNavCollapsed([{ tag: 'button' }, { tag: 'a' }]), false)
 })
