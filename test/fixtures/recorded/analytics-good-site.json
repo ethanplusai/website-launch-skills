@@ -1,0 +1,23 @@
+{
+  "https://good-analytics.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://good-analytics.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Home, tagged once</title>\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-GOOD1234\"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-GOOD1234');</script>\n</head>\n<body>\n<main><h1>Home</h1><a href=\"/about\">About</a></main>\n</body>\n</html>\n"
+  },
+  "https://good-analytics.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About, tagged once</title>\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-GOOD1234\"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-GOOD1234');</script>\n</head>\n<body>\n<main><h1>About</h1><a href=\"/\">Home</a></main>\n</body>\n</html>\n"
+  }
+}
