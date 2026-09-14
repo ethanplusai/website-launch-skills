@@ -146,23 +146,27 @@ function srcsetUrls(srcset, base) {
   return out
 }
 
-// The paths of the old site worth asking the new site about: `pathname + search` for every old
-// page that actually answered 2xx, deduped, in crawl order. A url that was already gone on the old
-// site is not a url anybody is still following, and a path is the right key because the whole
-// question is what the NEW origin does with it.
-export function oldPagePaths(oldCrawl) {
-  const paths = new Set()
+// The old-site pages worth asking the new site about: every old page that actually answered 2xx,
+// as `{url, path}` where path is `pathname + search`, deduped by path, in crawl order. A url that
+// was already gone on the old site is not a url anybody is still following, and a path is the
+// right key because the whole question is what the NEW origin does with it. The redirects
+// dimension reads the same list, so the rows it builds and the urls probed here never drift.
+export function oldPageEntries(oldCrawl) {
+  const byPath = new Map()
   for (const entry of oldCrawl?.pages ?? []) {
     if (entry.status < 200 || entry.status >= 300) continue
     try {
       const parsed = new URL(entry.url)
-      paths.add(parsed.pathname + parsed.search)
+      const path = parsed.pathname + parsed.search
+      if (!byPath.has(path)) byPath.set(path, { url: entry.url, path })
     } catch {
       // A page url the crawl produced always parses; if it does not, it is not a path to probe.
     }
   }
-  return [...paths]
+  return [...byPath.values()]
 }
+
+export const oldPagePaths = (oldCrawl) => oldPageEntries(oldCrawl).map((entry) => entry.path)
 
 function sampleAssets(assets, origin) {
   const picked = []

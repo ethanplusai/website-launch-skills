@@ -1,0 +1,221 @@
+{
+  "https://new.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://new.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>The clinic</title>\n</head>\n<body>\n<main>\n<h1>The clinic</h1>\n<a href=\"/treatments/botox\">Botox</a>\n<a href=\"/about\">About</a>\n<a href=\"/contact\">Contact</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://new.test/treatments/botox": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Botox</title>\n</head>\n<body>\n<main>\n<h1>Botox</h1>\n<a href=\"/\">Back</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://new.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About</title>\n</head>\n<body>\n<main>\n<h1>About</h1>\n<a href=\"/\">Back</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://new.test/contact": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Contact</title>\n</head>\n<body>\n<main>\n<h1>Contact</h1>\n<a href=\"/\">Back</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://new.test/services/botox": {
+    "status": 200,
+    "finalUrl": "https://new.test/treatments/botox",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<h1>Botox</h1>",
+    "chain": [
+      {
+        "url": "https://new.test/services/botox",
+        "status": 301,
+        "location": "/treatments/botox"
+      }
+    ]
+  },
+  "https://new.test/about-us": {
+    "status": 200,
+    "finalUrl": "https://new.test/about",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<h1>About</h1>",
+    "chain": [
+      {
+        "url": "https://new.test/about-us",
+        "status": 301,
+        "location": "/about"
+      }
+    ]
+  },
+  "https://new.test/gone-forever": {
+    "status": 200,
+    "finalUrl": "https://new.test/contact",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<h1>Contact</h1>",
+    "chain": [
+      {
+        "url": "https://new.test/gone-forever",
+        "status": 301,
+        "location": "/contact"
+      }
+    ]
+  },
+  "https://new.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  },
+  "https://new.test/legacy-a": {
+    "status": 200,
+    "finalUrl": "https://new.test/archive/legacy-a",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<h1>/legacy-a</h1>",
+    "chain": [
+      {
+        "url": "https://new.test/legacy-a",
+        "status": 301,
+        "location": "/archive/legacy-a"
+      }
+    ]
+  },
+  "https://new.test/archive/legacy-a": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>/legacy-a</title>\n</head>\n<body>\n<main>\n<h1>/legacy-a</h1>\n</main>\n</body>\n</html>\n"
+  },
+  "https://new.test/legacy-b": {
+    "status": 200,
+    "finalUrl": "https://new.test/archive/legacy-b",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<h1>/legacy-b</h1>",
+    "chain": [
+      {
+        "url": "https://new.test/legacy-b",
+        "status": 301,
+        "location": "/archive/legacy-b"
+      }
+    ]
+  },
+  "https://new.test/archive/legacy-b": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>/legacy-b</title>\n</head>\n<body>\n<main>\n<h1>/legacy-b</h1>\n</main>\n</body>\n</html>\n"
+  },
+  "https://new.test/legacy-c": {
+    "status": 200,
+    "finalUrl": "https://new.test/archive/legacy-c",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<h1>/legacy-c</h1>",
+    "chain": [
+      {
+        "url": "https://new.test/legacy-c",
+        "status": 301,
+        "location": "/archive/legacy-c"
+      }
+    ]
+  },
+  "https://new.test/archive/legacy-c": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>/legacy-c</title>\n</head>\n<body>\n<main>\n<h1>/legacy-c</h1>\n</main>\n</body>\n</html>\n"
+  },
+  "https://new.test/legacy-d": {
+    "status": 200,
+    "finalUrl": "https://new.test/archive/legacy-d",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<h1>/legacy-d</h1>",
+    "chain": [
+      {
+        "url": "https://new.test/legacy-d",
+        "status": 301,
+        "location": "/archive/legacy-d"
+      }
+    ]
+  },
+  "https://new.test/archive/legacy-d": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>/legacy-d</title>\n</head>\n<body>\n<main>\n<h1>/legacy-d</h1>\n</main>\n</body>\n</html>\n"
+  },
+  "https://new.test/legacy-e": {
+    "status": 200,
+    "finalUrl": "https://new.test/archive/legacy-e",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<h1>/legacy-e</h1>",
+    "chain": [
+      {
+        "url": "https://new.test/legacy-e",
+        "status": 301,
+        "location": "/archive/legacy-e"
+      }
+    ]
+  },
+  "https://new.test/archive/legacy-e": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>/legacy-e</title>\n</head>\n<body>\n<main>\n<h1>/legacy-e</h1>\n</main>\n</body>\n</html>\n"
+  },
+  "https://new.test/legacy-f": {
+    "status": 200,
+    "finalUrl": "https://new.test/archive/legacy-f",
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<h1>/legacy-f</h1>",
+    "chain": [
+      {
+        "url": "https://new.test/legacy-f",
+        "status": 301,
+        "location": "/archive/legacy-f"
+      }
+    ]
+  },
+  "https://new.test/archive/legacy-f": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>/legacy-f</title>\n</head>\n<body>\n<main>\n<h1>/legacy-f</h1>\n</main>\n</body>\n</html>\n"
+  }
+}
