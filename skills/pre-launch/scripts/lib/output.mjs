@@ -267,12 +267,28 @@ const ogImage = check({
       if (!byImage.has(value)) byImage.set(value, [])
       byImage.get(value).push(page.rel)
     }
-    if (byImage.size === 0) return []
+    // No og:image anywhere is not "nothing to check" — it is every share of every page rendering
+    // as a grey box, which is the failure this check exists for.
+    if (byImage.size === 0) {
+      const all = pages(ctx).map((page) => page.rel)
+      return [this.mk({
+        title: 'No og:image declared on any page',
+        detail: `none of the ${all.length} page${all.length === 1 ? '' : 's'} in the build declares an og:image, so every share of this site renders without a card image`,
+        evidence: all.length > 0 ? listed(all, file) : [text(`${ctx.buildDirName} contains no HTML pages`)],
+        fix: `Add <meta property="og:image" content="..."> to every page, pointing at a ${OG_WIDTH}x${OG_HEIGHT} raster image on the production host.`,
+      })]
+    }
 
     const problems = []
+    const notCovered = []
     for (const [image, usedBy] of byImage) {
       const path = sameOriginPath(ctx, image, usedBy[0])
-      if (path === null) continue // an og:image hosted elsewhere is not this build's file
+      if (path === null) {
+        // The bytes are on another origin and this gate never fetched them, so nothing about this
+        // image was verified. Saying so is the difference between a check and a coincidence.
+        notCovered.push(`output.og-image: ${image} is hosted off-origin — not verified`)
+        continue
+      }
       const rel = resolveInBuild(ctx, path)
       if (rel === null) {
         problems.push(`${image} does not exist in the build (used by ${usedBy.join(', ')})`)
@@ -291,13 +307,16 @@ const ogImage = check({
       const retina = dims.width === OG_WIDTH * 2 && dims.height === OG_HEIGHT * 2
       problems.push(`${image} is ${dims.width}x${dims.height}, not ${OG_WIDTH}x${OG_HEIGHT}${retina ? ` — ${RETINA_NOTE}` : ''}`)
     }
-    if (problems.length === 0) return []
-    return [this.mk({
-      title: 'The og:image is missing, not raster, or the wrong size',
-      detail: problems.join('; '),
-      evidence: problems.map(url),
-      fix: `Export each og:image as a ${OG_WIDTH}x${OG_HEIGHT} PNG or JPEG and reference it with an absolute url on the production host.`,
-    })]
+    if (problems.length === 0) return { findings: [], notCovered }
+    return {
+      notCovered,
+      findings: [this.mk({
+        title: 'The og:image is missing, not raster, or the wrong size',
+        detail: problems.join('; '),
+        evidence: problems.map(url),
+        fix: `Export each og:image as a ${OG_WIDTH}x${OG_HEIGHT} PNG or JPEG and reference it with an absolute url on the production host.`,
+      })],
+    }
   },
 })
 

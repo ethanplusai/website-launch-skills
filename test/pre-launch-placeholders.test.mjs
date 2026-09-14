@@ -90,6 +90,26 @@ test('source maps are advisory by default and a blocker under --strict', async (
   assert.ok(blocking.evidence.some((e) => /sourceMappingURL/.test(e.value)))
 })
 
+test('the source directories that were scanned are declared by name', async () => {
+  const map = await group(checks, await ctxFor(PASSING))
+  for (const id of ['placeholders.analytics-id', 'placeholders.form-id', 'placeholders.copy']) {
+    assert.deepEqual(map.get(id).notCovered, ['placeholders: source scan limited to src'], id)
+  }
+  // The checks that do not read source declare no such bound.
+  assert.deepEqual(map.get('placeholders.dev-host').notCovered, [])
+})
+
+test('a repository with no recognised source directory says so rather than implying a full scan', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'no-source-dir')
+  try {
+    const { renameSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    renameSync(join(dir, 'src'), join(dir, 'assembled-by-hand'))
+    const map = await group(checks, await ctxFor(dir))
+    assert.match(map.get('placeholders.copy').notCovered[0], /no known source directory is present/)
+  } finally { cleanup() }
+})
+
 test('--strict cannot turn any other placeholder failure into anything softer', async () => {
   const lenient = await group(checks, await ctxFor(FAILING, { requiredEnv: ['PUBLIC_API_BASE'] }))
   const strict = await group(checks, await ctxFor(FAILING, { requiredEnv: ['PUBLIC_API_BASE'], strict: true }))

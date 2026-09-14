@@ -7,8 +7,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { Buffer } from 'node:buffer'
 import { join } from 'node:path'
-import { checks } from '../skills/pre-launch/scripts/lib/hygiene.mjs'
+import { checks, satisfiesRange } from '../skills/pre-launch/scripts/lib/hygiene.mjs'
 import { PASSING, FAILING, cleanGit, dirtyGit, noGit, execFake, copyFixture, GIT_STATUS, GIT_FILES, GIT_AHEAD, GIT_UPSTREAM } from './pre-launch-helpers.mjs'
 import { ctxFor, group, assertStatus } from './pre-launch-check-helpers.mjs'
 
@@ -108,6 +109,45 @@ test('two different lockfiles are ambiguous and fail; none at all is advisory', 
     const advisory = assertStatus(none, 'hygiene.lockfile', 'advisory', assert)
     assert.equal(advisory.severity, 'low')
   } finally { cleanup() }
+})
+
+test('files the secret scan could not read are declared, not dropped in silence', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'unscannable')
+  try {
+    const { writeFileSync: write } = await import('node:fs')
+    // One binary file and one over the 1 MB cap: both are real bounds on what was scanned.
+    write(join(dir, 'blob.bin'), Buffer.from([0x00, 0x01, 0x02, 0x00]))
+    write(join(dir, 'huge.txt'), 'x'.repeat(1024 * 1024 + 1))
+    const exec = cleanGit({ [GIT_FILES]: { code: 0, stdout: 'package.json\nblob.bin\nhuge.txt\n', stderr: '' } })
+    const map = await group(checks, await ctxFor(dir, { exec }))
+    const found = assertStatus(map, 'hygiene.secrets-committed', 'pass', assert)
+    assert.deepEqual(found.notCovered, ['hygiene.secrets-committed: 2 files skipped (over 1 MB or binary)'])
+  } finally { cleanup() }
+})
+
+test('a scan that read every tracked file declares no bound at all', async () => {
+  const map = await group(checks, await ctxFor(PASSING, { exec: cleanGit() }))
+  assert.deepEqual(map.get('hygiene.secrets-committed').notCovered, [])
+})
+
+// The forms engines.node is actually written in, and the ones this matcher must refuse to answer
+// for rather than quietly satisfy. A range it cannot read is `null`, never `true`.
+test('satisfiesRange reads the ranges engines.node is written in, and refuses the ones it cannot', () => {
+  const cases = [
+    ['^20 || >=22', 'v22.23.1', true],
+    ['20.x', 'v22.23.1', false],
+    ['>=18.17.0 <21', 'v22.0.0', false],
+    ['>=18.17.0 <21', 'v20.1.0', true],
+    ['^20.0.0', 'v22.0.0', false],
+    ['~22.1', 'v22.23.1', false],
+    ['~22.1', 'v22.1.5', true],
+    ['20 || 22', 'v22.23.1', true],
+    ['*', 'v22.23.1', true],
+    ['lts/*', 'v22.23.1', null],
+  ]
+  for (const [range, version, expected] of cases) {
+    assert.equal(satisfiesRange(version, range), expected, `${version} against "${range}"`)
+  }
 })
 
 test('every hygiene check declares itself as a pre-launch repo-tier check', () => {

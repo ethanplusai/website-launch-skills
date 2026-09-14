@@ -100,7 +100,9 @@ then record it:
     node scripts/pre-launch.mjs --dir <repo> --progress
 
 `--progress` prints the list with ✓ and ☐, so a session that ends halfway resumes where it stopped.
-`--reset-progress` clears it.
+`--reset-progress` clears it. Pass `--predecessor-url` (or `--config`) to these commands too — the
+list is conditional, and without it `gsc-baseline` is not offered and "every item is confirmed"
+would be premature.
 
 Never confirm an item on somebody's behalf. Never confirm one because it is probably fine. "The
 endpoint returns 200" is not a confirmed `forms` item; a named human saying "yes, I received it in

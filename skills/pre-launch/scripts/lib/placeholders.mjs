@@ -59,13 +59,24 @@ function readIfText(full) {
   }
 }
 
+// The source directories this repository actually has. A repository that keeps its content
+// somewhere unlisted is scanned only through its build output, and the check says which
+// directories it did look at rather than implying it looked everywhere.
+const presentSourceDirs = (ctx) => SOURCE_DIRS.filter((name) => existsSync(join(ctx.dir, name)))
+
+// One line naming the bound, for "Not covered". Every placeholders check that reads source emits
+// it; the runner de-duplicates, so the reader sees it once.
+export function sourceScanNote(ctx) {
+  const present = presentSourceDirs(ctx)
+  return `placeholders: source scan limited to ${present.length === 0 ? '(no known source directory is present; only the build output was scanned)' : present.join(', ')}`
+}
+
 // Every text file under the source directories this repository actually has, as
 // `{ label, body }` where the label is the path a person would open.
 function sourceFiles(ctx) {
   const out = []
-  for (const name of SOURCE_DIRS) {
+  for (const name of presentSourceDirs(ctx)) {
     const dir = join(ctx.dir, name)
-    if (!existsSync(dir)) continue
     let entries
     try {
       entries = walk(dir)
@@ -123,14 +134,18 @@ const analyticsId = check({
   title: 'A placeholder analytics id',
   catches: 'a measurement id nobody replaced, so the launch collects no data and nobody notices for a month',
   run(ctx) {
+    const notCovered = [sourceScanNote(ctx)]
     const hits = hitsIn([...sourceFiles(ctx), ...buildFiles(ctx)], ANALYTICS_ID_PATTERNS)
-    if (hits.length === 0) return []
-    return [this.mk({
-      title: 'A placeholder analytics id',
-      detail: `${summarise(hits, 'placeholder measurement id')}; the site will report to nothing`,
-      evidence: evidenceFor(hits),
-      fix: 'Put the real measurement id in, from the analytics property that will receive production traffic.',
-    })]
+    if (hits.length === 0) return { findings: [], notCovered }
+    return {
+      notCovered,
+      findings: [this.mk({
+        title: 'A placeholder analytics id',
+        detail: `${summarise(hits, 'placeholder measurement id')}; the site will report to nothing`,
+        evidence: evidenceFor(hits),
+        fix: 'Put the real measurement id in, from the analytics property that will receive production traffic.',
+      })],
+    }
   },
 })
 
@@ -139,14 +154,18 @@ const formId = check({
   title: 'A placeholder form endpoint',
   catches: 'a contact form posting to an example endpoint, so every enquiry is lost silently',
   run(ctx) {
+    const notCovered = [sourceScanNote(ctx)]
     const hits = hitsIn([...sourceFiles(ctx), ...buildFiles(ctx)], FORM_ID_PATTERNS)
-    if (hits.length === 0) return []
-    return [this.mk({
-      title: 'A placeholder form endpoint',
-      detail: `${summarise(hits, 'placeholder form id')}; submissions to it go nowhere`,
-      evidence: evidenceFor(hits),
-      fix: 'Point the form at the real endpoint, then send a test submission and confirm a human received it.',
-    })]
+    if (hits.length === 0) return { findings: [], notCovered }
+    return {
+      notCovered,
+      findings: [this.mk({
+        title: 'A placeholder form endpoint',
+        detail: `${summarise(hits, 'placeholder form id')}; submissions to it go nowhere`,
+        evidence: evidenceFor(hits),
+        fix: 'Point the form at the real endpoint, then send a test submission and confirm a human received it.',
+      })],
+    }
   },
 })
 
@@ -163,14 +182,18 @@ const copy = check({
       const parts = [page.text, page.head.title ?? '', page.head.metaByName.get('description') ?? '']
       rendered.push({ label: `${ctx.buildDirName}/${rel}`, body: parts.join('\n') })
     }
+    const notCovered = [sourceScanNote(ctx)]
     const hits = hitsIn([...sources, ...rendered], PLACEHOLDER_TEXT)
-    if (hits.length === 0) return []
-    return [this.mk({
-      title: 'Placeholder copy in the site',
-      detail: `${summarise(hits, 'placeholder string')}; a visitor would read them`,
-      evidence: evidenceFor(hits),
-      fix: 'Replace each with the real copy, or delete the block it is in if the section was never meant to ship.',
-    })]
+    if (hits.length === 0) return { findings: [], notCovered }
+    return {
+      notCovered,
+      findings: [this.mk({
+        title: 'Placeholder copy in the site',
+        detail: `${summarise(hits, 'placeholder string')}; a visitor would read them`,
+        evidence: evidenceFor(hits),
+        fix: 'Replace each with the real copy, or delete the block it is in if the section was never meant to ship.',
+      })],
+    }
   },
 })
 

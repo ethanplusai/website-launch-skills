@@ -133,9 +133,14 @@ const SIGNATURES = [
   },
   {
     name: 'hugo',
-    configs: ['hugo.toml', 'hugo.yaml', 'config.toml', 'config/_default/hugo.toml'],
+    configs: ['hugo.toml', 'hugo.yaml', 'hugo.json', 'config.toml', 'config/_default/hugo.toml'],
     dep: () => false,
     buildDirGuess: 'public',
+    // `config.toml` is not Hugo's name for anything any more, and plenty of tools use it. A file
+    // called `hugo.*` is Hugo by name; a `config.toml` is Hugo only if it declares a baseURL.
+    // Without this a Vite project with an unrelated config.toml detects as a static site
+    // generator it does not use.
+    accepts: (configPath, text) => /(^|[/\\])hugo\.(toml|yaml|json)$/.test(configPath) || BASE_URL_TOML.test(text ?? ''),
     // Hugo ships a sitemap template in the default theme set, so the integration question is
     // answered by the generator itself rather than by a plugin.
     read: (text) => ({
@@ -179,6 +184,8 @@ export function detectFramework(dir, pkg) {
     // dependencies and no config still builds with Astro's defaults.
     if (configPath === null && (byDep === false || signature.requiresConfig === true)) continue
     const text = configPath === null ? null : read(configPath)
+    // A signature may refuse a file that merely has the right name — see Hugo's `config.toml`.
+    if (signature.accepts !== undefined && !signature.accepts(configPath ?? '', text)) continue
     const fields = signature.read(text, deps)
     return {
       name: signature.name,
@@ -242,7 +249,9 @@ function fromPlainRedirects(text) {
     const parts = trimmed.split(/\s+/)
     if (parts.length < 2) continue
     const [from, to, status] = parts
-    rules.push(rule(from, to, /^\d{3}$/.test(status ?? '') ? status : 301))
+    // Netlify writes a forced rule as `301!`; the bang changes who wins, not what the status is.
+    const code = String(status ?? '').replace(/!$/, '')
+    rules.push(rule(from, to, /^\d{3}$/.test(code) ? code : 301))
   }
   return rules
 }

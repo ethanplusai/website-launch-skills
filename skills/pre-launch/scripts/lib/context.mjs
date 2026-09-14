@@ -1,4 +1,4 @@
-// The gate context: one pass of I/O, then thirty-six pure checks over a plain object.
+// The gate context: one pass of I/O, then thirty-eight pure checks over a plain object.
 //
 // Everything the gate learns about a repository is gathered here — the package manifest, the
 // package manager, the framework, the git state, the redirect rules, the build, the build output,

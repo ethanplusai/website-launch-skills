@@ -25,7 +25,7 @@ const file = (value) => ({ type: 'file', value })
 const text = (value) => ({ type: 'text', value })
 
 // Up to twenty paths as evidence. A working tree with two hundred uncommitted files is one
-// problem, and printing two hundred lines about it buries the other thirty-five checks.
+// problem, and printing two hundred lines about it buries the other thirty-seven checks.
 const listed = (paths, toEvidence) => paths.slice(0, MAX_LISTED).map(toEvidence)
 
 // ------------------------------------------------------------------------------- semver ranges
@@ -248,6 +248,10 @@ const secretsCommitted = check({
   run(ctx) {
     if (!ctx.git.isRepo) throw new SkipCheck(NOT_A_REPO)
     const hits = []
+    // A file this scan never opened is a file it cannot vouch for. The bound is real — a 4 MB
+    // bundle or a binary asset is not worth reading for a regex — so it is declared rather than
+    // hidden.
+    let unscanned = 0
     for (const rel of ctx.git.tracked) {
       const name = rel.split('/').pop()
       if (LOCKFILE_NAMES.has(name) || rel.includes('node_modules/')) continue
@@ -258,26 +262,34 @@ const secretsCommitted = check({
       } catch {
         continue
       }
-      if (!stat.isFile() || stat.size > MAX_SCAN_BYTES) continue
+      if (!stat.isFile()) continue
+      if (stat.size > MAX_SCAN_BYTES) { unscanned++; continue }
       let body
       try {
         body = readFileSync(full, 'utf8')
       } catch {
+        unscanned++
         continue
       }
-      if (body.includes(NUL)) continue
+      if (body.includes(NUL)) { unscanned++; continue }
       for (const hit of scanText(body, SECRETS)) {
         const line = body.slice(0, hit.index).split('\n').length
         hits.push(`${rel}:${line} — a ${hit.match.slice(0, 4)} credential`)
       }
     }
-    if (hits.length === 0) return []
-    return [this.mk({
-      title: 'A secret-shaped string is committed',
-      detail: `${hits.length} secret-shaped string${hits.length === 1 ? '' : 's'} in tracked files`,
-      evidence: listed(hits, file),
-      fix: 'Rotate every credential named here first, then remove it from the working tree and from history.',
-    })]
+    const notCovered = unscanned > 0
+      ? [`hygiene.secrets-committed: ${unscanned} files skipped (over 1 MB or binary)`]
+      : []
+    if (hits.length === 0) return { findings: [], notCovered }
+    return {
+      notCovered,
+      findings: [this.mk({
+        title: 'A secret-shaped string is committed',
+        detail: `${hits.length} secret-shaped string${hits.length === 1 ? '' : 's'} in tracked files`,
+        evidence: listed(hits, file),
+        fix: 'Rotate every credential named here first, then remove it from the working tree and from history.',
+      })],
+    }
   },
 })
 

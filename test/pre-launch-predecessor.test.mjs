@@ -9,7 +9,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { checks } from '../skills/pre-launch/scripts/lib/predecessor.mjs'
-import { PASSING, FAILING, fakeNet } from './pre-launch-helpers.mjs'
+import { PASSING, FAILING, fakeNet, copyFixture } from './pre-launch-helpers.mjs'
 import { ctxFor, group, assertStatus } from './pre-launch-check-helpers.mjs'
 import { fixturePath } from './helpers.mjs'
 
@@ -60,13 +60,33 @@ test('a wildcard redirect covering old content paths fails with the rule quoted'
   assert.match(text, /\/legacy\/pricing/)
 })
 
-test('a redirect chain fails, and a cycle fails as a cycle', async () => {
+test('a redirect chain fails, with every hop named', async () => {
   const ctx = await ctxFor(FAILING, { predecessorUrl: OLD, net: netWith(sitemap('predecessor.xml')) })
   const map = await group(checks, ctx)
   const found = assertStatus(map, 'predecessor.redirect-chains', 'fail', assert)
   const text = found.evidence.map((e) => e.value).join(' | ')
-  assert.match(text, /\/old-team/)
-  assert.match(text, /\/team/)
+  assert.match(text, /\/old-team -> \/team -> \/about/)
+  assert.match(text, /2 hops/)
+})
+
+test('a redirect cycle fails as a cycle, not as a long chain', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'redirect-cycle')
+  try {
+    const { writeFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    writeFileSync(join(dir, 'vercel.json'), JSON.stringify({
+      redirects: [
+        { source: '/a', destination: '/b', permanent: true },
+        { source: '/b', destination: '/a', permanent: true },
+      ],
+    }, null, 2))
+    const ctx = await ctxFor(dir, { predecessorUrl: OLD, net: netWith(sitemap('predecessor-covered.xml')) })
+    const map = await group(checks, ctx)
+    const found = assertStatus(map, 'predecessor.redirect-chains', 'fail', assert)
+    const text = found.evidence.map((e) => e.value).join(' | ')
+    assert.match(text, /\/a -> \/b -> \/a is a loop and serves nothing/)
+    assert.match(text, /\/b -> \/a -> \/b is a loop and serves nothing/)
+  } finally { cleanup() }
 })
 
 test('an unfetchable child sitemap fails closed and names the child', async () => {

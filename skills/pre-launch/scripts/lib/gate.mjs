@@ -8,6 +8,13 @@
 //   returns only softer findings  advisory  — reported, does not block
 //   throws anything else          fail      — "check crashed"
 //
+// A check may return `Finding[]` or `{ findings, notCovered }`. The second form exists for the
+// bound a check applies to itself and the runner cannot see: an og:image on another origin whose
+// bytes were never fetched, files a secret scan skipped for size, redirect destinations that are
+// templates rather than paths. Those are silent caps unless the check says so, and "no silent
+// caps" is one of this repository's four honesty rules — so every such line is routed into
+// `results.notCovered` and into the report's Not covered section, by name.
+//
 // That last one is the one place in this repository where a crash is a failure rather than a
 // coverage gap. `launch-audit` reports, so a check that throws there costs that check and says so.
 // This is the gate: a check that cannot answer has not cleared the launch, and a gate that shrugs
@@ -57,6 +64,17 @@ const worstSeverity = (findings) => findings
   .map((f) => f.severity)
   .sort((a, b) => SEVERITIES.indexOf(a) - SEVERITIES.indexOf(b))[0]
 
+// Unwraps whichever of the two return shapes a check used. `null` means the check returned
+// something that is neither, which is a bug in the check.
+function unwrap(produced) {
+  if (Array.isArray(produced)) return { findings: produced, notCovered: [] }
+  if (produced !== null && typeof produced === 'object' && Array.isArray(produced.findings)) {
+    const notCovered = Array.isArray(produced.notCovered) ? produced.notCovered.filter((l) => typeof l === 'string' && l !== '') : []
+    return { findings: produced.findings, notCovered }
+  }
+  return null
+}
+
 // One check, run and interpreted. `check.run` is called as a method so a check body can use
 // `this.mk(...)` to build a finding that already carries its own id, phase and severity.
 async function runOne(check, ctx) {
@@ -66,7 +84,7 @@ async function runOne(check, ctx) {
     produced = await check.run(ctx)
   } catch (error) {
     if (error instanceof SkipCheck) {
-      return { ...base, status: 'skip', detail: error.reason, evidence: [], findings: [] }
+      return { ...base, status: 'skip', detail: error.reason, evidence: [], notCovered: [], findings: [] }
     }
     // A gate check that crashes fails closed. It did not clear the launch; it fell over.
     return {
@@ -74,27 +92,31 @@ async function runOne(check, ctx) {
       status: 'fail',
       detail: `check crashed — ${messageOf(error)}`,
       evidence: [{ type: 'text', value: `${check.id} threw: ${messageOf(error)}` }],
+      notCovered: [],
       findings: [],
     }
   }
 
-  if (!Array.isArray(produced)) {
+  const unwrapped = unwrap(produced)
+  if (unwrapped === null) {
     return {
       ...base,
       status: 'fail',
-      detail: 'check crashed — run() did not return an array',
+      detail: 'check crashed — run() returned neither an array of findings nor { findings, notCovered }',
       evidence: [{ type: 'text', value: `${check.id} returned ${typeof produced}` }],
+      notCovered: [],
       findings: [],
     }
   }
-  if (produced.length === 0) return { ...base, status: 'pass', detail: 'no problems found', evidence: [], findings: [] }
+  const { findings: produced2, notCovered } = unwrapped
+  if (produced2.length === 0) return { ...base, status: 'pass', detail: 'no problems found', evidence: [], notCovered, findings: [] }
 
   // A finding that fails validation never ships — evidence is the promise this tool makes — but
   // in the gate an invalid finding still fails the check, because something was wrong and the only
   // thing lost is the ability to describe it.
   const invalid = []
   const valid = []
-  for (const candidate of produced) {
+  for (const candidate of produced2) {
     const { ok, errors } = validateFinding(candidate)
     if (ok) valid.push(candidate)
     else invalid.push(errors.join('; '))
@@ -104,7 +126,8 @@ async function runOne(check, ctx) {
       ...base,
       status: 'fail',
       detail: `check crashed — every finding it produced was invalid: ${invalid.join(' | ')}`,
-      evidence: [{ type: 'text', value: `${check.id} produced ${produced.length} unusable finding(s)` }],
+      evidence: [{ type: 'text', value: `${check.id} produced ${produced2.length} unusable finding(s)` }],
+      notCovered,
       findings: [],
     }
   }
@@ -117,8 +140,21 @@ async function runOne(check, ctx) {
     severity,
     detail: valid.map((f) => f.detail).join('; '),
     evidence,
+    notCovered,
     findings: valid,
   }
+}
+
+// buildNotCovered ends with two unconditional lines — copy vs. source and pages vs. scope — that
+// have to stay last, because they are the two things no checker can ever see and a reader should
+// leave the section on them. Anything a check words for itself goes in just above them.
+export function insertBeforeFixed(lines, extra) {
+  if (extra.length === 0) return lines
+  const at = lines.findIndex((line) => line.startsWith('Copy vs. source documents'))
+  // Appending instead would put the checks' own lines after the two things nothing can see, which
+  // is the one ordering this section must never lose.
+  if (at === -1) throw new Error('Not covered is missing its fixed trailing lines')
+  return [...lines.slice(0, at), ...extra, ...lines.slice(at)]
 }
 
 export async function runChecks(checks, ctx) {
@@ -206,7 +242,10 @@ export async function runGate({ dir, options: rawOptions, exec, net = null, now 
   const skipped = checks
     .filter((c) => c.status === 'skip')
     .map((c) => ({ check: c.id, reason: c.detail }))
-  const notCovered = buildNotCovered({ skipped })
+  // A check's own coverage lines go after the skips and before the two fixed trailing lines: the
+  // last thing a reader sees in this section must stay the two things no checker can ever reach.
+  const declared = [...new Set(checks.flatMap((c) => c.notCovered ?? []))]
+  const notCovered = insertBeforeFixed(buildNotCovered({ skipped }), declared)
 
   const humanItems = humanItemsFor({ pkg: ctx.pkg, config: options, confirmed: readProgress(dir).confirmed })
 

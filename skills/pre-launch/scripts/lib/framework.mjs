@@ -165,8 +165,13 @@ const redirectTargets = check({
     }
     const sources = new Set(ctx.redirects.rules.map((rule) => normalizePath(rule.from)))
     const broken = []
+    // A templated destination cannot be resolved without knowing what its capture matched, so it
+    // is not checked — and a check that quietly drops rules is a check that reports coverage it
+    // does not have.
+    let templated = 0
     for (const rule of ctx.redirects.rules) {
-      if (!rule.to.startsWith('/') || TEMPLATED.test(rule.to)) continue
+      if (!rule.to.startsWith('/')) continue
+      if (TEMPLATED.test(rule.to)) { templated++; continue }
       const destination = normalizePath(rule.to)
       // A destination that is itself another rule's source is handled by that rule, and reported
       // as a chain by `predecessor.redirect-chains` rather than as a broken target here.
@@ -174,14 +179,20 @@ const redirectTargets = check({
       if (resolveInBuild(ctx, destination) !== null) continue
       broken.push(`${rule.from} -> ${rule.to} resolves to no file in the build`)
     }
-    if (broken.length === 0) return []
+    const notCovered = templated > 0
+      ? [`framework.redirect-targets: ${templated} templated destinations not verified`]
+      : []
+    if (broken.length === 0) return { findings: [], notCovered }
     const label = ctx.redirects.file.slice(ctx.dir.length + 1)
-    return [this.mk({
-      title: 'A redirect destination resolves to nothing',
-      detail: `${broken.length} rule${broken.length === 1 ? '' : 's'} in ${label} point at pages the build does not contain`,
-      evidence: broken.slice(0, MAX_LISTED).map(text),
-      fix: 'Point each rule at a page that exists, or remove the rule and let the 404 page handle it honestly.',
-    })]
+    return {
+      notCovered,
+      findings: [this.mk({
+        title: 'A redirect destination resolves to nothing',
+        detail: `${broken.length} rule${broken.length === 1 ? '' : 's'} in ${label} point at pages the build does not contain`,
+        evidence: broken.slice(0, MAX_LISTED).map(text),
+        fix: 'Point each rule at a page that exists, or remove the rule and let the 404 page handle it honestly.',
+      })],
+    }
   },
 })
 

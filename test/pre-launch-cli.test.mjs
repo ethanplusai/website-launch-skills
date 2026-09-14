@@ -147,6 +147,50 @@ test('--progress, --confirm and --reset-progress round-trip without running the 
   } finally { cleanup() }
 })
 
+test('the progress commands offer the same items the gate does, conditionals included', async () => {
+  const { dir, cleanup } = copyFixture(FAILING, 'cli-progress-conditional')
+  try {
+    // failing-site depends on stripe, so payments applies; gsc-baseline applies only once a
+    // predecessor is named. A shorter list here than the gate's would let somebody confirm their
+    // way to "done" without ever being asked about live payment keys.
+    const plain = await cli(['--dir', dir, '--progress'])
+    assert.equal(plain.code, 0)
+    assert.match(plain.stdout, /☐ payments/)
+    assert.equal(plain.stdout.includes('gsc-baseline'), false)
+
+    const withPredecessor = await cli(['--dir', dir, '--progress', '--predecessor-url', 'https://old.test'])
+    assert.match(withPredecessor.stdout, /☐ gsc-baseline/)
+
+    const passing = await copyFixture(PASSING, 'cli-progress-nopay')
+    try {
+      const noPayments = await cli(['--dir', passing.dir, '--progress'])
+      assert.equal(noPayments.stdout.includes('payments'), false, 'a site with no payment SDK is not asked about payments')
+    } finally { passing.cleanup() }
+  } finally { cleanup() }
+})
+
+test('"every item is confirmed" appears only once every applicable item is confirmed', async () => {
+  const { dir, cleanup } = copyFixture(FAILING, 'cli-progress-complete')
+  try {
+    // Everything but payments — the item that only exists because this repository takes money.
+    for (const id of ['forms', 'analytics', 'hosting', 'legal', 'dns', 'signoff', 'rollback']) {
+      assert.equal((await cli(['--dir', dir, '--confirm', id])).code, 0, id)
+    }
+    const short = await cli(['--dir', dir, '--progress'])
+    assert.equal(short.stdout.includes('Every item is confirmed'), false, 'payments is still outstanding')
+    assert.match(short.stdout, /Next: payments/)
+
+    assert.equal((await cli(['--dir', dir, '--confirm', 'payments'])).code, 0)
+    const done = await cli(['--dir', dir, '--progress'])
+    assert.match(done.stdout, /Every item is confirmed/)
+
+    // …and naming a predecessor adds an item back, so the list is honest again.
+    const withPredecessor = await cli(['--dir', dir, '--progress', '--predecessor-url', 'https://old.test'])
+    assert.equal(withPredecessor.stdout.includes('Every item is confirmed'), false)
+    assert.match(withPredecessor.stdout, /Next: gsc-baseline/)
+  } finally { cleanup() }
+})
+
 test('a confirmed item shows as confirmed in the next gate run and is not the next item offered', async () => {
   const { dir, cleanup } = copyFixture(PASSING, 'cli-confirmed')
   try {

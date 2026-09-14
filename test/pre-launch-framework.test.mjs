@@ -59,6 +59,12 @@ test('a redirect whose destination resolves to nothing fails; one pointing at an
   assert.equal(/\/old-team/.test(values), false, 'a destination that is another rule\'s source is not reported')
 })
 
+test('templated redirect destinations are declared as unverified rather than dropped', async () => {
+  const map = await group(checks, await ctxFor(FAILING))
+  const found = assertStatus(map, 'framework.redirect-targets', 'fail', assert)
+  assert.deepEqual(found.notCovered, ['framework.redirect-targets: 1 templated destinations not verified'])
+})
+
 test('an unknown framework skips the three config-derived checks with a reason', async () => {
   const { dir, cleanup } = outsideRepoDir('noframework')
   try {

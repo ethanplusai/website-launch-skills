@@ -188,6 +188,56 @@ test('every skip lands in Not covered by name and reason, and the fixed lines st
   } finally { cleanup() }
 })
 
+test('a check may declare its own coverage bound, and the runner routes it into Not covered', async () => {
+  const bounded = defineCheck({
+    id: 'hygiene.bounded', phase: 'pre-launch', dimension: 'hygiene', severity: 'blocker', tier: 'repo',
+    title: 'bounded', catches: 'a stub that declares a bound on what it read',
+    run: () => ({ findings: [], notCovered: ['hygiene.bounded: 3 files skipped (over 1 MB or binary)'] }),
+  })
+  const [result] = await runChecks([bounded], {})
+  assert.equal(result.status, 'pass')
+  assert.deepEqual(result.notCovered, ['hygiene.bounded: 3 files skipped (over 1 MB or binary)'])
+
+  const both = defineCheck({
+    id: 'hygiene.bounded-fail', phase: 'pre-launch', dimension: 'hygiene', severity: 'blocker', tier: 'repo',
+    title: 'bounded and failing', catches: 'a stub that both fails and declares a bound',
+    run: () => ({ findings: [finding('hygiene.bounded-fail')], notCovered: ['hygiene.bounded-fail: one thing not verified'] }),
+  })
+  const [failed] = await runChecks([both], {})
+  assert.equal(failed.status, 'fail')
+  assert.deepEqual(failed.notCovered, ['hygiene.bounded-fail: one thing not verified'])
+
+  const nonsense = defineCheck({
+    id: 'hygiene.nonsense', phase: 'pre-launch', dimension: 'hygiene', severity: 'blocker', tier: 'repo',
+    title: 'nonsense', catches: 'a stub returning neither shape',
+    run: () => 'not a shape',
+  })
+  const [broken] = await runChecks([nonsense], {})
+  assert.equal(broken.status, 'fail')
+  assert.match(broken.detail, /check crashed/)
+})
+
+test('the bounds real checks declare reach Not covered, above the two fixed lines', async () => {
+  const { results, cleanup } = await gateOn(FAILING, { requiredEnv: ['PUBLIC_API_BASE'] }, { exec: dirtyGit() })
+  try {
+    const expected = [
+      'placeholders: source scan limited to src',
+      'framework.redirect-targets: 1 templated destinations not verified',
+    ]
+    for (const line of expected) {
+      assert.ok(results.notCovered.includes(line), `"${line}" is missing from Not covered:\n${results.notCovered.join('\n')}`)
+      // De-duplicated: three placeholders checks emit the source-scan line, a reader sees it once.
+      assert.equal(results.notCovered.filter((l) => l === line).length, 1, line)
+    }
+    const fixedAt = results.notCovered.findIndex((l) => l.startsWith('Copy vs. source documents'))
+    for (const line of expected) assert.ok(results.notCovered.indexOf(line) < fixedAt, `${line} must come before the fixed lines`)
+    assert.match(results.notCovered.at(-1), /^Pages vs\. agreed scope/)
+
+    const report = readFileSync(join(results.bundleDir, 'report.md'), 'utf8')
+    for (const line of expected) assert.ok(report.includes(line), `report.md is missing "${line}"`)
+  } finally { cleanup() }
+})
+
 test('the human checklist ships with the results and marks what is confirmed', async () => {
   const { dir, cleanup: rm } = copyFixture(PASSING, 'gate-human')
   try {

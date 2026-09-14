@@ -22,6 +22,8 @@
 // bundle. The site, its build, its git history and every third-party service are untouched.
 
 import { pathToFileURL } from 'node:url'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { defineArgs } from '../../launch-audit/scripts/lib/args.mjs'
 import { createNet } from '../../launch-audit/scripts/lib/net.mjs'
@@ -30,6 +32,16 @@ import { runGate } from './lib/gate.mjs'
 import { HUMAN_ITEM_IDS, confirmItem, humanItemsFor, readProgress, resetProgress } from './lib/human.mjs'
 
 const messageOf = (error) => (error?.message === undefined || error.message === '' ? String(error) : error.message)
+
+// A repository with no readable package.json is one with no declared dependencies, which is the
+// same answer the gate's own context reaches.
+function readPackageJson(dir) {
+  try {
+    return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+  } catch {
+    return {}
+  }
+}
 
 export const args = defineArgs({
   name: 'pre-launch',
@@ -156,10 +168,19 @@ async function runCli(argv, { cwd, now, env }) {
   const dir = resolve(cwd, values.dir ?? '.')
 
   // The three progress commands are not a gate run: they read and write the operator's own record
-  // of what a person has confirmed, and they need no production url and no build.
+  // of what a person has confirmed, and they need no production url and no build. They do need the
+  // same two inputs the gate uses to decide which items apply — the package manifest (payments)
+  // and the predecessor url (gsc-baseline) — or they would offer a shorter list than the gate
+  // does, and "every item is confirmed" would be a lie on any repository that takes money.
+  const progressInputs = () => ({
+    pkg: readPackageJson(dir),
+    config: { predecessorUrl: values['predecessor-url'] ?? null },
+    confirmed: readProgress(dir).confirmed,
+  })
+
   if (values['reset-progress'] === true) {
     resetProgress(dir, now)
-    printProgress(humanItemsFor({ pkg: {}, config: {}, confirmed: [] }))
+    printProgress(humanItemsFor({ ...progressInputs(), confirmed: [] }))
     process.exitCode = 0
     return
   }
@@ -170,12 +191,12 @@ async function runCli(argv, { cwd, now, env }) {
       usageError([messageOf(error)], help)
       return
     }
-    printProgress(humanItemsFor({ pkg: {}, config: {}, confirmed: readProgress(dir).confirmed }))
+    printProgress(humanItemsFor(progressInputs()))
     process.exitCode = 0
     return
   }
   if (values.progress === true) {
-    printProgress(humanItemsFor({ pkg: {}, config: {}, confirmed: readProgress(dir).confirmed }))
+    printProgress(humanItemsFor(progressInputs()))
     process.exitCode = 0
     return
   }

@@ -32,6 +32,13 @@ a check that could not answer has not cleared the launch. If a check crashes, fi
 `Not covered` section by name. `hygiene.pushed: skipped — this directory is not a git repository`
 means nobody checked whether the commit was pushed. It does not mean it was.
 
+**A passing check can still have a bound, and it declares it.** A check that ran but could not
+reach part of its subject adds its own line to `Not covered` — an `og:image` on another origin
+whose bytes were never fetched, files a secret scan skipped for size, redirect destinations that
+are templates rather than paths, the source directories a placeholder scan actually looked at.
+These sit between the skips and the two fixed lines, and they are the reason a `pass` in this gate
+means "this was checked and was fine" rather than "nothing was reported".
+
 ---
 
 ## The six groups, and why they run in that order

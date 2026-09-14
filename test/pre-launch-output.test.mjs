@@ -1,4 +1,4 @@
-// The build output: nineteen checks over the files a person is about to upload.
+// The build output: sixteen checks over the files a person is about to upload.
 //
 // This is the stack-agnostic core of the gate — it reads HTML and bytes, and knows nothing about
 // the generator that produced them. The two fixtures do the work: `passing-site` must trip none of
@@ -76,6 +76,38 @@ test('an incomplete favicon set fails and names each missing piece', () => {
   const values = found.evidence.map((e) => e.value).join(' | ')
   assert.match(values, /favicon\.ico/)
   assert.match(values, /apple-touch-icon\.png/)
+})
+
+test('a build with no og:image anywhere fails — a missing card is the failure, not an absence of work', async () => {
+  const { dir, cleanup } = outsideRepoDir('no-og')
+  try {
+    const { mkdirSync } = await import('node:fs')
+    writeFileSync(join(dir, 'package.json'), '{}')
+    mkdirSync(join(dir, 'dist'))
+    writeFileSync(join(dir, 'dist', 'index.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>t</title></head><body><h1>h</h1></body></html>')
+    const map = await group(checks, await ctxFor(dir))
+    const found = assertStatus(map, 'output.og-image', 'fail', assert)
+    assert.match(found.detail, /no og:image|declares an og:image/i)
+    assert.ok(found.evidence.some((e) => e.value.includes('index.html')), JSON.stringify(found.evidence))
+  } finally { cleanup() }
+})
+
+test('an og:image on another origin is declared as not verified rather than silently skipped', async () => {
+  const { dir, cleanup } = outsideRepoDir('off-origin-og')
+  try {
+    const { mkdirSync } = await import('node:fs')
+    writeFileSync(join(dir, 'package.json'), '{}')
+    mkdirSync(join(dir, 'dist'))
+    writeFileSync(join(dir, 'dist', 'index.html'), [
+      '<!doctype html><html lang="en"><head><meta charset="utf-8">',
+      '<meta name="viewport" content="width=device-width"><title>t</title>',
+      '<meta property="og:image" content="https://cdn.example.net/card.png">',
+      '</head><body><h1>h</h1></body></html>',
+    ].join(''))
+    const map = await group(checks, await ctxFor(dir))
+    const found = assertStatus(map, 'output.og-image', 'pass', assert)
+    assert.deepEqual(found.notCovered, ['output.og-image: https://cdn.example.net/card.png is hosted off-origin — not verified'])
+  } finally { cleanup() }
 })
 
 test('an svg og:image fails as not raster, and a 2400x1260 one is named in the detail', () => {

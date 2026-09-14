@@ -78,6 +78,30 @@ test('eleventy, sveltekit, nuxt, vite and wordpress are each recognised', () => 
   }
 })
 
+test('hugo is claimed by a hugo.* config, or a config.toml that declares a baseURL', () => {
+  const named = scratch({ 'hugo.yaml': 'title: x\n' })
+  try {
+    assert.equal(detectFramework(named.dir, {}).name, 'hugo')
+  } finally { named.cleanup() }
+
+  const declared = scratch({ 'config.toml': 'baseURL = "https://x.test/"\n' })
+  try {
+    assert.equal(detectFramework(declared.dir, {}).name, 'hugo')
+  } finally { declared.cleanup() }
+})
+
+test('a config.toml that is not Hugo\'s does not turn a Vite project into a Hugo one', () => {
+  const { dir, cleanup } = scratch({
+    'config.toml': '[tool.something]\nvalue = 1\n',
+    'vite.config.js': 'export default {}\n',
+  })
+  try {
+    const found = detectFramework(dir, { devDependencies: { vite: '^5' } })
+    assert.equal(found.name, 'vite')
+    assert.equal(found.buildDirGuess, 'dist')
+  } finally { cleanup() }
+})
+
 test('an unrecognised repository answers null rather than guessing', () => {
   const { dir, cleanup } = scratch({ 'readme.md': 'hello\n' })
   try {
@@ -93,7 +117,8 @@ test('vercel.json redirects parse, and a :param source counts as a wildcard', ()
   const { file, rules } = parseRedirects(FAILING)
   assert.match(file, /vercel\.json$/)
   assert.deepEqual(rules[0], { from: '/legacy/:path*', to: '/', status: 301, wildcard: true })
-  assert.deepEqual(rules[2], { from: '/team', to: '/about', status: 301, wildcard: false })
+  assert.deepEqual(rules[1], { from: '/docs/:slug*', to: '/guides/:slug*', status: 301, wildcard: true })
+  assert.deepEqual(rules[3], { from: '/team', to: '/about', status: 301, wildcard: false })
 })
 
 test('netlify.toml, _redirects and .htaccess each parse into the same rule shape', () => {
@@ -102,11 +127,14 @@ test('netlify.toml, _redirects and .htaccess each parse into the same rule shape
     assert.deepEqual(parseRedirects(netlify.dir).rules, [{ from: '/old', to: '/new', status: 301, wildcard: false }])
   } finally { netlify.cleanup() }
 
-  const plain = scratch({ '_redirects': '# a comment\n/blog/*  /articles/:splat  301\n/one /two\n' })
+  // `302!` is Netlify's forced rule: the bang says who wins, not what the status is.
+  const plain = scratch({ '_redirects': '# a comment\n/blog/*  /articles/:splat  301\n/one /two\n/shop /store 302!\n/forced /elsewhere 301!\n' })
   try {
     assert.deepEqual(parseRedirects(plain.dir).rules, [
       { from: '/blog/*', to: '/articles/:splat', status: 301, wildcard: true },
       { from: '/one', to: '/two', status: 301, wildcard: false },
+      { from: '/shop', to: '/store', status: 302, wildcard: false },
+      { from: '/forced', to: '/elsewhere', status: 301, wildcard: false },
     ])
   } finally { plain.cleanup() }
 
