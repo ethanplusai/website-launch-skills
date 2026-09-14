@@ -183,3 +183,61 @@ test('buildAuditContext defaults the 404 suffix to real randomness', async () =>
   const ctx = await buildAuditContext(net, createDns({}), { url: 'https://good.test/' })
   assert.match(ctx.probes.notFound.url, /^https:\/\/good\.test\/this-page-should-not-exist-[0-9a-f]{8,}$/)
 })
+
+test('buildAuditContext fetches the head assets every crawled page points at, once each', async () => {
+  const head = `
+    <link rel="icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta property="og:image" content="/og.png">
+    <meta property="og:image:secure_url" content="https://cdn.test/og.png">
+    <link rel="stylesheet" href="/s.css">`
+  const page = (title, body) => ({
+    status: 200,
+    headers: { 'content-type': 'text/html' },
+    body: `<!doctype html><html lang="en"><head><title>${title}</title>${head}</head><body>${body}</body></html>`,
+  })
+  const asset = (type) => ({ status: 200, headers: { 'content-type': type } })
+  const net = recordedNet({
+    'https://icons.test/': page('Home', '<a href="/about">About</a>'),
+    'https://icons.test/about': page('About', 'about'),
+    'https://icons.test/favicon.ico': asset('image/x-icon'),
+    'https://icons.test/apple-touch-icon.png': asset('image/png'),
+    'https://icons.test/site.webmanifest': asset('application/manifest+json'),
+    'https://icons.test/og.png': asset('image/png'),
+    'https://cdn.test/og.png': asset('image/png'),
+  })
+  const asked = []
+  const get = net.get
+  net.get = (url) => { asked.push(url); return get(url) }
+  net.head = (url) => net.get(url)
+  net.cert = async () => ({ valid: true, altNames: ['icons.test'], daysLeft: 90, error: null })
+  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://icons.test/', random: () => 'deadbeef' })
+
+  assert.deepEqual([...ctx.probes.headAssets.keys()].sort(), [
+    'https://cdn.test/og.png',
+    'https://icons.test/apple-touch-icon.png',
+    'https://icons.test/favicon.ico',
+    'https://icons.test/og.png',
+    'https://icons.test/site.webmanifest',
+  ])
+  assert.equal(ctx.probes.headAssets.get('https://icons.test/og.png').status, 200)
+  // Two pages declare the same five assets, and each is fetched once. A stylesheet is not a head
+  // asset — the static-asset sampler owns that url, so it is absent from this map.
+  assert.equal(asked.filter((url) => url === 'https://icons.test/favicon.ico').length, 1)
+  assert.equal(ctx.probes.headAssets.has('https://icons.test/s.css'), false)
+})
+
+test('buildAuditContext records a head asset that does not answer rather than dropping it', async () => {
+  const net = recordedNet({
+    'https://icons.test/': {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+      body: '<!doctype html><html><head><title>Home</title><link rel="icon" href="/favicon.ico"></head><body>hi</body></html>',
+    },
+  })
+  net.head = (url) => net.get(url)
+  net.cert = async () => ({ valid: true, altNames: [], daysLeft: 90, error: null })
+  const ctx = await buildAuditContext(net, createDns({}), { url: 'https://icons.test/', random: () => 'deadbeef' })
+  assert.equal(ctx.probes.headAssets.get('https://icons.test/favicon.ico').status, 0)
+})

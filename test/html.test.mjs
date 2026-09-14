@@ -421,3 +421,26 @@ test('unterminated tags and comments do not backtrack quadratically', () => {
     assert.ok(elapsed < 500, `${label} (${html.length} chars) took ${elapsed.toFixed(1)}ms, expected under 500ms`)
   }
 })
+
+test('counts every meta occurrence in the head by name and by property', () => {
+  const p = parseHtml(
+    `<!doctype html><html><head>
+      <meta name="description" content="first">
+      <meta name="Description" content="second">
+      <meta property="og:image" content="https://x.test/a.png">
+      <meta property="og:image" content="https://x.test/b.png">
+      <meta name="viewport" content="width=device-width">
+      <meta name="keywords" property="og:keywords" content="both">
+    </head><body><meta name="description" content="in the body"></body></html>`,
+    'https://x.test/',
+  )
+  assert.equal(p.head.metaCounts.get('name:description'), 2)
+  assert.equal(p.head.metaCounts.get('property:og:image'), 2)
+  assert.equal(p.head.metaCounts.get('name:viewport'), 1)
+  assert.equal(p.head.metaCounts.get('name:keywords'), 1)
+  assert.equal(p.head.metaCounts.get('property:og:keywords'), 1)
+  assert.equal(p.head.metaCounts.get('name:missing'), undefined)
+  // First-wins stays first-wins, and a meta outside the head is counted nowhere but metaOutsideHead.
+  assert.equal(p.head.metaByName.get('description'), 'first')
+  assert.equal(p.metaOutsideHead, 1)
+})

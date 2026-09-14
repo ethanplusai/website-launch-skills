@@ -14,7 +14,9 @@
 //   5. notFound            — /this-page-should-not-exist-<random>, for soft-404 detection
 //   6. llms.txt            — presence and shape
 //   7. static asset sample — up to two stylesheets, scripts and images the crawl actually saw
-//   8. cert                — net.cert(host)
+//   8. head assets         — every og:image, icon, apple-touch-icon and manifest url the crawled
+//                            pages declare, deduped across the whole crawl and fetched once each
+//   9. cert                — net.cert(host)
 //
 // The 404 probe's random suffix comes from `options.random`, which defaults to crypto randomness;
 // tests pin it (`random: () => 'deadbeef'`) so a recorded fixture can hold that exact path. Time
@@ -47,6 +49,13 @@ function hasWwwCounterpart(host) {
 }
 
 const ASSET_SAMPLE_PER_KIND = 2
+// The head-asset set is a handful of urls on a normal site — one favicon, one touch icon, one
+// manifest, one og:image per template — but a page builder that stamps a per-page og:image makes
+// it grow with the crawl, so it is capped. A url past the cap is simply absent from the map, and
+// the checks treat an absent url as unknown rather than broken.
+const HEAD_ASSET_LIMIT = 100
+const HEAD_ASSET_RELS = ['icon', 'apple-touch-icon', 'manifest']
+const HEAD_ASSET_META = ['og:image', 'og:image:secure_url']
 
 function sampleAssets(assets, origin) {
   const picked = []
@@ -68,6 +77,35 @@ function sampleAssets(assets, origin) {
     }
   }
   return picked
+}
+
+// The urls a check like `head.favicon-broken` or `head.og-image-small` has to see a response for.
+// Collected from the pages the crawl actually parsed, so nothing here invents a url the site does
+// not declare; `page.head.links` and the og meta values are already absolute by the time they get
+// here, and anything that is not http(s) (a data: icon, say) has no response to fetch.
+function headAssetUrls(crawl) {
+  const urls = new Set()
+  const add = (href) => {
+    if (typeof href !== 'string' || href === '' || urls.size >= HEAD_ASSET_LIMIT) return
+    let parsed
+    try {
+      parsed = new URL(href)
+    } catch {
+      return
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return
+    urls.add(parsed.href)
+  }
+  for (const entry of crawl.pages) {
+    if (entry.page === null) continue
+    for (const key of HEAD_ASSET_META) add(entry.page.head.metaByProperty.get(key))
+    for (const link of entry.page.head.links) {
+      if (link.rel === null) continue
+      const rels = link.rel.split(/\s+/)
+      if (rels.some((rel) => HEAD_ASSET_RELS.some((wanted) => rel.includes(wanted)))) add(link.href)
+    }
+  }
+  return [...urls]
 }
 
 export async function buildAuditContext(net, dns, options = {}) {
@@ -149,6 +187,12 @@ export async function buildAuditContext(net, dns, options = {}) {
   const assetResponses = await net.map(assetPicks.map((a) => a.url), fetchAsset)
   const assets = assetPicks.map((pick, i) => ({ ...pick, response: assetResponses[i] }))
 
+  // 8. every head asset the crawl saw, fetched once each. net.get rather than net.head, because
+  // the og:image checks read the response bytes to measure the image.
+  const headAssetList = headAssetUrls(crawl)
+  const headAssetResponses = await net.map(headAssetList, (assetUrl) => net.get(assetUrl))
+  const headAssets = new Map(headAssetList.map((assetUrl, i) => [assetUrl, headAssetResponses[i]]))
+
   const probes = {
     httpRoot: at(variantUrls[0]),
     httpsRoot: at(variantUrls[1]),
@@ -158,9 +202,10 @@ export async function buildAuditContext(net, dns, options = {}) {
     notFound: { url: notFoundUrl, response: at(notFoundUrl) },
     llmsTxt: at(llmsUrl),
     assets,
+    headAssets,
   }
 
-  // 8. cert
+  // 9. cert
   const cert = typeof net.cert === 'function' ? await net.cert(host) : null
 
   return { target, crawl, robots, sitemaps, probes, cert, dns, net, options, now }

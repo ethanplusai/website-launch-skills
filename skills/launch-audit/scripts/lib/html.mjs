@@ -10,6 +10,8 @@
 //   supplied `baseUrl` otherwise. A url that cannot be resolved is `null`.
 // - `alt` is `null` when the attribute is absent and `''` when it is present but empty.
 // - `metaByName`/`metaByProperty` keys are lowercased; the first occurrence of a key wins.
+//   `head.metaCounts` counts every `<meta>` in the head under `name:<name>` / `property:<property>`,
+//   which is how a repeated tag stays visible despite those maps keeping only the first.
 // - `width`/`height` are numbers only when the attribute is a plain integer, else `null`.
 // - `inHead` is true only inside an explicit `<head>` element, so a body-only document reports
 //   every `<meta>` it finds through `metaOutsideHead`.
@@ -134,7 +136,7 @@ export function parseHtml(html, baseUrl) {
     htmlAttrs: { lang: null, dir: null },
     head: {
       title: null, charset: null, viewport: null,
-      metaByName: new Map(), metaByProperty: new Map(),
+      metaByName: new Map(), metaByProperty: new Map(), metaCounts: new Map(),
       links: [], canonical: null, canonicalCount: 0, robots: null, base: null,
     },
     headings: [], h1Count: 0,
@@ -227,14 +229,20 @@ export function parseHtml(html, baseUrl) {
       if (found) page.head.charset = found[1].toLowerCase()
     }
     const content = attrs.content ?? ''
+    // metaCounts is the only place a repeated meta is visible: the two maps below are first-wins,
+    // by design, so `head.meta-duplicate` has nothing else to read. Head-only, because a meta in
+    // the body is metaOutsideHead's finding rather than a duplicate of anything.
+    const count = (key) => { if (inHead && key !== '') page.head.metaCounts.set(key, (page.head.metaCounts.get(key) ?? 0) + 1) }
     if (attrs.name !== undefined) {
       const key = attrs.name.trim().toLowerCase()
+      count(key === '' ? '' : `name:${key}`)
       if (key !== '' && !page.head.metaByName.has(key)) page.head.metaByName.set(key, content)
       if (key === 'viewport' && page.head.viewport === null) page.head.viewport = content
       if (key === 'robots' && page.head.robots === null) page.head.robots = content.toLowerCase()
     }
     if (attrs.property !== undefined) {
       const key = attrs.property.trim().toLowerCase()
+      count(key === '' ? '' : `property:${key}`)
       if (key !== '' && !page.head.metaByProperty.has(key)) page.head.metaByProperty.set(key, content)
     }
   }
