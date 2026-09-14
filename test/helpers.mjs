@@ -42,7 +42,7 @@ export function recordedNet(fixture) {
       url, finalUrl: rec.finalUrl ?? url, status, ok: status >= 200 && status < 300,
       headers: lowerHeaders(rec.headers), body, bodyBytes,
       chain: rec.chain ?? [], error: null, timedOut: false,
-      bytes: typeof body === 'string' ? body.length : (bodyBytes?.length ?? 0), truncated: false,
+      bytes: rec.bytes ?? (typeof body === 'string' ? body.length : (bodyBytes?.length ?? 0)), truncated: false,
     }
   }
 
