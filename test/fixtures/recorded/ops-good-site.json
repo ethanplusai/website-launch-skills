@@ -1,0 +1,51 @@
+{
+  "https://ops-good.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://ops-good.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>The roastery</title>\n</head>\n<body>\n<main>\n<h1>The roastery</h1>\n<a href=\"/about\">About the roastery</a>\n<footer>\n<a href=\"/privacy\">Privacy policy</a>\n<a href=\"/terms\">Terms of service</a>\n<a href=\"/cookies\">Cookie policy</a>\n</footer>\n</main>\n</body>\n</html>\n"
+  },
+  "https://ops-good.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the roastery</title>\n</head>\n<body>\n<main>\n<h1>About the roastery</h1>\n<a href=\"/\">Back to the front page</a>\n<footer>\n<a href=\"/privacy\">Privacy policy</a>\n<a href=\"/terms\">Terms of service</a>\n<a href=\"/cookies\">Cookie policy</a>\n</footer>\n</main>\n</body>\n</html>\n"
+  },
+  "https://ops-good.test/privacy": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Privacy policy</title>\n</head>\n<body>\n<main>\n<h1>Privacy policy</h1>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://ops-good.test/terms": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Terms of service</title>\n</head>\n<body>\n<main>\n<h1>Terms of service</h1>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://ops-good.test/cookies": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Cookie policy</title>\n</head>\n<body>\n<main>\n<h1>Cookie policy</h1>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://ops-good.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  }
+}
