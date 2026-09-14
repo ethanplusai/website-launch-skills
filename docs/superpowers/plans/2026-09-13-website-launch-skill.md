@@ -17,7 +17,11 @@
 - Every script supports `--help` and `--json`; scripts are black boxes to agents.
 - Every `SKILL.md` ≤ 200 lines; frontmatter `name` equals its directory name, ≤ 64 chars, `[a-z0-9-]`, no leading/trailing/double hyphen; `description` 1–1024 chars.
 - No agent-specific paths or variables (no `${CLAUDE_PLUGIN_ROOT}`); script paths in SKILL.md are relative to the skill directory.
-- No vendor names anywhere except `docs/sources.md` and lines tagged `vendor-negative-use`. Banned regex (case-insensitive): `plastix|aesthetix|accessibe|wpengine|Desktop/git|/Users/`.
+- No vendor names anywhere except `docs/sources.md` and lines tagged `vendor-negative-use`. The two
+  real agency and product names are deliberately not written in this file: it is tracked, the scan
+  reads it, and a plan that spells the names out is the leak it was written to prevent.
+  `test/invariants.test.mjs` holds the live list. Banned regex, shape only (case-insensitive):
+  `agencyname|crmname|accessibe|wpengine|Desktop/git|/Users/` <!-- vendor-negative-use -->
 - Every finding carries ≥ 1 evidence item; validation rejects otherwise.
 - `pre-launch` exits 1 on any `fail`; no flag converts a `fail`. `launch-audit` and `post-launch` always exit 0.
 - Every report ends with a `## Not covered` section, even when empty of caps (it then lists the two never-runnable checks).
@@ -97,9 +101,9 @@ import { join } from 'node:path'
 import { REPO_ROOT } from './helpers.mjs'
 import { walk } from '../skills/launch-audit/scripts/lib/fs-util.mjs'
 
-const VENDOR = /plastix|aesthetix|accessibe|wpengine|Desktop\/git|\/Users\//i // vendor-negative-use
+const VENDOR = /agencyname|crmname|accessibe|wpengine|Desktop\/git|\/Users\//i // vendor-negative-use — shape only; the shipped file names the real ones
 const TAG = 'vendor-negative-use'
-const SKIP = new Set(['node_modules', '.git', 'tmp', 'website-launch'])
+const SKIP = new Set(['node_modules', '.git', 'tmp', 'website-launch', '.superpowers', '.agents'])
 const TEXT = /\.(mjs|md|json|xml|html|css|txt|csv)$/
 
 function offenders() {
