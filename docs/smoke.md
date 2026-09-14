@@ -215,6 +215,7 @@ printed 800 lines; a cutover report never said it covers 21 of 176 checks; a mal
 `notCovered` was coerced to `[]`), `37fe15e` (`net.cert()` had no timeout; `maxBytes` capped what
 was kept rather than what was read; undrained redirect bodies; an uncancelled resolver),
 `9d5db2a` (four head assertions that could not fail; a `<script>` tag that ended at a `>` inside a
-quoted attribute), `a9bda93` (docs and manifest polish). **The smoke runs above predate these
-fixes** — the verdict table and the counts describe the bundles produced before this wave, not the
+quoted attribute), `a9bda93` (docs and manifest polish), `b66a448` (the new unreachable-target
+blocker fired on a healthy site whose url carried a `#fragment`, and blurred three different
+states into one sentence). **The smoke runs above predate these fixes** — the verdict table and the counts describe the bundles produced before this wave, not the
 code at the tag.
