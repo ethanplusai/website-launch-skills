@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpDir } from './helpers.mjs'
 import { finding } from '../skills/launch-audit/scripts/lib/findings.mjs'
@@ -131,6 +131,63 @@ test('renderReport H1 names phase and target', () => {
   assert.match(md, /^# Launch pre-launch report — https:\/\/x\.test\//)
 })
 
+// --- markdown injection safety ---
+
+test('renderReport collapses embedded newlines so a finding title cannot inject a fake heading', () => {
+  const findings = [f({ dimension: 'seo', title: 'Evil\n## Fake Section\n### [blocker] Injected' })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  const h2Lines = md.split('\n').filter((l) => /^## /.test(l))
+  const h3Lines = md.split('\n').filter((l) => /^### /.test(l))
+  assert.deepEqual(h2Lines, ['## seo', '## Not covered'], `expected only the dimension and the always-present Not covered heading, got: ${JSON.stringify(h2Lines)}`)
+  assert.equal(h3Lines.length, 1, `expected exactly one real ### heading (the finding), got: ${JSON.stringify(h3Lines)}`)
+  assert.doesNotMatch(md, /^## Fake Section$/m)
+  assert.match(md, /Evil ## Fake Section ### \[blocker\] Injected/)
+})
+
+test('renderReport escapes a leading markdown block character in interpolated text', () => {
+  const findings = [f({ detail: '- not actually a list item', fix: '> not actually a quote' })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /- Detail: \\- not actually a list item/)
+  assert.match(md, /- Fix: \\> not actually a quote/)
+})
+
+test('renderReport escapes backtick runs anywhere in interpolated text', () => {
+  const findings = [f({ fix: 'Run `npm test` to verify' })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /- Fix: Run \\`npm test\\` to verify/)
+})
+
+test('renderReport neutralizes a not-covered line and a dimension heading the same way', () => {
+  const findings = [f({ dimension: '# hijacked' })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: ['# also hijacked'], summary })
+  assert.match(md, /## \\# hijacked/)
+  assert.match(md, /- \\# also hijacked/)
+})
+
+// --- evidence value formatting ---
+
+test('renderReport renders a structured evidence value as single-line JSON', () => {
+  const findings = [f({ evidence: [{ type: 'metric', value: { lcp: 4200 } }] })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /- metric: \{"lcp":4200\}/)
+})
+
+test('renderReport renders number and boolean evidence values via String()', () => {
+  const findings = [f({ evidence: [{ type: 'metric', value: 4200 }, { type: 'text', value: true }] })]
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings, notCovered: [], summary })
+  assert.match(md, /- metric: 4200/)
+  assert.match(md, /- text: true/)
+})
+
+test('renderReport renders a null or undefined evidence value as (none)', () => {
+  // Built directly rather than via finding() — finding() itself rejects an empty/null evidence
+  // value, but renderReport only reads the shape, so this still exercises formatValue's fallback.
+  const bare = { id: 'x.y', phase: 'launch-audit', dimension: 'x', severity: 'info', tier: 'http', title: 't', detail: 'd', page: null, evidence: [{ type: 'text', value: null }, { type: 'text', value: undefined }], fix: 'f' }
+  const md = renderReport({ phase: 'audit', target: 'https://x.test/', generatedAt: '2026-01-01T00:00:00.000Z', findings: [bare], notCovered: [], summary })
+  const noneLines = md.split('\n').filter((l) => l.trim() === '- text: (none)')
+  assert.equal(noneLines.length, 2)
+})
+
 // --- resolveOutDir ---
 
 test('resolveOutDir returns `out` verbatim when given', () => {
@@ -201,6 +258,71 @@ test('writeBundle omits redirects.csv when not given', () => {
     const { files } = writeBundle(outDir, { report: '# r\n', findings: [], crawl, baseline: {} })
     assert.ok(!files.some((p) => p.endsWith('redirects.csv')))
     assert.ok(!existsSync(join(outDir, 'redirects.csv')))
+  } finally {
+    cleanup()
+  }
+})
+
+test('writeBundle writes a manifest.json listing exactly this run\'s files, as its last file', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-manifest')
+  try {
+    const outDir = join(dir, 'out')
+    const { files } = writeBundle(outDir, { report: '# r\n', findings: [], crawl: emptyCrawl(), baseline: {}, redirectsCsv: 'a,b\n' })
+    assert.equal(files[files.length - 1], join(outDir, 'manifest.json'))
+    const manifest = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.deepEqual([...manifest.files].sort(), ['baseline.json', 'crawl.json', 'findings.json', 'redirects.csv', 'report.md'])
+    assert.equal(typeof manifest.generatedAt, 'string')
+  } finally {
+    cleanup()
+  }
+})
+
+// --- writeBundle: stale-artifact cleanup on rerun ---
+
+function emptyCrawl() {
+  return { pages: [], dropped: [], orphans: [], unlisted: [], assets: { images: new Set(), scripts: new Set(), styles: new Set() }, externalLinks: new Map(), internalLinks: new Map() }
+}
+
+test('writeBundle deletes files a prior run into the same outDir produced but this run does not rewrite', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-stale')
+  try {
+    const outDir = join(dir, 'out')
+    writeBundle(outDir, {
+      report: '# run1\n', findings: [], crawl: emptyCrawl(), baseline: {},
+      redirectsCsv: 'from,to\n', extra: [{ name: 'notes.txt', content: 'hi' }],
+    })
+    assert.ok(existsSync(join(outDir, 'redirects.csv')))
+    assert.ok(existsSync(join(outDir, 'notes.txt')))
+
+    const { files } = writeBundle(outDir, { report: '# run2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+
+    assert.ok(!existsSync(join(outDir, 'redirects.csv')), 'stale redirects.csv from run 1 should be gone')
+    assert.ok(!existsSync(join(outDir, 'notes.txt')), 'stale notes.txt from run 1 should be gone')
+    assert.equal(readFileSync(join(outDir, 'report.md'), 'utf8'), '# run2\n')
+    assert.ok(existsSync(join(outDir, 'findings.json')))
+    assert.ok(existsSync(join(outDir, 'crawl.json')))
+    assert.ok(existsSync(join(outDir, 'baseline.json')))
+
+    const manifest = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.deepEqual([...manifest.files].sort(), ['baseline.json', 'crawl.json', 'findings.json', 'report.md'])
+    assert.ok(files.includes(join(outDir, 'manifest.json')))
+  } finally {
+    cleanup()
+  }
+})
+
+test('writeBundle never deletes a file that was not named in a prior manifest', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-user-file')
+  try {
+    const outDir = join(dir, 'out')
+    writeBundle(outDir, { report: '# run1\n', findings: [], crawl: emptyCrawl(), baseline: {}, redirectsCsv: 'a,b\n' })
+
+    writeFileSync(join(outDir, 'mine.txt'), 'do not delete me')
+
+    writeBundle(outDir, { report: '# run2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+
+    assert.ok(existsSync(join(outDir, 'mine.txt')))
+    assert.equal(readFileSync(join(outDir, 'mine.txt'), 'utf8'), 'do not delete me')
   } finally {
     cleanup()
   }

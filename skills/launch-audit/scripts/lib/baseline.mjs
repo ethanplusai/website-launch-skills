@@ -7,11 +7,21 @@ function firstH1(page) {
   return h ? h.text : null
 }
 
+// `@type` may be a single string or an array of strings (schema.org allows multi-typing, e.g.
+// `["Organization","LocalBusiness"]`). Flattens both shapes into one deduped, first-seen-order
+// list of strings; a non-string entry (number, object, null) is silently dropped rather than
+// stringified, since it isn't a real type name.
 function jsonldTypesOf(page) {
+  const seen = new Set()
   const types = []
   for (const entry of page.jsonld) {
-    const t = entry.parsed && entry.parsed['@type']
-    if (t) types.push(t)
+    const raw = entry.parsed && entry.parsed['@type']
+    const values = Array.isArray(raw) ? raw : [raw]
+    for (const v of values) {
+      if (typeof v !== 'string' || v === '' || seen.has(v)) continue
+      seen.add(v)
+      types.push(v)
+    }
   }
   return types
 }
@@ -45,11 +55,12 @@ function pageSnapshot(p, analyticsByPage) {
   }
 }
 
-// Builds a Baseline from a crawl result. Pure: `generatedAt` is a wall-clock timestamp, but
-// nothing here reads from disk or the network.
+// Builds a Baseline from a crawl result. Pure: `generatedAt` comes from the `now` option (default
+// `new Date()`) rather than reading the clock internally, so a caller can pin it and get the same
+// output back — nothing here reads from disk or the network either way.
 export function makeBaseline(
   crawlResult,
-  { securityHeaders = {}, cert = null, robotsHash = null, sitemapUrls = [], analyticsByPage = new Map() } = {}
+  { securityHeaders = {}, cert = null, robotsHash = null, sitemapUrls = [], analyticsByPage = new Map(), now = new Date() } = {}
 ) {
   const pages = [...crawlResult.pages]
     .map((p) => pageSnapshot(p, analyticsByPage))
@@ -67,8 +78,10 @@ export function makeBaseline(
     }
   }
 
+  const generatedAt = now instanceof Date ? now : new Date(now)
+
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt: generatedAt.toISOString(),
     host,
     https,
     hsts: securityHeaders['strict-transport-security'] ?? null,

@@ -5,9 +5,39 @@
 // touches the filesystem.
 
 import { join } from 'node:path'
-import { writeFileSync } from 'node:fs'
-import { ensureDir, writeJson } from './fs-util.mjs'
+import { writeFileSync, unlinkSync, existsSync } from 'node:fs'
+import { ensureDir, writeJson, readJson } from './fs-util.mjs'
 import { sortFindings } from './findings.mjs'
+
+const MANIFEST_NAME = 'manifest.json'
+
+// Content interpolated into the markdown report comes from crawled pages (titles, meta, JSON-LD)
+// and is not trusted. `inline(v)` makes any string safe to splice into a single markdown line:
+// collapse all whitespace (including embedded newlines, which is what stops a `<title>` of
+// `"\n## Fake Section"` from ever producing a real heading line) to one space and trim, then
+// escape a leading `#`/`-`/`*`/`>`/`|` (each starts a block construct only at the very start of a
+// line) and any run of backticks anywhere in the string (a backtick can open an inline code span
+// from the middle of a line, not just the start).
+function inline(v) {
+  let s = String(v ?? '')
+  s = s.replace(/\s+/g, ' ').trim()
+  s = s.replace(/`+/g, (run) => '\\' + run)
+  s = s.replace(/^([#\-*>|])/, '\\$1')
+  return s
+}
+
+// Evidence values arrive as whatever the check collected: a plain string, a number/boolean metric,
+// a structured object (rendered as single-line JSON), or nothing at all.
+function formatValue(v) {
+  if (v === null || v === undefined) return '(none)'
+  if (typeof v === 'string') return inline(v)
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  try {
+    return inline(JSON.stringify(v))
+  } catch {
+    return '(none)'
+  }
+}
 
 const NOT_COVERED_FIXED = [
   'Copy vs. source documents: not run (no source of truth reachable)',
@@ -64,18 +94,18 @@ function renderOps(ops) {
   const lines = ['## Ops & access readiness', '']
   for (const op of ops) {
     const tag = op.autoVerifiedBy ? `[auto-verified by ${op.autoVerifiedBy}]` : '[human]'
-    lines.push(`- ${tag} ${op.label}`)
+    lines.push(`- ${tag} ${inline(op.label)}`)
   }
   return lines
 }
 
 function renderFinding(f) {
-  const lines = [`### [${f.severity}] ${f.title}`, '']
-  lines.push(`- Page: ${f.page || 'site-wide'}`)
-  lines.push(`- Detail: ${f.detail}`)
+  const lines = [`### [${f.severity}] ${inline(f.title)}`, '']
+  lines.push(`- Page: ${inline(f.page || 'site-wide')}`)
+  lines.push(`- Detail: ${inline(f.detail)}`)
   lines.push('- Evidence:')
-  for (const e of f.evidence) lines.push(`  - ${e.type}: ${e.value}`)
-  lines.push(`- Fix: ${f.fix}`)
+  for (const e of f.evidence) lines.push(`  - ${inline(e.type)}: ${formatValue(e.value)}`)
+  lines.push(`- Fix: ${inline(f.fix)}`)
   return lines
 }
 
@@ -84,7 +114,7 @@ function renderFinding(f) {
 // even though the sort key ranks severity ahead of dimension.
 export function renderReport({ phase, target, generatedAt, findings = [], notCovered = [], ops, summary }) {
   const lines = []
-  lines.push(`# Launch ${phase} report — ${target}`, '')
+  lines.push(`# Launch ${phase} report — ${inline(target)}`, '')
   lines.push(`Generated ${generatedAt}`, '')
   lines.push('| Pages | Blockers | High | Medium | Low | Info |')
   lines.push('| --- | --- | --- | --- | --- | --- |')
@@ -104,7 +134,7 @@ export function renderReport({ phase, target, generatedAt, findings = [], notCov
       byDim.get(f.dimension).push(f)
     }
     for (const dim of dims) {
-      lines.push(`## ${dim}`, '')
+      lines.push(`## ${inline(dim)}`, '')
       for (const f of byDim.get(dim)) lines.push(...renderFinding(f), '')
     }
   }
@@ -112,7 +142,7 @@ export function renderReport({ phase, target, generatedAt, findings = [], notCov
   if (ops !== undefined) lines.push(...renderOps(ops), '')
 
   lines.push('## Not covered', '')
-  for (const line of notCovered) lines.push(`- ${line}`)
+  for (const line of notCovered) lines.push(`- ${inline(line)}`)
 
   return lines.join('\n') + '\n'
 }
@@ -135,10 +165,45 @@ function projectCrawl(crawl) {
   }
 }
 
+// Reads a prior run's manifest (if any) and deletes whichever of its files this run is not about
+// to rewrite. `thisRunNames` (basenames only) must be computed before this runs, from the same
+// inputs that decide what gets written below, so the two never drift apart. A file this bundle
+// never wrote — the manifest doesn't name it — is never touched, no matter what it's called.
+function cleanStale(outDir, thisRunNames) {
+  const manifestPath = join(outDir, MANIFEST_NAME)
+  if (!existsSync(manifestPath)) return
+  let prev = null
+  try {
+    prev = readJson(manifestPath)
+  } catch {
+    return
+  }
+  if (!prev || !Array.isArray(prev.files)) return
+  for (const name of prev.files) {
+    if (name === MANIFEST_NAME || thisRunNames.includes(name)) continue
+    try {
+      unlinkSync(join(outDir, name))
+    } catch {
+      // already gone
+    }
+  }
+}
+
 // Writes the audit bundle into `outDir` (created recursively) and returns the absolute paths of
-// every file written, in write order.
+// every file written, in write order. Before writing, any file left over from a prior run into
+// the same `outDir` that this run won't rewrite — an old `redirects.csv` or `extra` file that a
+// rerun no longer produces — is removed, per the manifest that run left behind, so a rerun never
+// leaves a stale artifact for a fresher one to hide behind. `manifest.json` itself is written
+// last, listing exactly the basenames this run produced.
 export function writeBundle(outDir, { report, findings, crawl, baseline, redirectsCsv, extra = [] } = {}) {
   ensureDir(outDir)
+
+  const thisRunNames = ['report.md', 'findings.json', 'crawl.json', 'baseline.json']
+  if (redirectsCsv !== undefined) thisRunNames.push('redirects.csv')
+  for (const item of extra) thisRunNames.push(item.name)
+
+  cleanStale(outDir, thisRunNames)
+
   const files = []
 
   const reportPath = join(outDir, 'report.md')
@@ -168,6 +233,10 @@ export function writeBundle(outDir, { report, findings, crawl, baseline, redirec
     writeFileSync(extraPath, item.content)
     files.push(extraPath)
   }
+
+  const manifestPath = join(outDir, MANIFEST_NAME)
+  writeJson(manifestPath, { generatedAt: new Date().toISOString(), files: thisRunNames })
+  files.push(manifestPath)
 
   return { files }
 }

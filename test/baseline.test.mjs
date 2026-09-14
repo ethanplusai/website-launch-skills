@@ -85,6 +85,30 @@ test('makeBaseline threads through securityHeaders (as hsts), cert, robotsHash, 
   assert.deepEqual(b.securityHeaders, { 'strict-transport-security': 'max-age=63072000' })
 })
 
+test('makeBaseline uses a supplied `now` for generatedAt (round-trips)', () => {
+  const now = new Date('2026-05-01T12:00:00.000Z')
+  const b = makeBaseline({ pages: [crawlPage('https://x.test/')] }, { now })
+  assert.equal(b.generatedAt, '2026-05-01T12:00:00.000Z')
+})
+
+test('makeBaseline flattens array @type values, dedupes, and ignores non-string entries', () => {
+  const page = {
+    head: { title: 't', metaByName: new Map(), canonical: null, robots: null },
+    headings: [],
+    jsonld: [
+      { raw: '', parsed: { '@type': ['Organization', 'LocalBusiness'] }, error: null },
+      { raw: '', parsed: { '@type': 'Organization' }, error: null }, // duplicate of the first entry's first type
+      { raw: '', parsed: { '@type': 42 }, error: null }, // non-string, ignored
+      { raw: '', parsed: null, error: 'bad json' }, // no parsed value at all
+    ],
+    images: [],
+    links: [],
+  }
+  const c = { url: 'https://x.test/', status: 200, finalUrl: 'https://x.test/', page, response: { chain: [], headers: {} } }
+  const b = makeBaseline({ pages: [c] })
+  assert.deepEqual(b.pages[0].jsonldTypes, ['Organization', 'LocalBusiness'])
+})
+
 test('makeBaseline handles a page with no parsed Page (null fields, zero counts)', () => {
   const c = crawlPage('https://x.test/missing')
   c.page = null
