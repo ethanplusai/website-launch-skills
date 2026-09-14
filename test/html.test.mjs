@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { performance } from 'node:perf_hooks'
 import assert from 'node:assert/strict'
 import { readFixture } from './helpers.mjs'
 import { parseHtml } from '../skills/launch-audit/scripts/lib/html.mjs'
@@ -352,4 +353,71 @@ test('parsing tolerates empty, non-string, and baseless input', () => {
   assert.equal(noBase.links[0].href, null)
   assert.equal(noBase.links[0].internal, false)
   assert.equal(noBase.links[1].href, 'https://o.test/b')
+})
+
+test('a wrapping label names only the first control inside it', () => {
+  const p = parseHtml('<form><label>Name <input name="a">\n<input name="b"><input name="c"></form>', 'https://x.test/')
+  const by = Object.fromEntries(p.forms[0].inputs.map((i) => [i.name, i.labelled]))
+  assert.deepEqual(by, { a: true, b: false, c: false })
+})
+
+test('an unclosed label does not leak across structure, and a for= label never wraps', () => {
+  const rows = parseHtml('<form><ul><li><label>A <input name="a"></li><li><input name="b"></li></ul></form>', 'https://x.test/')
+  assert.deepEqual(rows.forms[0].inputs.map((i) => i.labelled), [true, false])
+  const targeted = parseHtml('<form><label for="a">A<input name="b"><input id="a" name="a"></form>', 'https://x.test/')
+  assert.deepEqual(targeted.forms[0].inputs.map((i) => [i.name, i.labelled]), [['b', false], ['a', true]])
+  const wrapper = parseHtml('<form><label><div>Name</div><input name="a"></label></form>', 'https://x.test/')
+  assert.equal(wrapper.forms[0].inputs[0].labelled, true)
+})
+
+test('template, noscript, and svg content is inert and never collected', () => {
+  const inert = '<template><img src="/t.png"><a href="/t">t</a></template><noscript><img src="/n.png"></noscript>'
+  const p = parseHtml(`${inert}<svg><a href="/s"><image href="/s.png"></a><h1>svg</h1></svg>`, 'https://x.test/')
+  assert.equal(p.images.length, 0)
+  assert.equal(p.links.length, 0)
+  assert.equal(p.headings.length, 0)
+  const live = parseHtml('<img src="/t.png"><a href="/t">t</a><img src="/n.png">', 'https://x.test/')
+  assert.equal(live.images.length, 2)
+  assert.equal(live.links.length, 1)
+})
+
+test('inert forms, controls, and iframes are not reported either', () => {
+  const p = parseHtml('<template><form action="/t"><input name="a"></form><iframe src="/t"></iframe></template>', 'https://x.test/')
+  assert.deepEqual(p.forms, [])
+  assert.deepEqual(p.iframes, [])
+  const nested = parseHtml('<form action="/real"><input name="real"><template><input name="ghost"></template></form>', 'https://x.test/')
+  assert.equal(nested.forms.length, 1)
+  assert.deepEqual(nested.forms[0].inputs.map((i) => i.name), ['real'])
+})
+
+test('a tag whose attribute value contains a raw < is still recovered', () => {
+  const p = parseHtml('<a href="/a" onclick="if (a<b) return false">Go</a><p>after</p>', 'https://x.test/')
+  assert.equal(p.links.length, 1)
+  assert.equal(p.links[0].href, 'https://x.test/a')
+  assert.equal(p.links[0].text, 'Go')
+  assert.equal(p.text, 'Go after')
+})
+
+test('a stray < in prose stays text and does not eat the document', () => {
+  const p = parseHtml('<p>5 < 6 and 7 > 4</p><h1>Still here</h1>', 'https://x.test/')
+  assert.equal(p.h1Count, 1)
+  assert.ok(p.text.includes('5 < 6 and 7 > 4'), p.text)
+})
+
+test('unterminated tags and comments do not backtrack quadratically', () => {
+  const cases = [
+    ['unterminated attributes', '<a b='.repeat(50_000)],
+    ['unterminated tag names', '<a '.repeat(166_000)],
+    ['bare angle brackets', '<'.repeat(100_000)],
+    ['unterminated quoted attributes', '<a b="c'.repeat(50_000)],
+    ['unterminated comments', '<!--'.repeat(50_000)],
+    ['unterminated declarations', '<!'.repeat(50_000)],
+  ]
+  for (const [label, html] of cases) {
+    const started = performance.now()
+    const p = parseHtml(html, 'https://x.test/')
+    const elapsed = performance.now() - started
+    assert.equal(typeof p.text, 'string')
+    assert.ok(elapsed < 500, `${label} (${html.length} chars) took ${elapsed.toFixed(1)}ms, expected under 500ms`)
+  }
 })

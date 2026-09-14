@@ -23,9 +23,26 @@
 //   page-scoped, since captcha widgets are routinely mounted outside the form they guard.
 // - `head.links` collects every `<link>` in the document, wherever it was written, because a
 //   canonical or icon injected into the body is exactly the kind of mistake a check wants to see.
+// - Inert content is not collected: `images`, `links`, `forms`, form controls, `iframes` and
+//   `headings` inside `<template>`, `<noscript>` or `<svg>` are skipped, the way their text is.
+// - A wrapping `<label>` names the first labelable control inside it and no more, which is what
+//   the HTML spec says and what keeps an unclosed label from claiming the rest of the form. A
+//   label carrying `for=` never claims a wrapped control.
+//
+// Cost: every position in the string is O(1) work. The tokenizer is sticky rather than global, so
+// a `<` that starts no valid token is recovered explicitly instead of leaving the regex engine to
+// backtrack across the rest of the document; `<`-free attribute classes keep a tag attempt from
+// scanning past the next `<`; and the three forward scans ('>', '-->', ']]>') are memoized, since
+// the cursor only ever moves forward. A tag whose attributes do contain `<` (`onclick="a<b"`) is
+// still recovered, by the bounded lenient path.
 
+// Sticky, and no attribute alternative may cross a `<`, so one attempt costs at most the distance
+// to the next `<`. Comments, CDATA and declarations are skipped by the memoized scanners instead.
 const TOKEN =
-  /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>|<\?[^>]*>|<(\/?)([a-zA-Z][\w:-]*)((?:\s+[^\s=/>]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?)*)\s*(\/?)>|([^<]+)/g
+  /<(\/?)([a-zA-Z][\w:-]*)((?:\s+[^\s=/><]+(?:\s*=\s*(?:"[^"<]*"|'[^'<]*'|[^\s"'<>]+))?)*)\s*(\/?)>|([^<]+)/y
+// The recovery path for a tag the strict pattern refused, bounded by MAX_TAG.
+const LENIENT_TAG = /^<(\/?)([a-zA-Z][\w:-]*)([\s\S]*)$/
+const MAX_TAG = 16384
 const ATTR = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g
 const ENTITY = /&(#[xX][0-9a-fA-F]+|#\d+|[a-zA-Z][a-zA-Z0-9]*);/g
 
@@ -44,6 +61,9 @@ const BLOCK = new Set([
   'footer', 'form', 'header', 'hr', 'li', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'tbody', 'td', 'tfoot',
   'th', 'thead', 'tr', 'ul',
 ])
+// A `<div>` never ends a label (`<label><div>Name</div><input></label>` is ordinary markup), but
+// anything structural does, so one unclosed label cannot leak across a list or a table.
+const LABEL_BREAK = new Set([...BLOCK].filter((tag) => tag !== 'div'))
 const NO_LABEL_TYPES = new Set(['hidden', 'submit', 'button', 'reset'])
 const HONEYPOT_NAMES = new Set(['website', 'url', 'honeypot', 'hp', 'fax'])
 const CAPTCHA = /recaptcha|hcaptcha|turnstile|cf-turnstile/i
@@ -135,9 +155,23 @@ export function parseHtml(html, baseUrl) {
   const anchorMeta = []
   const controls = []
   let inHead = false
-  let labelOpen = 0
+  let labelPending = false
   let pictureDepth = 0
   let currentScript = null
+
+  // `from` only ever moves forward, so one memo per needle makes every lookup amortized O(1):
+  // once a needle is absent from the tail it is absent for every later position too.
+  function scanner(needle) {
+    let at = -2
+    return (from) => {
+      if (at === -1) return -1
+      if (at === -2 || at < from) at = src.indexOf(needle, from)
+      return at
+    }
+  }
+  const nextGt = scanner('>')
+  const nextCommentEnd = scanner('-->')
+  const nextCdataEnd = scanner(']]>')
 
   function pushText(value) {
     if (suppressStack.length > 0 || value === '') return
@@ -177,16 +211,11 @@ export function parseHtml(html, baseUrl) {
     captures.push({ tag, kind, target, parts: [] })
   }
 
-  function consumeRaw(tag) {
-    const start = TOKEN.lastIndex
+  function consumeRaw(tag, start) {
     const close = lower.indexOf(`</${tag}`, start)
-    if (close === -1) {
-      TOKEN.lastIndex = src.length
-      return src.slice(start)
-    }
+    if (close === -1) return { content: src.slice(start), next: src.length }
     const gt = src.indexOf('>', close)
-    TOKEN.lastIndex = gt === -1 ? src.length : gt + 1
-    return src.slice(start, close)
+    return { content: src.slice(start, close), next: gt === -1 ? src.length : gt + 1 }
   }
 
   function recordMeta(attrs) {
@@ -211,6 +240,10 @@ export function parseHtml(html, baseUrl) {
   }
 
   function recordControl(tag, attrs) {
+    // A wrapping label names the first labelable control it contains and then stops.
+    const wrapped = labelPending
+    labelPending = false
+    if (suppressStack.length > 0) return
     const form = formStack.length > 0 ? formStack[formStack.length - 1] : null
     if (!form) return
     let type
@@ -229,7 +262,7 @@ export function parseHtml(html, baseUrl) {
       required: 'required' in attrs,
     }
     const named =
-      labelOpen > 0 || attrs['aria-label'] !== undefined || attrs['aria-labelledby'] !== undefined
+      wrapped || attrs['aria-label'] !== undefined || attrs['aria-labelledby'] !== undefined
     controls.push({ control, named, id: attrs.id ?? null })
     form.inputs.push(control)
     const honeypot =
@@ -264,7 +297,9 @@ export function parseHtml(html, baseUrl) {
     if (name === 'main' || role === 'main') page.hasMain = true
 
     if (SUPPRESS_TEXT.has(name) && !selfClosing) suppressStack.push(name)
+    const inert = suppressStack.length > 0
     if (BLOCK.has(name) || HEADING_LEVEL[name] !== undefined) closeHeadingCaptures()
+    if (LABEL_BREAK.has(name)) labelPending = false
 
     switch (name) {
       case 'html':
@@ -287,7 +322,7 @@ export function parseHtml(html, baseUrl) {
         })
         break
       case 'a': {
-        if (attrs.href === undefined) break
+        if (attrs.href === undefined || inert) break
         const link = {
           href: attrs.href, text: '', rel: attrs.rel === undefined ? null : collapse(attrs.rel).toLowerCase(),
           target: attrs.target ?? null, internal: false, scheme: 'other',
@@ -298,6 +333,7 @@ export function parseHtml(html, baseUrl) {
         break
       }
       case 'img': {
+        if (inert) break
         page.images.push({
           src: attrs.src ?? null,
           alt: attrs.alt === undefined ? null : attrs.alt,
@@ -315,7 +351,7 @@ export function parseHtml(html, baseUrl) {
         if (!selfClosing) pictureDepth++
         break
       case 'iframe':
-        page.iframes.push({ src: attrs.src ?? null, title: attrs.title ?? null })
+        if (!inert) page.iframes.push({ src: attrs.src ?? null, title: attrs.title ?? null })
         break
       case 'script': {
         const script = {
@@ -330,16 +366,20 @@ export function parseHtml(html, baseUrl) {
         currentScript = script
         break
       }
-      case 'form':
-        formStack.push({
+      case 'form': {
+        // Pushed even when inert, so the matching `</form>` pops the right one; just not reported.
+        const form = {
           action: attrs.action === undefined ? null : attrs.action,
           method: lowerOrNull(attrs.method) ?? 'get',
           inputs: [], hasHoneypot: false, hasCaptcha: false,
-        })
-        page.forms.push(formStack[formStack.length - 1])
+        }
+        formStack.push(form)
+        if (!inert) page.forms.push(form)
         break
+      }
       case 'label':
-        if (!selfClosing) labelOpen++
+        // A fresh label supersedes an unclosed one; `for=` targets an id, never a wrapped control.
+        labelPending = !selfClosing && attrs.for === undefined
         if (attrs.for !== undefined) labelFor.add(attrs.for)
         break
       default:
@@ -348,7 +388,7 @@ export function parseHtml(html, baseUrl) {
 
     if (CONTROL_TAGS.has(name)) recordControl(name, attrs)
 
-    if (HEADING_LEVEL[name] !== undefined) {
+    if (HEADING_LEVEL[name] !== undefined && !inert) {
       const heading = { level: HEADING_LEVEL[name], text: '', empty: true }
       page.headings.push(heading)
       if (heading.level === 1) page.h1Count++
@@ -360,39 +400,31 @@ export function parseHtml(html, baseUrl) {
     const suppressIndex = suppressStack.lastIndexOf(name)
     if (suppressIndex !== -1) suppressStack.length = suppressIndex
     if (name === 'head' || name === 'body') inHead = false
-    if (name === 'label' && labelOpen > 0) labelOpen--
+    if (name === 'label' || name === 'form' || name === 'fieldset') labelPending = false
     if (name === 'picture' && pictureDepth > 0) pictureDepth--
     if (name === 'form' && formStack.length > 0) formStack.pop()
     closeCapture(name)
   }
 
-  TOKEN.lastIndex = 0
-  let match
-  while ((match = TOKEN.exec(src)) !== null) {
-    if (match[5] !== undefined) {
-      pushText(decode(match[5]))
-      continue
-    }
-    const tag = match[2]
-    if (tag === undefined) continue
-    const name = tag.toLowerCase()
-    if (match[1] === '/') {
+  function emitTag(closing, tagName, attrSource, selfMark, after) {
+    const name = tagName.toLowerCase()
+    if (closing) {
       handleClose(name)
-      continue
+      return after
     }
-    const attrs = parseAttrs(match[3])
-    const selfClosing = match[4] === '/' || VOID.has(name)
+    const attrs = parseAttrs(attrSource)
+    const selfClosing = selfMark || VOID.has(name)
     handleOpen(name, attrs, selfClosing)
-    if (!RAW_TEXT.has(name) || selfClosing) continue
-    const raw = consumeRaw(name)
+    if (!RAW_TEXT.has(name) || selfClosing) return after
+    const { content, next } = consumeRaw(name, after)
     if (name === 'title') {
-      if (suppressStack.length === 0 && page.head.title === null) page.head.title = collapse(decode(raw))
+      if (suppressStack.length === 0 && page.head.title === null) page.head.title = collapse(decode(content))
     } else if (name === 'textarea') {
-      pushText(decode(raw))
+      pushText(decode(content))
     } else if (name === 'script') {
       const type = currentScript === null ? null : currentScript.type
       if (type !== null && type.endsWith('ld+json')) {
-        const entry = { raw: raw.trim(), parsed: null, error: null }
+        const entry = { raw: content.trim(), parsed: null, error: null }
         try {
           entry.parsed = JSON.parse(entry.raw)
         } catch (error) {
@@ -402,6 +434,63 @@ export function parseHtml(html, baseUrl) {
       }
       currentScript = null
     }
+    return next
+  }
+
+  // Comments, CDATA, doctypes and processing instructions: content dropped, never text.
+  function skipDeclaration(at) {
+    if (src.startsWith('<!--', at)) {
+      const end = nextCommentEnd(at + 4)
+      return end === -1 ? src.length : end + 3
+    }
+    if (lower.startsWith('<![cdata[', at)) {
+      const end = nextCdataEnd(at + 9)
+      return end === -1 ? src.length : end + 3
+    }
+    const gt = nextGt(at)
+    return gt === -1 ? src.length : gt + 1
+  }
+
+  // Reached only at a `<` the strict pattern refused. Either a real tag whose attributes contain a
+  // `<`, or a stray `<` in prose; both cost O(1) beyond the span they consume.
+  function recoverStrayTag(at) {
+    const after = src[at + 1] ?? ''
+    if (after === '/' || (after >= 'a' && after <= 'z') || (after >= 'A' && after <= 'Z')) {
+      const gt = nextGt(at)
+      if (gt !== -1 && gt - at <= MAX_TAG) {
+        const parts = LENIENT_TAG.exec(src.slice(at, gt))
+        if (parts !== null) {
+          const selfMark = parts[3].endsWith('/')
+          return emitTag(parts[1] === '/', parts[2], selfMark ? parts[3].slice(0, -1) : parts[3], selfMark, gt + 1)
+        }
+      }
+    }
+    pushText('<')
+    return at + 1
+  }
+
+  let cursor = 0
+  while (cursor < src.length) {
+    if (src.charCodeAt(cursor) === 0x3c) {
+      const after = src.charCodeAt(cursor + 1)
+      if (after === 0x21 || after === 0x3f) {
+        cursor = skipDeclaration(cursor)
+        continue
+      }
+    }
+    TOKEN.lastIndex = cursor
+    const match = TOKEN.exec(src)
+    if (match === null) {
+      cursor = recoverStrayTag(cursor)
+      continue
+    }
+    const after = TOKEN.lastIndex
+    if (match[5] !== undefined) {
+      pushText(decode(match[5]))
+      cursor = after
+      continue
+    }
+    cursor = emitTag(match[1] === '/', match[2], match[3], match[4] === '/', after)
   }
 
   for (let i = captures.length - 1; i >= 0; i--) finalizeCapture(captures[i])
