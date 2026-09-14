@@ -13,12 +13,16 @@ function emptyCertResult(error) {
   return { valid: false, subject: null, altNames: [], issuer: null, validFrom: null, validTo: null, daysLeft: null, error }
 }
 
+// The identity every request from this tool carries, http tier and browser tier alike, so a site
+// owner reading their logs sees one agent rather than two.
+export const USER_AGENT = 'website-launch-skill/1.0 (+https://github.com/ethanplusai/website-launch-skill)'
+
 export function createNet({
   fetchImpl = globalThis.fetch,
   tlsConnect = tlsConnectDefault,
   timeoutMs = 15000,
   concurrency = 8,
-  userAgent = 'website-launch-skill/1.0 (+https://github.com/ethanplusai/website-launch-skill)',
+  userAgent = USER_AGENT,
 } = {}) {
   function doFetch(url, method, headers) {
     return new Promise((resolve) => {

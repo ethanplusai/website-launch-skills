@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { SIGNATURES, detectAnalytics } from '../skills/launch-audit/scripts/lib/detect/analytics.mjs'
+import { SIGNATURES, detectAnalytics, COLLECTOR_HOSTS, COOKIE_SETTING_TOOLS, isCollectorUrl } from '../skills/launch-audit/scripts/lib/detect/analytics.mjs'
 import {
   PLACEHOLDER_TEXT, PLACEHOLDER_IDS, DEV_HOSTS, SECRETS, scanText,
 } from '../skills/launch-audit/scripts/lib/detect/placeholders.mjs'
@@ -149,4 +149,34 @@ test('detectAnalytics carries the matched text, so one snippet matching two alte
 
 test('detectAnalytics tolerates a non-string body', () => {
   assert.deepEqual(detectAnalytics(null), [])
+})
+
+test('isCollectorUrl recognises a hit to each collector the browser tier watches for', () => {
+  const hits = [
+    'https://www.google-analytics.com/g/collect?v=2&tid=G-ABC',
+    'https://analytics.google.com/g/collect?v=2',
+    'https://www.googletagmanager.com/gtag/js?id=G-ABC',
+    'https://plausible.io/api/event',
+    'https://api.usefathom.com/',
+    'https://eu.posthog.com/e/?ip=1',
+    'https://site.test/api/collect',
+    'https://analytics.site.test/matomo.php?idsite=1',
+    'https://www.facebook.com/tr/?id=1&ev=PageView',
+    'https://script.hotjar.com/modules.js',
+    'https://c.clarity.ms/collect',
+  ]
+  for (const hit of hits) assert.ok(isCollectorUrl(hit), `${hit} should read as a collector hit`)
+  assert.equal(COLLECTOR_HOSTS.length, hits.length)
+})
+
+test('isCollectorUrl leaves ordinary requests alone', () => {
+  for (const miss of ['https://site.test/app.js', 'https://site.test/images/hero.png', 'https://fonts.googleapis.com/css2?family=X', '', null]) {
+    assert.equal(isCollectorUrl(miss), false)
+  }
+})
+
+test('the cookie-setting tool list is a subset of the detectable tools, and excludes the cookieless ones', () => {
+  const names = new Set(SIGNATURES.map((s) => s.name))
+  for (const tool of COOKIE_SETTING_TOOLS) assert.ok(names.has(tool), `${tool} is not a detectable tool`)
+  for (const cookieless of ['Plausible', 'Fathom', 'Umami']) assert.ok(!COOKIE_SETTING_TOOLS.has(cookieless))
 })
