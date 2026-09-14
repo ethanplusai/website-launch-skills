@@ -280,6 +280,16 @@ export async function buildAuditContext(net, dns, options = {}) {
   const maxPages = options.maxPages ?? 200
   const maxDepth = options.maxDepth ?? 4
   const ignoreRobots = options.ignoreRobots === true
+  // The probe-set limits, overridable per set. Nothing on the command line sets these — they are
+  // here so a test can trip a cap against a small fixture instead of needing a fixture with three
+  // hundred images in it, and so a caller with a reason can lower one.
+  const limits = {
+    headAssets: HEAD_ASSET_LIMIT,
+    externals: EXTERNAL_LIMIT,
+    images: IMAGE_LIMIT,
+    embeds: EMBED_LIMIT,
+    ...(options.caps ?? {}),
+  }
 
   const wwwCounterpart = hasWwwCounterpart(host)
   const target = {
@@ -354,25 +364,25 @@ export async function buildAuditContext(net, dns, options = {}) {
 
   // 8. every head asset the crawl saw, fetched once each. net.get rather than net.head, because
   // the og:image checks read the response bytes to measure the image.
-  const headAssetPick = capped(headAssetUrls(crawl), HEAD_ASSET_LIMIT)
+  const headAssetPick = capped(headAssetUrls(crawl), limits.headAssets)
   const headAssetResponses = await net.map(headAssetPick.urls, (assetUrl) => net.get(assetUrl))
   const headAssets = new Map(headAssetPick.urls.map((assetUrl, i) => [assetUrl, headAssetResponses[i]]))
 
   // 9. every off-origin link the crawl saw. HEAD, because a link check only needs the status, and
   // net.head already falls back to GET on a server that refuses the method.
-  const externalPick = capped([...crawl.externalLinks.keys()], EXTERNAL_LIMIT)
+  const externalPick = capped([...crawl.externalLinks.keys()], limits.externals)
   const externalResponses = await net.map(externalPick.urls, fetchAsset)
   const externals = new Map(externalPick.urls.map((linkUrl, i) => [linkUrl, externalResponses[i]]))
 
   // 10. every image a fetched page displays. GET, because the bytes are the evidence: the size an
   // image weighs and the hash that proves two pages ship the same file.
-  const imagePick = capped(imageUrls(crawl), IMAGE_LIMIT)
+  const imagePick = capped(imageUrls(crawl), limits.images)
   const imageResponses = await net.map(imagePick.urls, (imageUrl) => net.get(imageUrl))
   const images = new Map(imagePick.urls.map((imageUrl, i) => [imageUrl, imageResponses[i]]))
 
   // 11. the form embeds. GET, because a form host that answers 200 with an error page is a broken
   // form, and the body is what says so.
-  const embedPick = capped(embedUrls(crawl), EMBED_LIMIT)
+  const embedPick = capped(embedUrls(crawl), limits.embeds)
   const embedResponses = await net.map(embedPick.urls, (embedUrl) => net.get(embedUrl))
   const embeds = new Map(embedPick.urls.map((embedUrl, i) => [embedUrl, embedResponses[i]]))
 

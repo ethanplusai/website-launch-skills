@@ -4,8 +4,8 @@
 // Every export here is pure except `writeBundle`, which is the one function in this module that
 // touches the filesystem.
 
-import { join } from 'node:path'
-import { writeFileSync, unlinkSync, existsSync } from 'node:fs'
+import { join, dirname, isAbsolute, normalize } from 'node:path'
+import { writeFileSync, unlinkSync, existsSync, mkdirSync } from 'node:fs'
 import { ensureDir, writeJson, readJson } from './fs-util.mjs'
 import { sortFindings } from './findings.mjs'
 
@@ -182,11 +182,23 @@ function cleanStale(outDir, thisRunNames) {
   for (const name of prev.files) {
     if (name === MANIFEST_NAME || thisRunNames.includes(name)) continue
     try {
-      unlinkSync(join(outDir, name))
+      unlinkSync(bundlePath(outDir, name))
     } catch {
       // already gone
     }
   }
+}
+
+// An `extra` item's name may hold forward slashes, so a run can file its artefacts into a
+// subdirectory of the bundle (`lighthouse/home-mobile.json`). The name is still a name and never a
+// path out of the bundle: an absolute name, or one that climbs above `outDir`, is refused rather
+// than written somewhere surprising.
+function bundlePath(outDir, name) {
+  if (typeof name !== 'string' || name === '') throw new Error('writeBundle: an extra needs a name')
+  if (isAbsolute(name) || normalize(name).split(/[\\/]/).includes('..')) {
+    throw new Error(`writeBundle: "${name}" is not a name inside the bundle`)
+  }
+  return join(outDir, ...name.split('/'))
 }
 
 // Writes the audit bundle into `outDir` (created recursively) and returns the absolute paths of
@@ -200,7 +212,12 @@ export function writeBundle(outDir, { report, findings, crawl, baseline, redirec
 
   const thisRunNames = ['report.md', 'findings.json', 'crawl.json', 'baseline.json']
   if (redirectsCsv !== undefined) thisRunNames.push('redirects.csv')
-  for (const item of extra) thisRunNames.push(item.name)
+  // Validate every extra name before anything is written, so a bad one fails the whole bundle
+  // rather than half of it.
+  for (const item of extra) {
+    bundlePath(outDir, item.name)
+    thisRunNames.push(item.name)
+  }
 
   cleanStale(outDir, thisRunNames)
 
@@ -229,7 +246,8 @@ export function writeBundle(outDir, { report, findings, crawl, baseline, redirec
   }
 
   for (const item of extra) {
-    const extraPath = join(outDir, item.name)
+    const extraPath = bundlePath(outDir, item.name)
+    mkdirSync(dirname(extraPath), { recursive: true })
     writeFileSync(extraPath, item.content)
     files.push(extraPath)
   }

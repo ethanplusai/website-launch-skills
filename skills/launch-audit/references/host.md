@@ -96,6 +96,23 @@ certificate for the name too.
 framework's choice — a mismatch here is the most common cause.
 **Cannot say.** Which form the canonical tags use — see `indexability.canonical-*`.
 
+### `host.mixed-content` — high
+**Means.** A page served over https references a subresource — a script, a stylesheet, an image,
+an iframe — over plain `http://`.
+**At launch.** Browsers block active mixed content outright, so the script or stylesheet simply
+never loads and the page is broken in a way that looks like a bug in the code. Passive mixed
+content (an image) loads with a warning and strips the padlock, which visitors read as "this site
+is not safe".
+**Fix.** Rewrite the reference to `https://`, or to a protocol-relative path if the asset lives on
+this site. Then find where the url came from — a hard-coded absolute url in a template, a CMS
+field holding an old address, or a third-party embed whose snippet predates its own https support.
+*WordPress:* content fields hold absolute urls from whenever they were pasted; a search-and-replace
+across the database after the Site Address changes is the usual fix.
+*Any framework:* a `<base>` or site-url value still set to `http` produces this on every page at
+once.
+**Cannot say.** Whether the asset is available over https at all. Some old third-party hosts are
+not, and the honest answer there is to stop using them.
+
 ### `host.redirect-chain` — medium
 **Means.** A url redirects more than once before landing.
 **At launch.** Each hop is a round trip, and chains lose a little ranking signal at every step.

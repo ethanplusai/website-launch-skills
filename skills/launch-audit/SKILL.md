@@ -68,6 +68,7 @@ The script prints the bundle path and writes:
     manifest.json    exactly which files this run wrote
     redirects.csv    one row per old url (only with --old-url)
     screenshots/     desktop, tablet and mobile per rendered page (browser tier only)
+    lighthouse/      the full Lighthouse result per page and form factor (browser tier only)
 
 Read `report.md` first: blockers, then **Not covered**, then everything else. Knowing what was not
 checked changes how you read a clean section. `references/reading-the-report.md` has the severity

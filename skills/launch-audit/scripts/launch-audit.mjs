@@ -38,7 +38,7 @@ import { defineArgs } from './lib/args.mjs'
 import { createNet } from './lib/net.mjs'
 import { createDns } from './lib/dns.mjs'
 import { createBrowser } from './lib/browser.mjs'
-import { recordedNetFromFile, offlineDnsResolvers } from './lib/recorded-net.mjs'
+import { recordedNetFromPath, offlineDnsResolvers } from './lib/recorded-net.mjs'
 import { createRegistry, SkipCheck } from './lib/registry.mjs'
 import { validateFinding, sortFindings, SEVERITIES } from './lib/findings.mjs'
 import { buildAuditContext } from './lib/checks/_ctx.mjs'
@@ -164,8 +164,13 @@ async function runBrowserTier(ctx, browser) {
     return { tier: unavailableTier('no browser adapter was supplied to this run'), lines: [] }
   }
 
-  let opened = browser.available === true
-  if (!opened && typeof browser.open === 'function') opened = (await browser.open()) === true
+  let opened = false
+  try {
+    opened = browser.available === true
+    if (!opened && typeof browser.open === 'function') opened = (await browser.open()) === true
+  } catch (error) {
+    return { tier: unavailableTier(`the browser tier failed to open — ${messageOf(error)}`), lines: [] }
+  }
   if (!opened) return { tier: unavailableTier(browser.reason ?? 'the browser tier did not open'), lines: [] }
 
   const sampled = sampleForBrowser(ctx)
@@ -174,32 +179,49 @@ async function runBrowserTier(ctx, browser) {
   // An array of pairs rather than a Map: the start page is measured twice, mobile and desktop, and
   // two results for one url cannot both live in a map keyed by url.
   const lighthouse = []
+  const lines = []
   let axeReason = null
   let lighthouseReason = null
 
+  // A browser is the one adapter that fails halfway through: a context that will not open, a page
+  // that crashes, a tool that throws on the fourth url having worked on the first three. Each call
+  // is guarded on its own so that failure costs one page of one tool rather than the whole audit,
+  // and says so in "Not covered" by url and by tool.
+  const attempt = async (url, tool, run) => {
+    try {
+      return { ok: true, value: await run() }
+    } catch (error) {
+      lines.push(`Browser tier: ${url} — ${tool} failed — ${messageOf(error)}`)
+      return { ok: false, value: null }
+    }
+  }
+
   for (const url of sampled) {
-    if (typeof browser.render === 'function') renders.set(url, await browser.render(url))
+    if (typeof browser.render === 'function') {
+      const { ok, value } = await attempt(url, 'render', () => browser.render(url))
+      if (ok) renders.set(url, value)
+    }
 
     if (axeReason === null && typeof browser.axe === 'function') {
-      const result = await browser.axe(url)
-      if (result?.available === true) axe.set(url, result)
-      else axeReason = result?.reason ?? 'axe did not run'
+      const { ok, value } = await attempt(url, 'axe', () => browser.axe(url))
+      if (ok && value?.available === true) axe.set(url, value)
+      else if (ok) axeReason = value?.reason ?? 'axe did not run'
     }
 
     if (lighthouseReason === null && typeof browser.lighthouse === 'function') {
       for (const formFactor of url === ctx.target.url ? ['mobile', 'desktop'] : ['mobile']) {
-        const result = await browser.lighthouse(url, { formFactor })
-        if (result?.available === true) {
-          lighthouse.push([url, result])
+        const { ok, value } = await attempt(url, `lighthouse (${formFactor})`, () => browser.lighthouse(url, { formFactor }))
+        if (!ok) continue
+        if (value?.available === true) {
+          lighthouse.push([url, value])
         } else {
-          lighthouseReason = result?.reason ?? 'lighthouse did not run'
+          lighthouseReason = value?.reason ?? 'lighthouse did not run'
           break
         }
       }
     }
   }
 
-  const lines = []
   if (axeReason !== null) lines.push(`axe: not run — ${axeReason}`)
   if (lighthouseReason !== null) lines.push(`lighthouse: not run — ${lighthouseReason}`)
   lines.push(`Browser tier rendered ${renders.size} of ${htmlPages(ctx.crawl).length} pages`)
@@ -207,18 +229,45 @@ async function runBrowserTier(ctx, browser) {
   return { tier: { available: true, reason: null, renders, axe, lighthouse, sampled }, lines }
 }
 
+// The lighthouse results, as files for the bundle: one json per url per form factor, filed under
+// `lighthouse/`. Collecting a measurement and then throwing it away would leave the report quoting
+// numbers nobody can check.
+function lighthouseFiles(tier) {
+  const taken = new Set()
+  return (tier.lighthouse ?? []).map(([url, result]) => {
+    const base = `${slugify(url)}-${result.formFactor === 'desktop' ? 'desktop' : 'mobile'}`
+    let name = base
+    let n = 1
+    while (taken.has(name)) {
+      n++
+      name = `${base}-${n}`
+    }
+    taken.add(name)
+    return { name: `lighthouse/${name}.json`, content: `${JSON.stringify({ url, ...result }, null, 2)}\n` }
+  })
+}
+
 // ---------------------------------------------------------------------------------- the ops list
 
-// An item is auto-verified when the check that owns it produced nothing worth acting on. `auto` is
-// either a check id (`ops.email-auth`) or a whole dimension (`forms`), and info findings do not
-// count against it: `forms.inventory` and `analytics.summary` are listings of what exists, not
-// failures, and counting them would leave those two items permanently unverifiable.
-export function buildOps(findings) {
+// An item is auto-verified when the check that owns it ran and produced nothing worth acting on.
+// `auto` is either a check id (`ops.email-auth`) or a whole dimension (`forms`), and info findings
+// do not count against it: `forms.inventory` and `analytics.summary` are listings of what exists,
+// not failures, and counting them would leave those two items permanently unverifiable.
+//
+// `unanswered` is every check that crashed or skipped itself. A check that never ran produced no
+// findings, and "no findings" is exactly what auto-verification reads as success — so without this
+// the Ops section would tick an item off on the strength of a crash the same report describes two
+// sections lower. A skip is not a pass, and neither is a stack trace.
+export function buildOps(findings, unanswered = new Set()) {
   const actionable = findings.filter((f) => f.severity !== 'info')
+  const neverRan = [...unanswered]
+  // `auto` is a check id or a dimension, so it owns an id that equals it or is prefixed by it.
+  const owns = (auto, id) => id === auto || id.startsWith(`${auto}.`)
   return OPS_CHECKLIST.map((item) => {
     if (item.auto === null) return { label: item.label, autoVerifiedBy: null }
-    const flagged = actionable.some((f) => f.id === item.auto || f.id.startsWith(`${item.auto}.`))
-    return { label: item.label, autoVerifiedBy: flagged ? null : item.auto }
+    const flagged = actionable.some((f) => owns(item.auto, f.id))
+    const missing = neverRan.some((id) => owns(item.auto, id))
+    return { label: item.label, autoVerifiedBy: flagged || missing ? null : item.auto }
   })
 }
 
@@ -227,10 +276,13 @@ export function buildOps(findings) {
 // buildNotCovered ends with two unconditional lines — copy vs. source and pages vs. scope — that
 // have to stay last, because they are the two things no crawl can ever see and a reader should
 // leave the section on them. Anything this orchestrator words itself goes in just above them.
-function insertBeforeFixed(lines, extra) {
+export function insertBeforeFixed(lines, extra) {
   if (extra.length === 0) return lines
   const at = lines.findIndex((line) => line.startsWith('Copy vs. source documents'))
-  if (at === -1) return [...lines, ...extra]
+  // Appending instead would put orchestrator lines *after* the two things no crawl can ever see,
+  // which is the one ordering this section must never lose. If the fixed lines are gone, the
+  // report contract is broken upstream and the run should say so rather than paper over it.
+  if (at === -1) throw new Error('Not covered is missing its fixed trailing lines')
   return [...lines.slice(0, at), ...extra, ...lines.slice(at)]
 }
 
@@ -294,6 +346,9 @@ export async function runAudit({ net, dns, browser = null, options = {}, now = n
     const findings = []
     const skipped = []
     const ownLines = []
+    // Every check that crashed or skipped itself, so the ops list cannot read its silence as a
+    // clean result.
+    const unanswered = new Set()
 
     for (const check of registry.byPhase(PHASE)) {
       let produced
@@ -302,11 +357,13 @@ export async function runAudit({ net, dns, browser = null, options = {}, now = n
       } catch (error) {
         // A check may skip itself on purpose; anything else is a bug in the check, and it costs
         // that check rather than the run.
+        unanswered.add(check.id)
         if (error instanceof SkipCheck) skipped.push({ check: check.id, reason: error.reason })
         else ownLines.push(`${check.id}: check crashed — ${messageOf(error)}`)
         continue
       }
       if (!Array.isArray(produced)) {
+        unanswered.add(check.id)
         ownLines.push(`${check.id}: check crashed — run() did not return an array`)
         continue
       }
@@ -360,7 +417,7 @@ export async function runAudit({ net, dns, browser = null, options = {}, now = n
       }
     }
 
-    const opsList = buildOps(sorted)
+    const opsList = buildOps(sorted, unanswered)
     const count = (severity) => sorted.filter((f) => f.severity === severity).length
     const summary = {
       pages: ctx.crawl.pages.length,
@@ -383,13 +440,15 @@ export async function runAudit({ net, dns, browser = null, options = {}, now = n
 
     const bundleDir = auditOutDir({ options, now: at, cwd })
     const csv = options.oldUrl ? redirectsCsv(ctx) : null
+    const extra = [...lighthouseFiles(tier)]
+    if (baselineDiff !== null) extra.push({ name: 'baseline-diff.json', content: `${JSON.stringify(baselineDiff, null, 2)}\n` })
     const { files } = writeBundle(bundleDir, {
       report,
       findings: sorted,
       crawl: ctx.crawl,
       baseline,
       redirectsCsv: csv === null ? undefined : csv,
-      extra: baselineDiff === null ? [] : [{ name: 'baseline-diff.json', content: `${JSON.stringify(baselineDiff, null, 2)}\n` }],
+      extra,
     })
 
     return { findings: sorted, crawl: ctx.crawl, baseline, baselineDiff, notCovered, ops: opsList, summary, bundleDir, files }
@@ -423,14 +482,19 @@ export const args = defineArgs({
 const EXTRA_HELP = [
   '',
   'Output: a bundle directory holding report.md, findings.json, crawl.json, baseline.json,',
-  'manifest.json, redirects.csv (with --old-url) and screenshots/ (browser tier).',
+  'manifest.json, redirects.csv (with --old-url), and screenshots/ and lighthouse/ (browser tier).',
   '',
   'Exit codes: 0 always, however many findings there are — this reports, it does not gate.',
-  '            2 for a usage error, or --browser on with no browser available.',
+  '            2 for a usage error, for --browser on with no browser available, and for an',
+  '            unexpected failure (a bad --out path, say).',
   '',
-  'Testing hook: WEBSITE_LAUNCH_RECORDED_FIXTURE=<path to a recorded-responses JSON file> runs',
-  '            the audit against those recordings instead of the network. Used by this repo\'s',
-  '            tests; a normal run never sets it.',
+  'Testing hooks, used by this repo\'s tests; a normal run sets none of them:',
+  '  WEBSITE_LAUNCH_RECORDED_FIXTURE=<path to a recorded-responses JSON file>',
+  '            run the audit against those recordings instead of the network.',
+  '  WEBSITE_LAUNCH_BROWSER_LOADER=fail',
+  '            make the browser tier\'s playwright loader throw, as a machine without it would.',
+  '  WEBSITE_LAUNCH_DEBUG=1',
+  '            print the stack trace of an unexpected failure, not only its message.',
 ].join('\n')
 
 function severityLine(summary) {
@@ -469,7 +533,7 @@ function usageError(errors, help) {
   process.exitCode = 2
 }
 
-export async function main(argv = process.argv.slice(2), { cwd = process.cwd(), now = new Date() } = {}) {
+async function runCli(argv, { cwd, now }) {
   const { values, errors, help } = args.parse(argv)
 
   if (values.help) {
@@ -509,13 +573,19 @@ export async function main(argv = process.argv.slice(2), { cwd = process.cwd(), 
   }
 
   const fixture = process.env.WEBSITE_LAUNCH_RECORDED_FIXTURE
-  const net = fixture ? recordedNetFromFile(fixture) : createNet()
+  const net = fixture ? recordedNetFromPath(fixture) : createNet()
   const dns = fixture ? createDns(offlineDnsResolvers()) : createDns()
 
   // The browser writes its screenshots inside the bundle, so the bundle path is settled first.
   // resolveOutDir is pure over these inputs, so the directory runAudit writes to is this one.
   const outDir = auditOutDir({ options, now, cwd })
-  const browser = createBrowser({ mode: values.browser, outDir })
+  const browser = createBrowser({
+    mode: values.browser,
+    outDir,
+    ...(process.env.WEBSITE_LAUNCH_BROWSER_LOADER === 'fail'
+      ? { loader: () => { throw new Error('playwright not installed (test hook)') } }
+      : {}),
+  })
 
   // `--browser on` is a person saying "I want the rendered tier". Quietly falling back to HTTP
   // would hand them a report that looks complete and is not.
@@ -539,6 +609,20 @@ export async function main(argv = process.argv.slice(2), { cwd = process.cwd(), 
   }
 
   process.exitCode = 0
+}
+
+// Everything above throws on a bad input the way any code does — an --out that names an existing
+// file, a config that cannot be read, a filesystem that is full. A stack trace is not a report, so
+// the boundary turns an unexpected failure into the same shape a usage error has: one line on
+// stderr and exit 2. The stack is one environment variable away when it is actually wanted.
+export async function main(argv = process.argv.slice(2), { cwd = process.cwd(), now = new Date() } = {}) {
+  try {
+    await runCli(argv, { cwd, now })
+  } catch (error) {
+    process.stderr.write(`error: ${messageOf(error)}\n`)
+    if (process.env.WEBSITE_LAUNCH_DEBUG === '1' && error?.stack) process.stderr.write(`${error.stack}\n`)
+    process.exitCode = 2
+  }
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

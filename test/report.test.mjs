@@ -327,3 +327,70 @@ test('writeBundle never deletes a file that was not named in a prior manifest', 
     cleanup()
   }
 })
+
+// --- writeBundle: extras filed into a subdirectory ---
+
+test('writeBundle files an extra whose name holds a slash into a subdirectory of the bundle', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-subdir')
+  try {
+    const outDir = join(dir, 'out')
+    const { files } = writeBundle(outDir, {
+      report: '# r\n',
+      findings: [],
+      crawl: emptyCrawl(),
+      baseline: {},
+      extra: [
+        { name: 'lighthouse/home-mobile.json', content: '{"score":95}\n' },
+        { name: 'lighthouse/home-desktop.json', content: '{"score":99}\n' },
+      ],
+    })
+
+    for (const name of ['lighthouse/home-mobile.json', 'lighthouse/home-desktop.json']) {
+      const path = join(outDir, ...name.split('/'))
+      assert.ok(existsSync(path), `expected ${name} to exist`)
+      assert.ok(files.includes(path), `expected files[] to include ${name}`)
+    }
+    assert.equal(readFileSync(join(outDir, 'lighthouse', 'home-mobile.json'), 'utf8'), '{"score":95}\n')
+
+    const manifest = JSON.parse(readFileSync(join(outDir, 'manifest.json'), 'utf8'))
+    assert.ok(manifest.files.includes('lighthouse/home-mobile.json'))
+    assert.ok(manifest.files.includes('lighthouse/home-desktop.json'))
+  } finally {
+    cleanup()
+  }
+})
+
+test('writeBundle deletes a stale extra out of a subdirectory on a rerun', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-subdir-stale')
+  try {
+    const outDir = join(dir, 'out')
+    writeBundle(outDir, {
+      report: '# run1\n', findings: [], crawl: emptyCrawl(), baseline: {},
+      extra: [{ name: 'lighthouse/home-mobile.json', content: '{}\n' }],
+    })
+    assert.ok(existsSync(join(outDir, 'lighthouse', 'home-mobile.json')))
+
+    writeBundle(outDir, { report: '# run2\n', findings: [], crawl: emptyCrawl(), baseline: {} })
+    assert.ok(!existsSync(join(outDir, 'lighthouse', 'home-mobile.json')), 'the stale lighthouse file should be gone')
+  } finally {
+    cleanup()
+  }
+})
+
+test('writeBundle refuses an extra name that would escape the bundle, before writing anything', () => {
+  const { dir, cleanup } = tmpDir('report-bundle-escape')
+  try {
+    const outDir = join(dir, 'out')
+    assert.throws(
+      () => writeBundle(outDir, {
+        report: '# r\n', findings: [], crawl: emptyCrawl(), baseline: {},
+        extra: [{ name: '../escaped.json', content: '{}\n' }],
+      }),
+      /not a name inside the bundle/,
+    )
+    assert.ok(!existsSync(join(outDir, 'report.md')), 'nothing is written when an extra name is refused')
+    assert.ok(!existsSync(join(dir, 'escaped.json')))
+  } finally {
+    cleanup()
+  }
+})

@@ -10,11 +10,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { REPO_ROOT, fixturePath, recordedNetFromFile, tmpDir } from './helpers.mjs'
 import { defaultCert, fakeResolvers, NOW } from './checks-helpers.mjs'
-import { runAudit } from '../skills/launch-audit/scripts/launch-audit.mjs'
+import { runAudit, buildOps, insertBeforeFixed } from '../skills/launch-audit/scripts/launch-audit.mjs'
 import { createDns } from '../skills/launch-audit/scripts/lib/dns.mjs'
 import { createRegistry, defineCheck } from '../skills/launch-audit/scripts/lib/registry.mjs'
 
@@ -305,6 +305,242 @@ test('the auditor exits 0 even with blockers', async () => {
     ], { env: { ...process.env, WEBSITE_LAUNCH_RECORDED_FIXTURE: FIXTURE } })
     const parsed = JSON.parse(stdout)
     assert.ok(parsed.summary.blockers + parsed.summary.high >= 0)
+  } finally {
+    tmp.cleanup()
+  }
+})
+
+// ------------------------------------------------------------- checks that never produced an answer
+
+// A check with a real checklist id, so the ops list has something to look for.
+const crashingEmailAuth = defineCheck({
+  phase: 'launch-audit',
+  dimension: 'ops',
+  severity: 'medium',
+  tier: 'http',
+  id: 'ops.email-auth',
+  title: 'email auth',
+  catches: 'nothing — a test double',
+  run() {
+    throw new Error('resolver blew up')
+  },
+})
+
+const quietEmailAuth = defineCheck({
+  phase: 'launch-audit',
+  dimension: 'ops',
+  severity: 'medium',
+  tier: 'http',
+  id: 'ops.email-auth',
+  title: 'email auth',
+  catches: 'nothing — a test double',
+  run() {
+    return []
+  },
+})
+
+const opsItem = (ops) => ops.find((item) => item.label.startsWith('Email authentication'))
+
+test('a check that produced no findings because it ran clean marks its ops item auto-verified', async () => {
+  const tmp = tmpDir('audit-ops-clean')
+  try {
+    const result = await audit({
+      cwd: tmp.dir,
+      options: { url: URL_UNDER_TEST, out: tmp.dir, registry: registryWith(quietEmailAuth) },
+    })
+    assert.equal(opsItem(result.ops).autoVerifiedBy, 'ops.email-auth')
+  } finally {
+    tmp.cleanup()
+  }
+})
+
+test('a check that crashed never marks its ops item auto-verified', async () => {
+  const tmp = tmpDir('audit-ops-crash')
+  try {
+    const result = await audit({
+      cwd: tmp.dir,
+      options: { url: URL_UNDER_TEST, out: tmp.dir, registry: registryWith(crashingEmailAuth) },
+    })
+    assert.ok(result.notCovered.some((line) => line.includes('ops.email-auth') && line.includes('check crashed')))
+    assert.equal(opsItem(result.ops).autoVerifiedBy, null, 'a crash is not a pass')
+    const report = readFileSync(join(result.bundleDir, 'report.md'), 'utf8')
+    assert.match(report, /- \[human\] Email authentication/)
+  } finally {
+    tmp.cleanup()
+  }
+})
+
+test('buildOps treats a skipped check the same as a crashed one', () => {
+  const clean = buildOps([])
+  assert.equal(opsItem(clean).autoVerifiedBy, 'ops.email-auth')
+  const skipped = buildOps([], new Set(['ops.email-auth']))
+  assert.equal(opsItem(skipped).autoVerifiedBy, null)
+})
+
+// ------------------------------------------------------------------------------ Not covered order
+
+test('insertBeforeFixed refuses to append after the two fixed lines', () => {
+  const withFixed = ['a', 'Copy vs. source documents: not run', 'Pages vs. agreed scope: not run']
+  assert.deepEqual(insertBeforeFixed(withFixed, ['b']), [
+    'a', 'b', 'Copy vs. source documents: not run', 'Pages vs. agreed scope: not run',
+  ])
+  assert.deepEqual(insertBeforeFixed(['a'], []), ['a'])
+  assert.throws(() => insertBeforeFixed(['a'], ['b']), /fixed trailing lines/)
+})
+
+// ------------------------------------------------------------------------------------ probe caps
+
+test('a tripped probe cap is named with its set, its count and its cap', async () => {
+  const tmp = tmpDir('audit-caps')
+  try {
+    const net = recordedNetFromFile('recorded/capped-site.json')
+    net.head = (url) => net.get(url)
+    net.cert = async () => defaultCert('capped.test')
+    const result = await runAudit({
+      net,
+      dns: testDns(),
+      browser: noBrowser(),
+      now: NOW,
+      cwd: tmp.dir,
+      options: { url: 'https://capped.test/', random: () => 'deadbeef', out: tmp.dir, caps: { images: 2 } },
+    })
+    assert.ok(result.notCovered.includes('images: 2 of 4 not probed (cap 2)'),
+      `no cap line in:\n${result.notCovered.join('\n')}`)
+  } finally {
+    tmp.cleanup()
+  }
+})
+
+// --------------------------------------------------------------------------------- the browser tier
+
+const fakeRender = (url) => ({
+  url,
+  finalUrl: url,
+  status: 200,
+  screenshots: { desktop: `/shots/${encodeURIComponent(url)}/desktop.png`, tablet: null, mobile: null },
+  consoleErrors: [],
+  failedRequests: [],
+  collectorHits: [],
+  horizontalOverflow: { desktop: false, tablet: false, mobile: false },
+  navCollapsed: null,
+  renderedHead: { title: null, description: null, canonical: null, robots: null },
+  cookiesBeforeInteraction: [],
+  consentBannerVisible: false,
+  error: null,
+})
+
+// A browser adapter that behaves, except where a test asks it not to. `state` records what it was
+// asked for, so a test can assert close() happened however the run ended.
+function fakeBrowser({ failRenderOnCall = null, withLighthouse = false } = {}) {
+  const state = { renders: 0, closed: 0 }
+  return {
+    state,
+    available: true,
+    reason: null,
+    async open() { return true },
+    async render(url) {
+      state.renders++
+      if (state.renders === failRenderOnCall) throw new Error('newContext failed')
+      return fakeRender(url)
+    },
+    async axe() { return { available: false, reason: 'axe-core not installed' } },
+    async lighthouse(url, { formFactor }) {
+      if (!withLighthouse) return { available: false, reason: 'lighthouse not installed' }
+      return {
+        available: true,
+        formFactor,
+        scores: { performance: 95, accessibility: 90, bestPractices: 90, seo: 100 },
+        metrics: { lcp: 1200, cls: 0.01, tbt: 40, inp: null, fcp: 800, si: 1100 },
+      }
+    },
+    async close() { state.closed++ },
+  }
+}
+
+test('a browser call that throws costs one page of one tool, not the run', async () => {
+  const tmp = tmpDir('audit-browser-throw')
+  try {
+    const browser = fakeBrowser({ failRenderOnCall: 2 })
+    const result = await runAudit({
+      net: testNet(),
+      dns: testDns(),
+      browser,
+      now: NOW,
+      cwd: tmp.dir,
+      options: { url: URL_UNDER_TEST, random: () => 'deadbeef', out: tmp.dir },
+    })
+    const failures = result.notCovered.filter((line) => line.startsWith('Browser tier: ') && line.includes('render failed — newContext failed'))
+    assert.equal(failures.length, 1, `expected one render failure line, got:\n${result.notCovered.join('\n')}`)
+    assert.ok(result.findings.some((f) => f.id === 'browser.screenshots-for-review'), 'the pages that rendered still produced findings')
+    assert.ok(result.notCovered.some((line) => /^Browser tier rendered \d+ of \d+ pages$/.test(line)))
+    assert.equal(browser.state.closed, 1, 'the browser was closed')
+  } finally {
+    tmp.cleanup()
+  }
+})
+
+test('lighthouse results are written into the bundle and listed in the manifest', async () => {
+  const tmp = tmpDir('audit-lighthouse')
+  try {
+    const browser = fakeBrowser({ withLighthouse: true })
+    const result = await runAudit({
+      net: testNet(),
+      dns: testDns(),
+      browser,
+      now: NOW,
+      cwd: tmp.dir,
+      options: { url: URL_UNDER_TEST, random: () => 'deadbeef', out: tmp.dir },
+    })
+    const manifest = JSON.parse(readFileSync(join(result.bundleDir, 'manifest.json'), 'utf8'))
+    for (const name of ['lighthouse/small-test-mobile.json', 'lighthouse/small-test-desktop.json']) {
+      assert.ok(existsSync(join(result.bundleDir, name)), `${name} is missing from the bundle`)
+      assert.ok(manifest.files.includes(name), `${name} is missing from the manifest`)
+    }
+    const saved = JSON.parse(readFileSync(join(result.bundleDir, 'lighthouse/small-test-mobile.json'), 'utf8'))
+    assert.equal(saved.url, URL_UNDER_TEST)
+    assert.equal(saved.formFactor, 'mobile')
+    assert.equal(saved.scores.performance, 95)
+    assert.equal(browser.state.closed, 1)
+  } finally {
+    tmp.cleanup()
+  }
+})
+
+// ----------------------------------------------------------------------------- unexpected failures
+
+test('an --out that names an existing file exits 2 with one line, not a stack', async () => {
+  const tmp = tmpDir('audit-bad-out')
+  try {
+    const file = join(tmp.dir, 'not-a-directory')
+    writeFileSync(file, 'i am a file\n')
+    await assert.rejects(
+      run(process.execPath, [SCRIPT, '--url', URL_UNDER_TEST, '--out', file, '--browser', 'off'],
+        { env: { ...process.env, WEBSITE_LAUNCH_RECORDED_FIXTURE: FIXTURE } }),
+      (error) => {
+        assert.equal(error.code, 2)
+        assert.match(String(error.stderr), /^error: /)
+        assert.ok(!String(error.stderr).includes('    at '), 'no stack trace without WEBSITE_LAUNCH_DEBUG')
+        return true
+      },
+    )
+  } finally {
+    tmp.cleanup()
+  }
+})
+
+test('--browser on exits 2 with the install hint when the loader fails', async () => {
+  const tmp = tmpDir('audit-browser-on')
+  try {
+    await assert.rejects(
+      run(process.execPath, [SCRIPT, '--url', URL_UNDER_TEST, '--out', tmp.dir, '--browser', 'on'],
+        { env: { ...process.env, WEBSITE_LAUNCH_RECORDED_FIXTURE: FIXTURE, WEBSITE_LAUNCH_BROWSER_LOADER: 'fail' } }),
+      (error) => {
+        assert.equal(error.code, 2)
+        assert.match(String(error.stderr), /--browser on/)
+        assert.match(String(error.stderr), /npx playwright install chromium/)
+        return true
+      },
+    )
   } finally {
     tmp.cleanup()
   }

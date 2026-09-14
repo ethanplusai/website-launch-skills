@@ -21,7 +21,7 @@ const CONCURRENCY = 4
 
 // Builds a net adapter over a plain recordings object. `get` and `map` match createNet()'s shape
 // closely enough for every module that consumes a net; `head` and `cert` are attached by
-// `recordedNetFromFile`, since a recording has neither a method nor a certificate.
+// `recordedNetFromPath`, since a recording has neither a method nor a certificate.
 export function recordedNet(fixture) {
   const entries = new Map(Object.entries(fixture))
 
@@ -91,7 +91,9 @@ function recordedCert(host) {
 
 // The full adapter the CLI hook needs: recorded `get`/`map`, `head` answered from the same
 // recordings (a fixture records one response per url, not one per method), and a stand-in cert.
-export function recordedNetFromFile(path) {
+// Named for a filesystem path, to keep it distinct from the test helper's fixture-relative
+// `recordedNetFromFile`, which resolves a name under test/fixtures rather than taking a path.
+export function recordedNetFromPath(path) {
   const net = recordedNet(JSON.parse(readFileSync(path, 'utf8')))
   net.head = (url) => net.get(url)
   net.cert = async (host) => recordedCert(host)
