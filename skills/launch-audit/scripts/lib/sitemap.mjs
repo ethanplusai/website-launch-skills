@@ -2,8 +2,10 @@
 //
 // parseSitemap(xml) is a regex scan, not a real XML parser: it recognizes `<urlset>` or
 // `<sitemapindex>` as the document root, then pulls `<loc>`/`<lastmod>` pairs out of each
-// `<url>`/`<sitemap>` block. Anything else is `invalid`. `<loc>` is entity-decoded and trimmed;
-// `lastmod` is the raw string, or null when absent.
+// `<url>`/`<sitemap>` block. Anything else is `invalid`. Both fields are trimmed; a value wrapped
+// in `<![CDATA[ ... ]]>` has that wrapper stripped before its content is entity-decoded, so a
+// `<loc>` written either way comes out the same. `lastmod` is the raw (decoded) string, or null
+// when absent.
 //
 // discoverSitemaps(net, origin, robots) tries robots' `Sitemap:` lines first, then the four
 // conventional paths. When robots gave none, fetching conventional paths stops at the first one
@@ -17,6 +19,14 @@
 
 const ENTITY_MAP = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'" }
 const decodeEntities = (s) => s.replace(/&amp;|&lt;|&gt;|&quot;|&apos;/g, (m) => ENTITY_MAP[m])
+const CDATA = /^<!\[CDATA\[([\s\S]*?)\]\]>$/
+
+// Trim, strip a wrapping CDATA section if present, then entity-decode what's left.
+function cleanValue(raw) {
+  const trimmed = raw.trim()
+  const cdata = CDATA.exec(trimmed)
+  return decodeEntities(cdata ? cdata[1].trim() : trimmed)
+}
 
 const CONVENTIONAL_PATHS = ['/sitemap.xml', '/sitemap_index.xml', '/sitemap-index.xml', '/wp-sitemap.xml']
 
@@ -30,8 +40,8 @@ function extractEntries(xml, blockTag) {
     if (!locMatch) continue
     const lastmodMatch = /<lastmod>([\s\S]*?)<\/lastmod>/i.exec(block)
     entries.push({
-      loc: decodeEntities(locMatch[1].trim()),
-      lastmod: lastmodMatch ? decodeEntities(lastmodMatch[1].trim()) : null,
+      loc: cleanValue(locMatch[1]),
+      lastmod: lastmodMatch ? cleanValue(lastmodMatch[1]) : null,
     })
   }
   return entries

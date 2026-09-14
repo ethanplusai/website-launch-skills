@@ -39,6 +39,15 @@ test('unknown directives and Crawl-delay are ignored without erroring', () => {
   assert.deepEqual(robots.errors, [])
 })
 
+test('any non-User-agent directive line closes a run of consecutive User-agent lines, including unknown ones', () => {
+  const robots = parseRobots('User-agent: A\nHost: example.com\nUser-agent: B\nDisallow: /b\n')
+  assert.equal(robots.groups.length, 2)
+  assert.deepEqual(robots.groups[0].agents, ['A'])
+  assert.deepEqual(robots.groups[1].agents, ['B'])
+  assert.equal(isAllowed(robots, 'A', '/b'), true)
+  assert.equal(isAllowed(robots, 'B', '/b'), false)
+})
+
 test('Sitemap lines are collected globally; absolute URLs only, relative ones are errors', () => {
   const robots = parseRobots('User-agent: *\nDisallow:\nSitemap: https://example.com/sitemap.xml\nSitemap: /relative-sitemap.xml\n')
   assert.deepEqual(robots.sitemaps, ['https://example.com/sitemap.xml'])

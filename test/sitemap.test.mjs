@@ -57,6 +57,20 @@ test('parseSitemap recognizes wp-sitemap.xml as an index', () => {
   assert.equal(parsed.entries.length, 1)
 })
 
+test('parseSitemap unwraps a CDATA-wrapped <loc> in a urlset before entity-decoding it', () => {
+  const xml = '<urlset><url><loc><![CDATA[https://example.com/y?a=1&amp;b=2]]></loc></url></urlset>'
+  const parsed = parseSitemap(xml)
+  assert.equal(parsed.kind, 'urlset')
+  assert.equal(parsed.entries[0].loc, 'https://example.com/y?a=1&b=2')
+})
+
+test('parseSitemap unwraps a CDATA-wrapped <loc> in a sitemapindex entry', () => {
+  const xml = '<sitemapindex><sitemap><loc><![CDATA[https://example.com/child-c.xml]]></loc></sitemap></sitemapindex>'
+  const parsed = parseSitemap(xml)
+  assert.equal(parsed.kind, 'index')
+  assert.equal(parsed.entries[0].loc, 'https://example.com/child-c.xml')
+})
+
 // --- expandSitemap ---
 
 test('expandSitemap on a plain urlset returns its urls tagged with from', async () => {

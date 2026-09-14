@@ -1,12 +1,13 @@
 // robots.txt parsing, group/rule matching, and the AI-crawler policy table.
 //
 // parseRobots(text) groups records the way real crawlers do: one or more consecutive
-// `User-agent:` lines share a group; any other directive ends that run, so the next
-// `User-agent:` starts a fresh group. `Allow`/`Disallow` with an empty value carry no
-// information and are dropped. `Crawl-delay` and unrecognized directives are read (so they
-// don't leak into the next group as a stray value) but never stored. `Sitemap:` is global and
-// does not participate in grouping at all; only absolute URLs are collected, relative ones are
-// reported in `errors` instead.
+// `User-agent:` lines share a group; any other directive line — recognized or not — ends that
+// run, so the next `User-agent:` starts a fresh group (RFC 9309). `Allow`/`Disallow` with an
+// empty value carry no information and are dropped from the group's rules, though the line still
+// closes the run of agents. `Crawl-delay` and unrecognized directives (e.g. `Host:`) are read only
+// far enough to close that run; their values are never stored. `Sitemap:` is collected globally
+// regardless of which group it falls in or near; only absolute URLs are collected, relative ones
+// are reported in `errors` instead.
 //
 // isAllowed(robots, ua, path) picks the single most specific group for `ua` — the group whose
 // agent token is the longest case-insensitive substring match of `ua`, falling back to a literal
@@ -60,18 +61,22 @@ export function parseRobots(text) {
       }
       current.agents.push(value)
       groupOpen = true
-    } else if (name === 'allow' || name === 'disallow') {
-      groupOpen = false
+      continue
+    }
+
+    // Per RFC 9309, any non-User-agent record line ends a run of consecutive User-agent
+    // lines — whether or not we act on that line's content.
+    groupOpen = false
+
+    if (name === 'allow' || name === 'disallow') {
       if (!value || !current) continue
       current[name].push(value)
-    } else if (name === 'crawl-delay') {
-      groupOpen = false
     } else if (name === 'sitemap') {
       if (isAbsoluteUrl(value)) sitemaps.push(value)
       else errors.push(`relative sitemap url ignored: ${value}`)
-      // Sitemap is a global directive; it doesn't close a run of consecutive User-agent lines.
     }
-    // Unknown directives are ignored outright, with no effect on grouping.
+    // Crawl-delay and unrecognized directives are read only to close the group above; their
+    // values are never stored.
   }
 
   return { groups, sitemaps, errors }
