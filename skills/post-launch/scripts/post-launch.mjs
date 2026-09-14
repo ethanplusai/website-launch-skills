@@ -152,8 +152,9 @@ function worstFirst(findings) {
   const out = []
   const blockers = findings.filter((f) => f.severity === 'blocker')
   for (const finding of blockers) out.push(`**BLOCKER** ${finding.title} — ${finding.page ?? 'site-wide'}`)
-  const high = findings.filter((f) => f.severity === 'high').slice(0, WORST_LIMIT)
-  for (const finding of high) out.push(`  [high] ${finding.title} — ${finding.page ?? 'site-wide'}`)
+  const high = findings.filter((f) => f.severity === 'high')
+  for (const finding of high.slice(0, WORST_LIMIT)) out.push(`[high] ${finding.title} — ${finding.page ?? 'site-wide'}`)
+  if (high.length > WORST_LIMIT) out.push(`[high] ... and ${high.length - WORST_LIMIT} more, in report.md`)
   return out
 }
 
@@ -189,7 +190,9 @@ function printSummary(result, { mode }) {
   }
 
   out.push('')
-  out.push('Before you announce:')
+  // On cutover day these gate the announcement. On a watch day the announcement has happened and
+  // they are standing rules — most of all the one about keeping the old host up.
+  out.push(mode === 'cutover' ? 'Before you announce:' : 'Standing human items:')
   for (const item of HUMAN_ITEMS) out.push(`  - ${item}`)
 
   out.push('')

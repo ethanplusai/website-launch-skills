@@ -352,7 +352,7 @@ export const robotsLive = define({
     if (leaks.length === 0) return []
     return [emit(robotsLive, {
       page: ctx.robots.url,
-      detail: `The live robots.txt points at ${leaks.length} url${leaks.length === 1 ? '' : 's'} that are not on the production host. Whatever it names there is what crawlers will go and fetch, so the live site is advertising a copy of itself that nobody meant to publish.`,
+      detail: `The live robots.txt points at ${leaks.length} url${leaks.length === 1 ? ' that is' : 's that are'} not on the production host. Whatever it names there is what crawlers go and fetch, so the live site is advertising a copy of itself that nobody meant to publish.`,
       evidence: [url(ctx.robots.url), ...leaks.slice(0, EVIDENCE_LIMIT).map((leak) => text(`${leak.href} — ${leak.reason}`))],
       fix: 'Rewrite robots.txt on the production deployment so every url in it is on the production host, and redeploy.',
     })]
@@ -401,7 +401,7 @@ export const sitemapReferencesStaging = define({
     if (leaks.length === 0) return []
     return [emit(sitemapReferencesStaging, {
       page: ctx.target.origin,
-      detail: `${leaks.length} url${leaks.length === 1 ? '' : 's'} advertised from the live host ${leaks.length === 1 ? 'is' : 'are'} not on the production host. A sitemap is a request to index exactly these urls, so this is the live site asking search engines to index a staging copy — which is duplicate content competing with the launch.`,
+      detail: `${leaks.length} url${leaks.length === 1 ? ' advertised from the live host is' : 's advertised from the live host are'} not on the production host. A sitemap is a request to index exactly these urls, so this is the live site asking search engines to index a staging copy — which is duplicate content competing with the launch.`,
       evidence: [
         url(ctx.target.origin),
         ...leaks.slice(0, EVIDENCE_LIMIT).map((leak) => text(`${leak.where} ${leak.href} — ${leak.reason}`)),
@@ -433,8 +433,8 @@ export function redirectDriftOf(row, response) {
     return {
       kind: 'same-path',
       detail: response.status >= 200 && response.status < 300
-        ? `it now lands on ${landed}, a different path`
-        : `it now answers ${response.status}`,
+        ? `it lands on ${landed}, a different path`
+        : `it answers ${response.status}`,
     }
   }
 

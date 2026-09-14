@@ -48,8 +48,8 @@ Every input you leave out becomes a check that cannot run. Ask for each one; do 
 
 - **The production url.** Required.
 - **`baseline.json`** — from the `pre-launch` bundle, or from a `launch-audit` run against staging
-  before the cutover. This is what "did anything change" is measured against. Without it, six
-  checks have nothing to compare and say so.
+  before the cutover. This is what "did anything change" is measured against. Without it, four
+  checks have nothing to compare and a fifth falls back to `--expect-analytics`. All of them say so.
 - **`redirects.csv`** — from the `launch-audit` bundle built with `--old-url`. Every row is
   re-requested at the url it was written with.
 - **The old site's url**, if one is being replaced.
@@ -75,7 +75,7 @@ Other flags: `--dev-host <host>` (repeatable), `--browser auto|on|off`, `--out <
 `--config <path>`, `--json`, `--help`.
 
 **Exit codes:** `0` always, however bad the cutover is. `2` for a usage error or an IO failure.
-A non-zero exit here never means "the launch is fine"; read the report.
+Exit 0 never means "the launch is fine" — this reports, it does not gate. Read the report.
 
 ## 3. Read the report in this order
 

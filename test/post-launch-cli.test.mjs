@@ -128,9 +128,11 @@ test('cutover mode on a bad cutover leads with the blocker and still exits 0', a
     const { stdout } = await run(process.execPath, CUTOVER_ARGS(tmp.dir), { env: env(BAD) })
     const lines = stdout.split('\n')
     const blockerAt = lines.findIndex((line) => line.includes('**BLOCKER**'))
-    const highAt = lines.findIndex((line) => line.startsWith('  [high]'))
+    const highAt = lines.findIndex((line) => line.trimStart().startsWith('[high]'))
     assert.ok(blockerAt >= 0, `no bolded blocker line in:\n${stdout}`)
-    assert.ok(highAt === -1 || blockerAt < highAt, 'a high finding printed above the blocker')
+    assert.ok(highAt >= 0, `the bad fixture has high findings and none printed:\n${stdout}`)
+    assert.ok(blockerAt < highAt, 'a high finding printed above the blocker')
+    assert.match(stdout, /and \d+ more, in report\.md/, 'a truncated list has to say it was truncated')
     assert.match(stdout, /search engines not to index it/, 'the blocker line does not say what the blocker is')
   } finally {
     tmp.cleanup()

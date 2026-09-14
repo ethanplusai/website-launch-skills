@@ -409,8 +409,11 @@ export function renderCutoverReport({ target, generatedAt, findings = [], notCov
   if (cutover.length === 0) {
     lines.push('_No cutover findings._', '')
   } else {
-    lines.push('In the order the day depends on: DNS, transport, indexability, robots and sitemap,', '')
-    lines.push('redirects, the baseline diff, analytics, forms, staging, the old host, headers, people.', '')
+    lines.push(
+      'In the order the day depends on: DNS, transport, indexability, robots and sitemap, redirects,',
+      'the baseline diff, analytics, forms, staging, the old host, headers, people.',
+      '',
+    )
     for (const finding of cutover) lines.push(...renderFinding(finding), '')
   }
 
