@@ -1,0 +1,86 @@
+{
+  "https://inv.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\nSitemap: https://inv.test/sitemap.xml\n"
+  },
+  "https://inv.test/sitemap.xml": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <url><loc>https://inv.test/</loc></url>\n  <url><loc>https://inv.test/about</loc></url>\n  <url><loc>https://inv.test/orphan</loc></url>\n  <url><loc>https://other.test/page</loc></url>\n</urlset>\n"
+  },
+  "https://inv.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>The shop</title>\n</head>\n<body>\n<main>\n<a href=\"/about\">About the shop</a>\n<a href=\"/unlisted\">Opening hours</a>\n<a href=\"/broken\">Our stockists</a>\n<a href=\"/unreachable\">Trade enquiries</a>\n<a href=\"/deep1\">Guides</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://inv.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>About the shop</title>\n</head>\n<body>\n<main>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://inv.test/orphan": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Gift vouchers</title>\n</head>\n<body>\n<main>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://inv.test/unlisted": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Opening hours</title>\n</head>\n<body>\n<main>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://inv.test/broken": {
+    "status": 500,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Server error</h1>"
+  },
+  "https://inv.test/deep1": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Guides</title>\n</head>\n<body>\n<main>\n<a href=\"/deep2\">Choosing a kettle</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://inv.test/deep2": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Choosing a kettle</title>\n</head>\n<body>\n<main>\n<a href=\"/deep3\">Descaling a kettle</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://inv.test/deep3": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Descaling a kettle</title>\n</head>\n<body>\n<main>\n<a href=\"/deep4\">Kettle spare parts</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://inv.test/deep4": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Kettle spare parts</title>\n</head>\n<body>\n<main>\n<a href=\"/\">Back to the front page</a>\n</main>\n</body>\n</html>\n"
+  },
+  "https://inv.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<h1>Not found</h1>"
+  }
+}
