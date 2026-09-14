@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Forms</title></head>
+<body>
+  <form action="/subscribe" method="POST">
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" required>
+    <input type="text" name="city">
+    <label>Name <input type="text" name="name"></label>
+    <input type="text" name="website" style="display:none" autocomplete="off">
+    <input type="hidden" name="csrf" value="abc">
+    <button type="submit">Send</button>
+  </form>
+  <form action="#">
+    <input type="search" name="q" aria-label="Search">
+    <span id="lbl">Phone</span>
+    <input type="tel" name="phone" aria-labelledby="lbl">
+    <select name="topic"><option>One</option></select>
+  </form>
+</body>
+</html>
