@@ -1,4 +1,4 @@
-# website-launch-skill Implementation Plan
+# website-launch-skills Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -81,7 +81,7 @@ docs/checks.md, docs/sources.md, docs/smoke.md
 
 ```json
 {
-  "name": "website-launch-skill",
+  "name": "website-launch-skills",
   "private": true,
   "type": "module",
   "engines": { "node": ">=20" },
@@ -381,7 +381,7 @@ test('a non-numeric value for a number flag is an error', () => { assert.match(p
 - Test: `test/net.test.mjs`
 
 **Interfaces:**
-- `createNet({fetchImpl = globalThis.fetch, tlsConnect = node:tls.connect, timeoutMs = 15000, concurrency = 8, userAgent = 'website-launch-skill/1.0 (+https://github.com/ethanplusai/website-launch-skill)'}) → net`
+- `createNet({fetchImpl = globalThis.fetch, tlsConnect = node:tls.connect, timeoutMs = 15000, concurrency = 8, userAgent = 'website-launch-skills/0.1 (+https://github.com/ethanplusai/website-launch-skills)'}) → net`
 - `net.get(url, {method='GET', maxHops=10, headers={}}) → {url, finalUrl, status, ok, headers: Record<string,string> (lowercased), body: string|null, chain: [{url, status, location}], error: string|null, timedOut: boolean, bytes: number}` — follows redirects **manually** (`redirect: 'manual'`), records each hop; on error/timeout returns a result with `status: 0`.
 - `net.head(url)` — same with HEAD, falls back to GET on 405.
 - `net.map(items, fn)` — bounded concurrency; preserves order; never rejects (errors are values).
@@ -431,7 +431,7 @@ test('cert reports days left and SAN coverage via injected tls', async () => {
 })
 test('headers are lowercased and the user agent is sent', async () => {
   let seenUa; const net = createNet({ fetchImpl: async (u, o) => { seenUa = o.headers['user-agent']; return new Response('', { status: 200, headers: { 'X-Robots-Tag': 'noindex' } }) } })
-  const r = await net.get('https://u.test/'); assert.equal(r.headers['x-robots-tag'], 'noindex'); assert.match(seenUa, /website-launch-skill/)
+  const r = await net.get('https://u.test/'); assert.equal(r.headers['x-robots-tag'], 'noindex'); assert.match(seenUa, /website-launch-skills/)
 })
 ```
 
@@ -739,7 +739,7 @@ test('links are classified internal/external and resolved', () => { const p = pa
 
 - [ ] **Step 1: Write failing tests.**
 - [ ] **Step 2: Run, expect failure.**
-- [ ] **Step 3: Implement the generator and write the docs.** README sections: what it is (three phases, one sentence each) · honesty rules · install for Claude Code (`/plugin marketplace add ethanplusai/website-launch-skill`), for Codex / Copilot / Cursor / Gemini CLI / Goose / others (clone; point the agent at `skills/`, or copy the three directories together), and without any agent (the three commands) · the optional browser tier (`npm i -D playwright axe-core lighthouse && npx playwright install chromium`) · what each phase produces · what it never does · how to contribute a check (register + two fixtures + reference paragraph) · sources. `AGENTS.md`: three paragraphs — the three skills and when to use each, the golden rule, the `Not covered` rule. `marketplace.json`: name `website-launch-skill`, one plugin `website-launch` with `skills: ["./skills/pre-launch","./skills/launch-audit","./skills/post-launch"]`. `docs/sources.md`: attribution list per spec §7. `docs/smoke.md`: the manual real-site smoke procedure and a checklist for reading every finding.
+- [ ] **Step 3: Implement the generator and write the docs.** README sections: what it is (three phases, one sentence each) · honesty rules · install for Claude Code (`/plugin marketplace add ethanplusai/website-launch-skills`), for Codex / Copilot / Cursor / Gemini CLI / Goose / others (clone; point the agent at `skills/`, or copy the three directories together), and without any agent (the three commands) · the optional browser tier (`npm i -D playwright axe-core lighthouse && npx playwright install chromium`) · what each phase produces · what it never does · how to contribute a check (register + two fixtures + reference paragraph) · sources. `AGENTS.md`: three paragraphs — the three skills and when to use each, the golden rule, the `Not covered` rule. `marketplace.json`: name `website-launch-skills`, one plugin `website-launch` with `skills: ["./skills/pre-launch","./skills/launch-audit","./skills/post-launch"]`. `docs/sources.md`: attribution list per spec §7. `docs/smoke.md`: the manual real-site smoke procedure and a checklist for reading every finding.
 - [ ] **Step 4: Run, expect pass** — full `npm test` green.
 - [ ] **Step 5: Commit** — `docs: generated check inventory, sources, README for any agent, marketplace metadata`
 

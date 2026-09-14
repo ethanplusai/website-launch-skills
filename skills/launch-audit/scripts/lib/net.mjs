@@ -15,7 +15,7 @@ function emptyCertResult(error) {
 
 // The identity every request from this tool carries, http tier and browser tier alike, so a site
 // owner reading their logs sees one agent rather than two.
-export const USER_AGENT = 'website-launch-skill/1.0 (+https://github.com/ethanplusai/website-launch-skill)'
+export const USER_AGENT = 'website-launch-skills/0.1 (+https://github.com/ethanplusai/website-launch-skills)'
 
 export function createNet({
   fetchImpl = globalThis.fetch,

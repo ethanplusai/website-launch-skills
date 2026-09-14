@@ -1,9 +1,9 @@
-# website-launch-skill — Design Spec
+# website-launch-skills — Design Spec
 
 **Date:** 2026-09-13
 **Status:** Approved (sections 1–4 reviewed in conversation; 5–8 approved by delegation)
 **Audience:** Public. Anyone launching a website with any coding agent that supports the Agent Skills standard.
-**Repo:** `github.com/ethanplusai/website-launch-skill` (MIT)
+**Repo:** `github.com/ethanplusai/website-launch-skills` (MIT)
 
 ## 1. What this is
 
@@ -35,7 +35,7 @@ The public checklists (Front-End Checklist's 385 rules, the 2026 agency lists, t
 ## 2. Repository layout
 
 ```
-website-launch-skill/
+website-launch-skills/
 ├── README.md                 # what it is, install for any agent, the three phases, honesty rules
 ├── AGENTS.md                 # orientation for agents that read it
 ├── LICENSE                   # MIT

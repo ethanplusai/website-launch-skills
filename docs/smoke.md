@@ -32,7 +32,7 @@ Run each from the skill's own directory. Keep every bundle; you will be comparin
     node scripts/launch-audit.mjs --url <site url> --browser off --out ../../smoke/audit-http
 
 **2. `launch-audit` with the browser tier installed.** Install the optional tier first, **at the
-root of this cloned `website-launch-skill` repository** — not in the site being audited; the
+root of this cloned `website-launch-skills` repository** — not in the site being audited; the
 scripts resolve these modules from their own path:
 
     npm i --no-save playwright axe-core lighthouse && npx playwright install chromium
@@ -125,19 +125,20 @@ this tool has, because it is the one that makes a clean report a lie.
 
 The run this document describes, done once before `v0.1.0`.
 
-**Targets.** `https://ethanplus.ai/` — a live fourteen-page Next.js site on Vercel with a sitemap,
-a Cloudflare www host in front of the apex, and no analytics; audited by its owner. And one real
-static repository with a deliberately dirty working tree, gated with `--build-dir website
---skip-build`. Both read-only throughout: nothing submitted a form or clicked a control.
+**Targets.** `<site>` — a fourteen-page public site owned by the author (Next.js on a static
+host), live, with a sitemap, a CDN www host in front of the apex, and no analytics; audited by its
+owner. And one real static repository with a deliberately dirty working tree, gated with
+`--build-dir website --skip-build`. Both read-only throughout: nothing submitted a form or clicked
+a control.
 
 **The runs**, from a scratch directory outside the repository, written `<scratch>` here:
 
-    node <repo>/skills/launch-audit/scripts/launch-audit.mjs --url https://ethanplus.ai/ --browser off --out <scratch>/audit-http
-    node <repo>/skills/launch-audit/scripts/launch-audit.mjs --url https://ethanplus.ai/ --browser on  --out <scratch>/audit-browser
+    node <repo>/skills/launch-audit/scripts/launch-audit.mjs --url <site> --browser off --out <scratch>/audit-http
+    node <repo>/skills/launch-audit/scripts/launch-audit.mjs --url <site> --browser on  --out <scratch>/audit-browser
     node <repo>/skills/pre-launch/scripts/pre-launch.mjs --dir <repo>/test/fixtures/passing-site --production-url https://passing.test
     node <repo>/skills/pre-launch/scripts/pre-launch.mjs --dir <a real repo> --build-dir website --skip-build --production-url <its url>
-    node <repo>/skills/post-launch/scripts/post-launch.mjs --mode cutover --url https://ethanplus.ai/ --baseline <scratch>/audit-http/baseline.json --out <scratch>/cutover
-    node <repo>/skills/post-launch/scripts/post-launch.mjs --mode watch   --url https://ethanplus.ai/ --day 1 --out <scratch>/watch
+    node <repo>/skills/post-launch/scripts/post-launch.mjs --mode cutover --url <site> --baseline <scratch>/audit-http/baseline.json --out <scratch>/cutover
+    node <repo>/skills/post-launch/scripts/post-launch.mjs --mode watch   --url <site> --day 1 --out <scratch>/watch
 
 The browser tier was installed first, in this checkout, exactly as the section above says. After
 it, `git status` showed no change to `package.json` or `package-lock.json`, and `npm test` stayed

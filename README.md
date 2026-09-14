@@ -1,12 +1,26 @@
-# website-launch-skill
+# website-launch-skills
 
-Three Agent Skills that carry a website from "built" to "launched and verified". **`pre-launch`**
-is the gate: it inspects the repository and the production build before you deploy, and it exits 1
-if anything mechanical is wrong. **`launch-audit`** is the auditor: it crawls a staging or live url
-and reports what would go wrong at launch — indexability, redirects, links, images, forms,
-accessibility, performance, analytics, content — and always exits 0. **`post-launch`** is the
-watch: it runs the moment DNS has moved, verifies the cutover against the baseline the earlier
-phases wrote, and then runs a daily check for thirty days.
+Three Agent Skills that carry a website from "built" to "launched and verified".
+
+## Quick start
+
+From a fresh clone, against a staging url of your own:
+
+    git clone https://github.com/ethanplusai/website-launch-skills
+    cd website-launch-skills
+    node skills/launch-audit/scripts/launch-audit.mjs --url https://staging.your-site.example
+
+Node 20, no install step, no dependencies. The audit is read-only and always exits 0; it writes a
+bundle under `./website-launch/` and prints the path.
+
+## What they are
+
+**`pre-launch`** is the gate: it inspects the repository and the production build before you
+deploy, and it exits 1 if anything mechanical is wrong. **`launch-audit`** is the auditor: it
+crawls a staging or live url and reports what would go wrong at launch — indexability, redirects,
+links, images, forms, accessibility, performance, analytics, content — and always exits 0.
+**`post-launch`** is the watch: it runs the moment DNS has moved, verifies the cutover against the
+baseline the earlier phases wrote, and then runs a daily check for thirty days.
 
 235 checks in all — 38 in the gate, 176 in the audit, 21 on cutover day — every one listed with its
 severity and what it catches in [docs/checks.md](docs/checks.md), which is generated from the code
@@ -41,17 +55,17 @@ own will not work.
 
 ### Claude Code
 
-    /plugin marketplace add ethanplusai/website-launch-skill
-    /plugin install website-launch@website-launch-skill
+    /plugin marketplace add ethanplusai/website-launch-skills
+    /plugin install website-launch@website-launch-skills
 
 ### Codex, GitHub Copilot, Cursor, Gemini CLI, Goose, OpenCode, or any Agent-Skills-compatible tool
 
 Clone the repository and point the agent at `skills/`:
 
-    git clone https://github.com/ethanplusai/website-launch-skill
-    cd website-launch-skill
+    git clone https://github.com/ethanplusai/website-launch-skills
+    cd website-launch-skills
 
-Then either add `website-launch-skill/skills` to wherever your tool looks for skills, or copy the
+Then either add `website-launch-skills/skills` to wherever your tool looks for skills, or copy the
 three directories — `skills/pre-launch`, `skills/launch-audit`, `skills/post-launch` — into that
 location **together**, preserving their relative layout. Nothing in the skills refers to an
 agent-specific path or variable, so there is nothing else to configure.
@@ -79,6 +93,89 @@ the date — audit `https://staging.example.com` on 14 September 2026 and you ge
 finishes, and `--out` overrides it. Paths in flags resolve against the working directory. Every
 script supports `--help` and `--json`.
 
+## How it works
+
+One launch, end to end, and where each skill sits in it:
+
+    your repo
+        |
+        v
+    pre-launch  --- exit 1 --->  fix, re-run
+    (the gate)                   until it exits 0
+        |
+        v
+    deploy to staging  -->  staging url
+                                |
+                                v
+                          launch-audit  -->  bundle: report.md, findings.json,
+                          (the auditor, plus            baseline.json, redirects.csv
+                           the optional browser tier)
+                                |
+                                v
+                          cutover: DNS moves
+                                |
+                                v
+                          post-launch --mode cutover
+                          (21 cutover checks, plus a diff of
+                           production against baseline.json)
+                                |
+                                v
+                          post-launch --mode watch --day 1 .. 30
+
+The engine underneath is small, and it is the same engine in all three phases. One crawl builds a
+**context** — the pages, the robots rules, the sitemaps, the DNS, certificate and header probes —
+and nothing after that touches the network. The ~235 **pure checks** read that context and return
+findings; a check is a function of the context and nothing else, which is why every one of them can
+be proved in both directions by a fixture. Each finding carries **evidence** — a url, a status
+code, a header value, a `file:line` — and one without it fails validation instead of being printed.
+A **report renderer** groups the findings by dimension and by severity, and always ends with `Not
+covered`. The audit also writes a **baseline**, which is what lets `post-launch` diff production
+against staging on cutover day rather than only re-running the same checks.
+
+The audit's 14 dimensions: inventory, indexability, host, head, links, images, forms, a11y, perf,
+analytics, content, redirects, ops, browser.
+
+## What a report looks like
+
+An excerpt from a real `report.md`, produced by running `launch-audit` against a **recorded
+fixture** — `test/fixtures/recorded/small-site.json`, this repository's own test data, describing a
+site that does not exist — through the `WEBSITE_LAUNCH_RECORDED_FIXTURE` hook, so the numbers below
+are reproducible:
+
+    # Launch launch-audit report — https://small.test/
+
+    | Pages | Blockers | High | Medium | Low | Info |
+    | --- | --- | --- | --- | --- | --- |
+    | 14 | 0 | 16 | 146 | 53 | 37 |
+
+    ## head
+
+    ### [high] The page declares no viewport
+
+    - Page: https://small.test/
+    - Detail: There is no viewport meta, so a phone lays the page out at desktop width and zooms out to fit. Text arrives too small to read however responsive the CSS is.
+    - Evidence:
+      - url: https://small.test/
+      - html: <meta name="viewport"> absent
+    - Fix: Add <meta name="viewport" content="width=device-width, initial-scale=1">.
+
+    ## Not covered
+
+    - Dropped by robots: 1 url not fetched — all listed in crawl.json under "dropped"; first 20: https://small.test/private
+    - Browser tier not run: --browser off
+    - PageSpeed Insights: skipped — no --psi-key
+    - Copy vs. source documents: not run (no source of truth reachable)
+    - Pages vs. agreed scope: not run (no scope source reachable)
+
+## Why "Not covered" matters
+
+A report that lists only what it found reads the same whether it looked at everything or at one
+page, so every run ends by naming what it did not do: the caps that fired, the checks that were
+skipped and why, the inputs nobody supplied, and any check that crashed. It is not a footnote and
+it is never a pass — a clean report over a narrow scope is a narrow report, and the reader can only
+tell which one they are holding if the scope is stated. An agent summarising a run to a person
+repeats that section verbatim: unedited, uncompressed, and not filed under minor.
+
 ## Requirements
 
 **Node 20 or newer. Zero dependencies** for everything above.
@@ -86,10 +183,10 @@ script supports `--help` and `--json`.
 An optional **browser tier** adds screenshots, axe accessibility scanning, Lighthouse performance
 scoring, and proof that analytics actually fires on a rendered page — 12 of the 176 audit checks
 and one of the 21 post-launch ones, plus the rendered-page evidence behind several others. Install
-it **inside the cloned `website-launch-skill` checkout**, not inside the site being audited: the
+it **inside the cloned `website-launch-skills` checkout**, not inside the site being audited: the
 scripts resolve these modules from their own path, so an install anywhere else is invisible to them.
 
-    cd website-launch-skill
+    cd website-launch-skills
     npm i --no-save playwright axe-core lighthouse && npx playwright install chromium
 
 `--no-save` keeps `package.json` untouched, which is the point — this repository declares zero

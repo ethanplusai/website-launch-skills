@@ -1,5 +1,5 @@
 {
-  "name": "website-launch-skill",
+  "name": "website-launch-skills",
   "owner": { "name": "Ethan Rogers" },
   "metadata": {
     "description": "Three read-only Agent Skills that carry a website from built to launched and verified.",

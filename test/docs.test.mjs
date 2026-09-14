@@ -50,7 +50,7 @@ test('AGENTS.md names all three skills', () => {
 
 test('the marketplace manifest parses and lists exactly the three skills', () => {
   const manifest = JSON.parse(read('.claude-plugin/marketplace.json'))
-  assert.equal(manifest.name, 'website-launch-skill')
+  assert.equal(manifest.name, 'website-launch-skills')
   assert.equal(manifest.plugins.length, 1)
   const skills = manifest.plugins[0].skills
   assert.deepEqual(skills, ['./skills/pre-launch', './skills/launch-audit', './skills/post-launch'])

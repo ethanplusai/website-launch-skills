@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { tmpDir } from './helpers.mjs'
 import { createBrowser, NAV_COLLAPSED } from '../skills/launch-audit/scripts/lib/browser.mjs'
 
-const WHERE = 'in the website-launch-skill checkout, not the audited site'
+const WHERE = 'in the website-launch-skills checkout, not the audited site'
 const PLAYWRIGHT_MISSING = `Playwright not installed. Optional, ${WHERE}: npm i --no-save playwright && npx playwright install chromium`
 const AXE_MISSING = `axe-core not installed. Optional, ${WHERE}: npm i --no-save axe-core`
 const LIGHTHOUSE_MISSING = `lighthouse not installed. Optional, ${WHERE}: npm i --no-save lighthouse`

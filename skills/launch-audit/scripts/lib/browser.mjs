@@ -39,7 +39,7 @@ export const DEFAULT_WIDTHS = { desktop: 1440, tablet: 768, mobile: 390 }
 const VIEWPORT_HEIGHTS = { desktop: 900, tablet: 1024, mobile: 844 }
 
 export const OFF_REASON = '--browser off'
-const WHERE = 'in the website-launch-skill checkout, not the audited site'
+const WHERE = 'in the website-launch-skills checkout, not the audited site'
 export const PLAYWRIGHT_MISSING = `Playwright not installed. Optional, ${WHERE}: npm i --no-save playwright && npx playwright install chromium`
 export const AXE_MISSING = `axe-core not installed. Optional, ${WHERE}: npm i --no-save axe-core`
 export const LIGHTHOUSE_MISSING = `lighthouse not installed. Optional, ${WHERE}: npm i --no-save lighthouse`

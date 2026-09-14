@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createNet } from '../skills/launch-audit/scripts/lib/net.mjs'
+import { createNet, USER_AGENT } from '../skills/launch-audit/scripts/lib/net.mjs'
 
 function fakeFetch(routes) {
   return async (url, opts) => {
@@ -52,9 +52,16 @@ test('cert reports days left and SAN coverage via injected tls', async () => {
   const net = createNet({ tlsConnect: fakeTls })
   const c = await net.cert('a.test'); assert.equal(c.valid, true); assert.deepEqual(c.altNames, ['a.test', 'www.a.test']); assert.ok(c.daysLeft > 300)
 })
+// The user agent is the one string a site owner sees in their logs, and it is how they find the
+// project that fetched them. It names the repository, so it has to name the repository that
+// exists — a rename that leaves this behind points every log reader at a 404.
+test('the user agent names the tool, its version and the repository it comes from', () => {
+  assert.equal(USER_AGENT, 'website-launch-skills/0.1 (+https://github.com/ethanplusai/website-launch-skills)')
+})
+
 test('headers are lowercased and the user agent is sent', async () => {
   let seenUa; const net = createNet({ fetchImpl: async (u, o) => { seenUa = o.headers['user-agent']; return new Response('', { status: 200, headers: { 'X-Robots-Tag': 'noindex' } }) } })
-  const r = await net.get('https://u.test/'); assert.equal(r.headers['x-robots-tag'], 'noindex'); assert.match(seenUa, /website-launch-skill/)
+  const r = await net.get('https://u.test/'); assert.equal(r.headers['x-robots-tag'], 'noindex'); assert.match(seenUa, /website-launch-skills/)
 })
 
 // Ruling 1: non-text content types return bodyBytes (Uint8Array), body: null
