@@ -56,7 +56,7 @@ first.
 | 2. Transport | `cutover.https-cert-host` · `cutover.http-redirect` · `cutover.canonical-host` |
 | 3. Noindex | `cutover.noindex-live` |
 | 4. Robots & sitemap | `cutover.robots-live` · `cutover.sitemap-live` · `cutover.sitemap-references-staging` |
-| 5. Redirects | `cutover.redirect-drift` |
+| 5. Redirects | `cutover.redirect-drift` · `cutover.redirect-unverified` |
 | 6. Baseline | `cutover.baseline-missing-page` · `cutover.baseline-changed` · `cutover.baseline-new-redirect` |
 | 7. Analytics | `cutover.analytics-missing` · `cutover.analytics-not-firing` |
 | 8. Forms | `cutover.form-endpoint-down` |
@@ -82,10 +82,14 @@ What lands there:
   url was re-requested. No `--staging-url`, so nothing confirmed the staging copy is sealed. No
   `--old-url`, no `--expect-dns`. Each is a named line, not a silence.
 - **Rows the redirect map could not promise anything about** — the ones the audit recorded as
-  `error` or `unknown`.
+  `error` or `unknown`. (A row that *was* verifiable and simply did not answer is a finding instead,
+  `cutover.redirect-unverified`.)
+- **Public resolvers that could not be reached**, with how many of the four and which.
 - **Caps.** A probe set that stopped at its limit, with the count and the cap.
 - **The browser tier**, when Playwright is not installed, which is what makes
   `cutover.analytics-not-firing` unanswerable.
+- **A TLS certificate that was never read**, which is what makes `cutover.https-cert-host`
+  unanswerable. A certificate nobody looked at must never read like one that checked out.
 - **Crashes.** A check that threw costs that check and says so by name. A finding that failed
   validation is dropped and says so. A report that is quietly short one check is worse than one that
   admits the gap.

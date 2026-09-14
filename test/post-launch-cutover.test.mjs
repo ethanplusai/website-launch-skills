@@ -95,6 +95,60 @@ test('cutover.dns-unexpected is silent when every resolver matches, and when not
   assert.equal(has(noExpectation.findings, 'cutover.dns-unexpected'), false)
 })
 
+test('cutover.dns-unexpected tolerates the extra records a CNAME host really answers with', async () => {
+  // A host on a CNAME answers with the CNAME *and* the A records behind it. `--expect-dns
+  // www=cname.host` names one of those, and exact set equality would call the correct
+  // configuration wrong.
+  const realistic = {
+    'new.test': PROPAGATED['new.test'],
+    'www.new.test': [
+      { resolver: '8.8.8.8', a: ['203.0.113.10'], aaaa: ['2001:db8::1'], cname: 'new.test', error: null },
+      { resolver: '1.1.1.1', a: ['203.0.113.10'], aaaa: [], cname: 'new.test.', error: null },
+    ],
+  }
+  const { findings } = await cutoverFindings(GOOD, { ...FULL, across: realistic })
+  assert.equal(has(findings, 'cutover.dns-unexpected'), false, 'a correct CNAME configuration was called wrong')
+})
+
+test('cutover.dns-unexpected still fires when an expected value is genuinely absent', async () => {
+  const missing = {
+    'new.test': [{ resolver: '8.8.8.8', a: ['198.51.100.7'], aaaa: [], cname: null, error: null }],
+    'www.new.test': [{ resolver: '8.8.8.8', a: ['198.51.100.7'], aaaa: [], cname: 'old.test', error: null }],
+  }
+  const { findings } = await cutoverFindings(GOOD, { ...FULL, across: missing })
+  const wrong = of(findings, 'cutover.dns-unexpected')
+  assert.equal(wrong.length, 2, 'both the apex and the www host are pointing at the wrong place')
+  assert.match(allEvidence(wrong), /198\.51\.100\.7/)
+})
+
+// --- item 2: a resolver nobody could reach knows nothing
+
+test('a resolver that could not be reached is a coverage gap, not a wrong answer', async () => {
+  const halfReachable = {
+    'new.test': [
+      { resolver: '8.8.8.8', a: ['203.0.113.10'], aaaa: [], cname: null, error: null },
+      { resolver: '1.1.1.1', a: ['203.0.113.10'], aaaa: [], cname: null, error: null },
+      { resolver: '9.9.9.9', a: [], aaaa: [], cname: null, error: 'ETIMEOUT' },
+      { resolver: '208.67.222.222', a: [], aaaa: [], cname: null, error: 'ETIMEOUT' },
+    ],
+    'www.new.test': PROPAGATED['www.new.test'],
+  }
+  const { findings, notCovered } = await cutoverFindings(GOOD, { ...FULL, across: halfReachable })
+  assert.equal(has(findings, 'cutover.dns-unexpected'), false, 'an unreachable resolver is not a wrong answer')
+  const [propagation] = of(findings, 'cutover.dns-propagation')
+  assert.equal(propagation.severity, 'info', 'two converged resolvers plus two silent ones is not a disagreement')
+  const gap = notCovered.find((line) => line.startsWith('DNS: '))
+  assert.ok(gap, `no DNS gap line in:\n${notCovered.join('\n')}`)
+  assert.match(gap, /2 of 4 public resolvers could not be reached/)
+  assert.match(gap, /9\.9\.9\.9/)
+  assert.match(gap, /208\.67\.222\.222/)
+})
+
+test('no DNS gap line is written when every resolver answered', async () => {
+  const { notCovered } = await good()
+  assert.equal(notCovered.some((line) => line.startsWith('DNS: ')), false, `an unearned gap line in:\n${notCovered.join('\n')}`)
+})
+
 test('cutover.dns-propagation lists every resolver and stays info while they agree', async () => {
   const { findings } = await good()
   const [finding] = of(findings, 'cutover.dns-propagation')
@@ -152,6 +206,23 @@ test('cutover.https-cert-host is silent on a certificate that covers apex and ww
   assert.equal(has(findings, 'cutover.https-cert-host'), false)
 })
 
+test('a certificate nobody read is a Not covered line, never a silence', async () => {
+  const { findings, notCovered } = await cutoverFindings(GOOD, { ...FULL, cert: null })
+  assert.equal(has(findings, 'cutover.https-cert-host'), false, 'an unread certificate is not a finding')
+  const gap = notCovered.find((line) => line.startsWith('TLS certificate: not read'))
+  assert.ok(gap, `no certificate gap line in:\n${notCovered.join('\n')}`)
+  assert.match(gap, /new\.test/)
+
+  const noNames = await cutoverFindings(GOOD, {
+    ...FULL,
+    cert: { valid: true, subject: null, altNames: [], issuer: 'Test CA', validFrom: null, validTo: null, daysLeft: 200, error: null },
+  })
+  assert.ok(noNames.notCovered.some((line) => line.startsWith('TLS certificate: not read')))
+
+  const { notCovered: clean } = await good()
+  assert.equal(clean.some((line) => line.startsWith('TLS certificate')), false, 'a certificate that was read needs no gap line')
+})
+
 test('cutover.http-redirect fires when http serves the site instead of redirecting', async () => {
   const { findings } = await bad()
   assert.ok(has(findings, 'cutover.http-redirect'))
@@ -176,7 +247,7 @@ test('cutover.canonical-host is silent when one host redirects to the other', as
 
 // -------------------------------------------------------------------------------- indexability
 
-test('cutover.noindex-live is a blocker naming the meta tag, the header and the robots rule', async () => {
+test('cutover.noindex-live is a blocker naming the meta tag and the header', async () => {
   const { findings } = await bad()
   const [finding] = of(findings, 'cutover.noindex-live')
   assert.ok(finding, 'a live noindex was not reported')
@@ -184,6 +255,23 @@ test('cutover.noindex-live is a blocker naming the meta tag, the header and the 
   const evidence = evidenceText(finding)
   assert.match(evidence, /noindex/)
   assert.match(evidence, /x-robots-tag/)
+})
+
+test('cutover.noindex-live fires on a blanket robots.txt Disallow with no meta tag anywhere', async () => {
+  const { findings } = await cutoverFindings(GOOD, {
+    ...FULL,
+    records: {
+      'https://new.test/robots.txt': {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+        body: 'User-agent: *\nDisallow: /\n',
+      },
+    },
+  })
+  const [finding] = of(findings, 'cutover.noindex-live')
+  assert.ok(finding, 'a blanket Disallow was not reported')
+  assert.equal(finding.severity, 'blocker')
+  assert.match(evidenceText(finding), /Disallow: \//)
 })
 
 test('cutover.noindex-live is silent on a production site that is indexable', async () => {
@@ -244,9 +332,65 @@ test('cutover.redirect-drift fires on a same-path row that now answers 404', asy
   assert.match(allEvidence(of(findings, 'cutover.redirect-drift')), /https:\/\/old\.test\/thanks/)
 })
 
-test('cutover.redirect-drift is silent when every row still 301s in one hop to its target', async () => {
+test('cutover.redirect-drift fires on a 301 that now takes two hops to arrive', async () => {
+  const { findings } = await cutoverFindings(GOOD, {
+    ...FULL,
+    records: {
+      'https://old.test/about-us': {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+        body: '<!doctype html><html lang="en"><head><title>About</title></head><body><h1>About</h1></body></html>',
+        finalUrl: 'https://new.test/about',
+        chain: [
+          { url: 'https://old.test/about-us', status: 301, location: 'https://new.test/about-us' },
+          { url: 'https://new.test/about-us', status: 301, location: 'https://new.test/about' },
+        ],
+      },
+    },
+  })
+  const drift = of(findings, 'cutover.redirect-drift')
+  assert.equal(drift.length, 1)
+  assert.match(evidenceText(drift[0]), /2 hops/)
+})
+
+test('cutover.redirect-drift is silent on a single 308, and on every row still 301ing in one hop', async () => {
+  const { findings } = await cutoverFindings(GOOD, {
+    ...FULL,
+    records: {
+      'https://old.test/about-us': {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+        body: '<!doctype html><html lang="en"><head><title>About</title></head><body><h1>About</h1></body></html>',
+        finalUrl: 'https://new.test/about',
+        chain: [{ url: 'https://old.test/about-us', status: 308, location: 'https://new.test/about' }],
+      },
+    },
+  })
+  assert.equal(has(findings, 'cutover.redirect-drift'), false, '308 is a permanent redirect too')
+  const { findings: clean } = await good()
+  assert.equal(has(clean, 'cutover.redirect-drift'), false)
+})
+
+test('cutover.redirect-unverified reports a row that answered nothing, and drift does not claim it', async () => {
+  const { findings } = await cutoverFindings(GOOD, {
+    ...FULL,
+    records: {
+      'https://old.test/about-us': { status: 0, error: 'ENOTFOUND', headers: {}, body: null },
+    },
+  })
+  const unverified = of(findings, 'cutover.redirect-unverified')
+  assert.equal(unverified.length, 1)
+  assert.equal(unverified[0].severity, 'medium')
+  assert.match(evidenceText(unverified[0]), /ENOTFOUND/)
+  assert.match(evidenceText(unverified[0]), /https:\/\/old\.test\/about-us/)
+  assert.equal(has(findings, 'cutover.redirect-drift'), false, 'a url that answered nothing has not been shown to have drifted')
+})
+
+test('cutover.redirect-unverified is silent when every row answered', async () => {
   const { findings } = await good()
-  assert.equal(has(findings, 'cutover.redirect-drift'), false)
+  assert.equal(has(findings, 'cutover.redirect-unverified'), false)
+  const { findings: bad } = await cutoverFindings(BAD, FULL)
+  assert.equal(has(bad, 'cutover.redirect-unverified'), false, 'a 302 and a 404 are answers, not silence')
 })
 
 test('the redirect rows are re-requested as they were written, capped and recorded', async () => {
@@ -363,6 +507,16 @@ test('cutover.form-endpoint-down is silent when every form endpoint answers', as
   assert.equal(has(findings, 'cutover.form-endpoint-down'), false)
 })
 
+test('cutover.form-endpoint-down treats 405 as healthy, because a POST-only endpoint refuses GET', async () => {
+  const { findings } = await cutoverFindings(BAD, {
+    ...FULL,
+    records: {
+      'https://new.test/subscribe': { status: 405, headers: { allow: 'POST' }, body: 'Method Not Allowed' },
+    },
+  })
+  assert.equal(has(findings, 'cutover.form-endpoint-down'), false, '405 is what a form endpoint should say to a GET')
+})
+
 // ------------------------------------------------------------------------- staging and old host
 
 test('cutover.staging-still-indexable fires when the staging copy is a live indexable page', async () => {
@@ -374,6 +528,22 @@ test('cutover.staging-still-indexable fires when the staging copy is a live inde
 test('cutover.staging-still-indexable is silent on a staging host that is gone', async () => {
   const { findings } = await good()
   assert.equal(has(findings, 'cutover.staging-still-indexable'), false)
+})
+
+test('cutover.staging-still-indexable is silent when staging redirects to production', async () => {
+  const { findings } = await cutoverFindings(BAD, {
+    ...FULL,
+    records: {
+      'https://staging.new.test/': {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+        body: '<!doctype html><html lang="en"><head><title>New Test</title></head><body><h1>New Test</h1></body></html>',
+        finalUrl: 'https://new.test/',
+        chain: [{ url: 'https://staging.new.test/', status: 301, location: 'https://new.test/' }],
+      },
+    },
+  })
+  assert.equal(has(findings, 'cutover.staging-still-indexable'), false, 'a staging host that redirects to production is sealed')
 })
 
 test('cutover.old-host-serving-content fires when the old site is still answering with its own pages', async () => {

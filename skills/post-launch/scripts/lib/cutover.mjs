@@ -316,6 +316,23 @@ export function cutoverRegistry(extraModules = []) {
   return registry
 }
 
+// Unwraps whichever of the two return shapes a check used — the same pair pre-launch's gate runner
+// accepts, and for the same reason. A check that looked and found nothing returns `Finding[]`. A
+// check that could not look at all returns `{findings, notCovered}`, and those lines go straight
+// into the report's Not covered section: "the certificate was never read" and "the certificate is
+// fine" are different answers, and only the first one has somewhere honest to go.
+// `null` means the check returned neither, which is a bug in the check.
+function unwrap(produced) {
+  if (Array.isArray(produced)) return { findings: produced, notCovered: [] }
+  if (produced !== null && typeof produced === 'object' && Array.isArray(produced.findings)) {
+    const notCovered = Array.isArray(produced.notCovered)
+      ? produced.notCovered.filter((line) => typeof line === 'string' && line !== '')
+      : []
+    return { findings: produced.findings, notCovered }
+  }
+  return null
+}
+
 // Runs every check in `registry` over `ctx`. A check that throws costs that check and says so; a
 // finding that fails validation is dropped and says so. Same contract as the auditor, for the same
 // reason: a report that is quietly short one check is worse than one that names the gap.
@@ -333,11 +350,13 @@ export async function runChecksOver(ctx, registry) {
       else lines.push(`${check.id}: check crashed — ${messageOf(error)}`)
       continue
     }
-    if (!Array.isArray(produced)) {
-      lines.push(`${check.id}: check crashed — run() did not return an array`)
+    const unwrapped = unwrap(produced)
+    if (unwrapped === null) {
+      lines.push(`${check.id}: check crashed — run() returned neither an array of findings nor { findings, notCovered }`)
       continue
     }
-    for (const candidate of produced) {
+    lines.push(...unwrapped.notCovered)
+    for (const candidate of unwrapped.findings) {
       const { ok, errors } = validateFinding(candidate, knownIds)
       if (!ok) {
         lines.push(`${check.id}: finding dropped as invalid — ${errors.join('; ')}`)

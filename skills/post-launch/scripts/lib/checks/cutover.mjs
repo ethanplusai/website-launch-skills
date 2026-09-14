@@ -125,6 +125,21 @@ const answerSet = (answer) => [...answer.a, ...answer.aaaa, ...(answer.cname ===
   .map(normalizeValue).sort()
 const signature = (answer) => answerSet(answer).join(' ')
 
+// A resolver that could not be reached knows nothing, and knowing nothing is not the same as
+// answering wrongly. An errored row is excluded from both "does this match what was expected" and
+// "do the resolvers agree with each other", and the count of them is reported in Not covered
+// instead — otherwise a firewalled resolver would read as a failed cutover.
+const answered = (answers) => answers.filter((answer) => answer.error === null)
+
+// Does this resolver's answer contain everything that was expected? Containment, not equality: a
+// host on a CNAME answers with the CNAME *and* the A records it resolves to, so a correct
+// `www=cname.host` configuration has strictly more in it than was asked for. Extra answers are how
+// DNS works; a missing expected value is the finding.
+const carries = (answer, expected) => {
+  const set = answerSet(answer)
+  return expected.every((value) => set.includes(value))
+}
+
 // The apex and www hosts this run resolved, paired with the `--expect-dns` key that names each.
 const dnsTargets = (ctx) => [
   { key: 'apex', host: ctx.target.apex },
@@ -144,14 +159,13 @@ export const dnsUnexpected = define({
     for (const { key, host } of dnsTargets(ctx)) {
       const expected = (ctx.expectDns[key] ?? []).map(normalizeValue).filter((v) => v !== '')
       if (expected.length === 0) continue
-      const answers = ctx.dnsAcross[host] ?? []
+      const answers = answered(ctx.dnsAcross[host] ?? [])
       if (answers.length === 0) continue
-      const wanted = [...expected].sort().join(' ')
-      const wrong = answers.filter((answer) => signature(answer) !== wanted)
+      const wrong = answers.filter((answer) => !carries(answer, expected))
       if (wrong.length === 0) continue
       out.push(emit(dnsUnexpected, {
         page: `https://${host}/`,
-        detail: `${wrong.length} of the ${answers.length} public resolvers asked answer ${host} with something other than ${expected.join(', ')}. Until every resolver agrees, some share of visitors is still being sent to the old host — and everything else in this report describes whichever host answered here, not necessarily the one they reach.`,
+        detail: `${wrong.length} of the ${answers.length} public resolvers that answered for ${host} do not carry ${expected.join(', ')}. Until every resolver has it, some share of visitors is still being sent to the old host — and everything else in this report describes whichever host answered here, not necessarily the one they reach.`,
         evidence: [
           text(`expected ${key}: ${expected.join(', ')}`),
           ...wrong.slice(0, EVIDENCE_LIMIT).map((answer) => dnsEvidence(`${answer.resolver} → ${describeAnswer(answer)}`)),
@@ -172,15 +186,30 @@ export const dnsPropagation = define({
     if (ctx.dnsAcross === null) return []
     const lines = []
     const disagreeing = []
+    // Resolvers that could not be reached at all, deduped across the hosts asked: one firewalled
+    // resolver is one gap in the sample, not one gap per host.
+    const unreachable = new Map()
     for (const { host } of dnsTargets(ctx)) {
       const answers = ctx.dnsAcross[host] ?? []
       if (answers.length === 0) continue
-      for (const answer of answers) lines.push(dnsEvidence(`${host} @ ${answer.resolver} → ${describeAnswer(answer)}`))
-      if (new Set(answers.map(signature)).size > 1) disagreeing.push(host)
+      for (const answer of answers) {
+        lines.push(dnsEvidence(`${host} @ ${answer.resolver} → ${describeAnswer(answer)}`))
+        if (answer.error !== null) unreachable.set(answer.resolver, answer.error)
+      }
+      // Only the resolvers that actually answered can disagree with each other.
+      const replied = answered(answers)
+      if (new Set(replied.map(signature)).size > 1) disagreeing.push(host)
     }
-    if (lines.length === 0) return []
+    if (lines.length === 0) return { findings: [], notCovered: [] }
+
+    const asked = new Set()
+    for (const { host } of dnsTargets(ctx)) for (const answer of ctx.dnsAcross[host] ?? []) asked.add(answer.resolver)
+    const notCovered = unreachable.size === 0 ? [] : [
+      `DNS: ${unreachable.size} of ${asked.size} public resolvers could not be reached (${[...unreachable].map(([ip, error]) => `${ip}: ${error}`).join(', ')})`,
+    ]
+
     const split = disagreeing.length > 0
-    return [emit(dnsPropagation, {
+    return { notCovered, findings: [emit(dnsPropagation, {
       severity: split ? 'high' : 'info',
       page: ctx.target.url,
       title: split ? 'Public resolvers still disagree about where this site is' : 'What each public resolver currently answers',
@@ -191,7 +220,7 @@ export const dnsPropagation = define({
       fix: split
         ? 'Wait out the TTL that was in place before the change, and keep the old host serving until the answers converge.'
         : 'Nothing to do. Keep the old host up anyway until Search Console stops crawling its urls.',
-    })]
+    })] }
   },
 })
 
@@ -203,8 +232,15 @@ export const httpsCertHost = define({
   title: 'The certificate served does not cover the live host',
   catches: 'A certificate that did not validate, or that was issued before the host moved and never covered it — every visitor gets an interstitial warning.',
   run(ctx) {
-    if (!ctx.cert) return []
     const at = `https://${ctx.target.host}/`
+    // A run with no certificate reader saw no certificate. Saying nothing here would read exactly
+    // like a certificate that checked out, which is the one thing it must not read like.
+    if (!ctx.cert) {
+      return {
+        findings: [],
+        notCovered: [`TLS certificate: not read — nothing confirmed the certificate served on ${ctx.target.host} covers it`],
+      }
+    }
     if (ctx.cert.valid !== true) {
       return [emit(httpsCertHost, {
         page: at,
@@ -214,7 +250,12 @@ export const httpsCertHost = define({
       })]
     }
     const names = (ctx.cert.altNames ?? []).map((name) => String(name).toLowerCase())
-    if (names.length === 0) return []
+    if (names.length === 0) {
+      return {
+        findings: [],
+        notCovered: [`TLS certificate: not read — the certificate for ${ctx.target.host} reported no subject alternative names, so nothing confirmed which hosts it covers`],
+      }
+    }
     const covers = (host) => names.some((candidate) => {
       if (candidate === host) return true
       if (!candidate.startsWith('*.')) return false
@@ -472,6 +513,10 @@ export const redirectDrift = define({
       const response = ctx.cutoverRedirects.get(row.old_url)
       const drift = redirectDriftOf(row, response)
       if (drift === null) continue
+      // A url that answered nothing at all has not been shown to have drifted — it has not been
+      // shown to do anything. That is redirect-unverified's finding, and calling it drift here
+      // would send somebody off to rewrite a redirect rule that may be perfectly correct.
+      if (drift.kind === 'no-answer') continue
       const chain = response.chain ?? []
       out.push(emit(redirectDrift, {
         page: row.old_url,
@@ -487,6 +532,34 @@ export const redirectDrift = define({
           text(`redirects.csv line ${row.line}: ${row.status_on_new} → ${row.final_url}`),
         ],
         fix: `Make ${row.old_url} answer a single 301 (or 308) to ${row.final_url}. One hop, permanent, at the edge — not a chain, not a 302, not a catch-all to the homepage.`,
+      }))
+    }
+    return out
+  },
+})
+
+export const redirectUnverified = define({
+  id: 'cutover.redirect-unverified',
+  severity: 'medium',
+  title: 'A redirect row could not be checked at all',
+  catches: 'An old url that answered nothing when it was re-requested — a DNS failure, a timeout, a refused connection. Unknown, not broken.',
+  run(ctx) {
+    if (ctx.redirectRows === null) return []
+    const out = []
+    for (const row of ctx.redirectRows) {
+      if (!VERIFIABLE.has(row.status_on_new)) continue
+      const response = ctx.cutoverRedirects.get(row.old_url)
+      const drift = redirectDriftOf(row, response)
+      if (drift === null || drift.kind !== 'no-answer') continue
+      out.push(emit(redirectUnverified, {
+        page: row.old_url,
+        detail: `${row.old_url} did not answer when it was re-requested: ${drift.detail}. That is not the same as a redirect that drifted — nothing here has been shown to be wrong with it, and nothing has been shown to be right either. Mid-cutover the usual cause is that the old host's DNS has not settled yet; after that, it is a host that has already been switched off.`,
+        evidence: [
+          url(row.old_url),
+          text(drift.detail),
+          text(`redirects.csv line ${row.line}: ${row.status_on_new} → ${row.final_url}`),
+        ],
+        fix: 'Re-run this once DNS has settled. If the old host has already been decommissioned, that is the finding — the redirect map only works while something is still answering on it.',
       }))
     }
     return out
@@ -749,6 +822,7 @@ export const CUTOVER_ORDER = [
   'cutover.sitemap-live',
   'cutover.sitemap-references-staging',
   'cutover.redirect-drift',
+  'cutover.redirect-unverified',
   'cutover.baseline-missing-page',
   'cutover.baseline-changed',
   'cutover.baseline-new-redirect',
@@ -772,6 +846,7 @@ export const checks = [
   sitemapLive,
   sitemapReferencesStaging,
   redirectDrift,
+  redirectUnverified,
   baselineMissingPage,
   baselineChanged,
   baselineNewRedirect,

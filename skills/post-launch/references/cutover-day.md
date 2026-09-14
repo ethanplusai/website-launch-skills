@@ -25,9 +25,15 @@ agree, the rest of the report is provisional and should be read that way.
 bounded by the TTL that was in place *before* the change — which is why `pre-launch` asks for the
 TTL to be lowered 24 hours ahead. Re-run when they agree.
 
-**What "unexpected" means.** A resolver answering something that is not the record you named in
-`--expect-dns`. On a launch that moved to a new provider this is normal for an hour and alarming
-after a day.
+**What "unexpected" means.** A resolver whose answer does not *contain* the record you named in
+`--expect-dns`. Containment, not equality: a host on a CNAME answers with the CNAME and the A
+records behind it, so a correct `www=cname.host` has more in it than you asked for. On a launch that
+moved to a new provider an unexpected answer is normal for an hour and alarming after a day.
+
+**A resolver that could not be reached is neither.** It knows nothing, which is not the same as
+answering wrongly, so it is excluded from both the expectation check and the agreement check and
+named in **Not covered** with the count instead. A firewalled resolver must never read as a failed
+cutover.
 
 ---
 
@@ -79,16 +85,21 @@ sitemap only once this section is clean — submitting a staging sitemap is hard
 
 ## 5. Redirects — does every old url still land?
 
-**`cutover.redirect-drift`** (high)
+**`cutover.redirect-drift`** (high) · **`cutover.redirect-unverified`** (medium)
 
 Every row of `redirects.csv` is re-requested **at the url it was written with**, not rewritten onto
 the production origin. That is the real question: somebody has that url in a bookmark, a search
 result or another site's link, and after DNS moved it resolves somewhere new. What happens?
 
-A row passes when it answers a single permanent hop to the destination the audit recorded. It fails
-on a 302 or 307 (temporary: search engines keep the old url), on a chain (each hop is a round trip
-and crawlers give up), on landing somewhere else, and on rows the audit flagged before the launch
-that are still 404ing.
+A row passes when it answers a single permanent hop — 301 or 308 — to the destination the audit
+recorded. It fails on a 302 or 307 (temporary: search engines keep the old url), on a chain (each
+hop is a round trip and crawlers give up), on landing somewhere else, and on rows the audit flagged
+before the launch that are still 404ing.
+
+A row that answered **nothing at all** is a separate, quieter finding: `redirect-unverified`. It has
+not been shown to have drifted and it has not been shown to be right. Mid-cutover the usual cause is
+the old host's own DNS still settling; after that, it is a host somebody already switched off, which
+is its own problem — the redirect map only works while something is still answering on it.
 
 **Why here.** It needs DNS to have moved and it needs the site to be reachable, so it cannot come
 earlier. It comes before the baseline diff because a redirect that drifted usually explains several

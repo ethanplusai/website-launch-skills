@@ -238,8 +238,13 @@ async function runCli(argv, { cwd, now }) {
       errors.push(`--url is not a url: ${values.url}`)
     }
   }
-  if (values.day !== undefined && (!Number.isInteger(values.day) || values.day < 1 || values.day > WATCH_DAYS)) {
-    errors.push(`--day must be a whole number from 1 to ${WATCH_DAYS}`)
+  if (values.day !== undefined) {
+    if (!Number.isInteger(values.day) || values.day < 1 || values.day > WATCH_DAYS) {
+      errors.push(`--day must be a whole number from 1 to ${WATCH_DAYS}`)
+    }
+    // Cutover day is one day and it is today. Accepting --day there would look like it scoped the
+    // run to a day of the watch, and it would silently do nothing at all.
+    if (values.mode === 'cutover') errors.push('--day applies to --mode watch')
   }
 
   let expectDns = null

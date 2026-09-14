@@ -217,3 +217,43 @@ test('resolveAcross defaults to the four public resolvers', async () => {
 test('createDns() exposes resolveAcross with a node-backed resolver by default', async () => {
   assert.equal(typeof createDns().resolveAcross, 'function')
 })
+
+test('resolveAcross gives up on a resolver that never settles, and the others still answer', async () => {
+  const dns = createDns({
+    resolveAcrossDeadlineMs: 20,
+    makeResolver: async (ip) => {
+      if (ip === '9.9.9.9') return new Promise(() => {}) // never settles, not even to reject
+      return { resolve4: async () => ['203.0.113.10'], resolve6: async () => [], resolveCname: async () => [] }
+    },
+  })
+  const answers = await dns.resolveAcross('example.test', ['8.8.8.8', '9.9.9.9'])
+  assert.deepEqual(answers[0], { resolver: '8.8.8.8', a: ['203.0.113.10'], aaaa: [], cname: null, error: null })
+  assert.deepEqual(answers[1], { resolver: '9.9.9.9', a: [], aaaa: [], cname: null, error: 'timeout' })
+})
+
+test('resolveAcross gives up on a lookup that never settles, not only a resolver that never opens', async () => {
+  const dns = createDns({
+    resolveAcrossDeadlineMs: 20,
+    makeResolver: async () => ({
+      resolve4: () => new Promise(() => {}),
+      resolve6: async () => [],
+      resolveCname: async () => [],
+    }),
+  })
+  const [answer] = await dns.resolveAcross('example.test', ['8.8.8.8'])
+  assert.equal(answer.error, 'timeout')
+})
+
+test('resolveAcross reports a CNAME host the way a real resolver does: the CNAME and its A records', async () => {
+  const dns = createDns({
+    makeResolver: async () => ({
+      resolve4: async () => ['203.0.113.10'],
+      resolve6: async () => [],
+      resolveCname: async () => ['new.test'],
+    }),
+  })
+  const [answer] = await dns.resolveAcross('www.example.test', ['8.8.8.8'])
+  assert.deepEqual(answer.a, ['203.0.113.10'])
+  assert.equal(answer.cname, 'new.test')
+  assert.equal(answer.error, null)
+})

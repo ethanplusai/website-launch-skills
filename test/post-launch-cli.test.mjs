@@ -85,6 +85,28 @@ test('a missing --url is a usage error, exit 2', async () => {
   )
 })
 
+test('--day in cutover mode is a usage error, exit 2', async () => {
+  await assert.rejects(
+    run(process.execPath, [SCRIPT, '--mode', 'cutover', '--url', URL_UNDER_TEST, '--day', '3']),
+    (error) => {
+      assert.equal(error.code, 2)
+      assert.match(String(error.stderr), /--day applies to --mode watch/)
+      return true
+    },
+  )
+})
+
+test('--day out of range is a usage error in watch mode too', async () => {
+  await assert.rejects(
+    run(process.execPath, [SCRIPT, '--mode', 'watch', '--url', URL_UNDER_TEST, '--day', '31']),
+    (error) => {
+      assert.equal(error.code, 2)
+      assert.match(String(error.stderr), /--day must be a whole number from 1 to 30/)
+      return true
+    },
+  )
+})
+
 test('an --out that names an existing file exits 2 with one line, not a stack', async () => {
   const tmp = tmpDir('post-launch-bad-out')
   try {
@@ -112,6 +134,7 @@ test('cutover mode on a clean fixture prints the counts, the human items and the
     const { stdout } = await run(process.execPath, CUTOVER_ARGS(tmp.dir), { env: env(GOOD) })
     assert.match(stdout, /Bundle:/)
     assert.match(stdout, /blocker 0/)
+    assert.match(stdout, /high 0/, 'the clean fixture must stay clean end to end, CNAME records included')
     assert.match(stdout, /Before you announce/)
     assert.match(stdout, /Search Console/)
     assert.match(stdout, /Not covered:/)

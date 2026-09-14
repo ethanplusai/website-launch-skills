@@ -21,15 +21,17 @@ export const PRODUCTION = 'https://new.test/'
 export const BASELINE_BEFORE = join(REPO_ROOT, 'test', 'fixtures', 'cutover', 'baseline-before.json')
 export const REDIRECTS_BEFORE = join(REPO_ROOT, 'test', 'fixtures', 'cutover', 'redirects-before.csv')
 
-// The answers a fully propagated cutover gets back from all four public resolvers.
+// The answers a fully propagated cutover gets back from the public resolvers. `www` carries the
+// realistic shape for a CNAME'd host: the CNAME *and* the A records it resolves to, which is what
+// a real resolver returns and what `--expect-dns www=cname.host` has to tolerate.
 export const PROPAGATED = {
   'new.test': [
     { resolver: '8.8.8.8', a: ['203.0.113.10'], aaaa: [], cname: null, error: null },
     { resolver: '1.1.1.1', a: ['203.0.113.10'], aaaa: [], cname: null, error: null },
   ],
   'www.new.test': [
-    { resolver: '8.8.8.8', a: [], aaaa: [], cname: 'new.test', error: null },
-    { resolver: '1.1.1.1', a: [], aaaa: [], cname: 'new.test', error: null },
+    { resolver: '8.8.8.8', a: ['203.0.113.10'], aaaa: [], cname: 'new.test', error: null },
+    { resolver: '1.1.1.1', a: ['203.0.113.10'], aaaa: [], cname: 'new.test', error: null },
   ],
 }
 
@@ -57,19 +59,26 @@ export async function cutoverCtx(fixture, options = {}) {
   })
 }
 
-// Every cutover check, run over one context, in registration order.
+// Every cutover check, run over one context, in registration order. A check may return
+// `Finding[]` or `{findings, notCovered}` — the same pair the runner accepts — and both halves
+// come back, because "this check could not look" is an assertion the tests need to make.
 export async function cutoverFindings(fixture, options = {}) {
   const ctx = await cutoverCtx(fixture, options)
-  const out = []
+  const findings = []
+  const notCovered = []
   for (const check of cutoverChecks) {
     const produced = await check.run(ctx)
-    if (!Array.isArray(produced)) throw new Error(`${check.id}.run() must return an array`)
-    for (const finding of produced) {
+    const isPair = produced !== null && typeof produced === 'object' && !Array.isArray(produced) && Array.isArray(produced.findings)
+    if (!Array.isArray(produced) && !isPair) {
+      throw new Error(`${check.id}.run() must return an array or { findings, notCovered }`)
+    }
+    if (isPair) notCovered.push(...(produced.notCovered ?? []))
+    for (const finding of isPair ? produced.findings : produced) {
       if (finding.id !== check.id) throw new Error(`${check.id} produced ${finding.id}`)
-      out.push(finding)
+      findings.push(finding)
     }
   }
-  return { ctx, findings: out }
+  return { ctx, findings, notCovered }
 }
 
 export const has = (findings, id) => findings.some((f) => f.id === id)
