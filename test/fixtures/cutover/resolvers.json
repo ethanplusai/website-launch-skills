@@ -1,0 +1,18 @@
+{
+  "8.8.8.8": {
+    "new.test": { "a": ["203.0.113.10"], "aaaa": [], "cname": null },
+    "www.new.test": { "a": [], "aaaa": [], "cname": "new.test" }
+  },
+  "1.1.1.1": {
+    "new.test": { "a": ["203.0.113.10"], "aaaa": [], "cname": null },
+    "www.new.test": { "a": [], "aaaa": [], "cname": "new.test" }
+  },
+  "9.9.9.9": {
+    "new.test": { "a": ["203.0.113.10"], "aaaa": [], "cname": null },
+    "www.new.test": { "a": [], "aaaa": [], "cname": "new.test" }
+  },
+  "208.67.222.222": {
+    "new.test": { "a": ["203.0.113.10"], "aaaa": [], "cname": null },
+    "www.new.test": { "a": [], "aaaa": [], "cname": "new.test" }
+  }
+}

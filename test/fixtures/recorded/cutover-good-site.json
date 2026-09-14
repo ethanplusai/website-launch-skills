@@ -1,0 +1,203 @@
+{
+  "https://new.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>New Test — the site that replaced the old one</title>\n<meta name=\"description\" content=\"The new site, live and serving every url the old one did, on its own domain.\">\n<link rel=\"canonical\" href=\"https://new.test/\">\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-ABC123\"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-ABC123')</script>\n</head>\n<body>\n<header><nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/thanks\">Thanks</a></nav></header>\n<main>\n<h1>New Test</h1>\n<p>The new site is live. Everything you could reach before still resolves.</p>\n<form action=\"/thanks\" method=\"post\">\n<label for=\"email\">Email address</label>\n<input id=\"email\" name=\"email\" type=\"email\" required>\n<button type=\"submit\">Subscribe</button>\n</form>\n</main>\n<footer><p>Copyright 2026 New Test</p></footer>\n</body>\n</html>\n"
+  },
+  "https://new.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>About — New Test</title>\n<meta name=\"description\" content=\"Who we are, what we do, and how to reach a person about any of it.\">\n<link rel=\"canonical\" href=\"https://new.test/about\">\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-ABC123\"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-ABC123')</script>\n</head>\n<body>\n<header><nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/thanks\">Thanks</a></nav></header>\n<main>\n<h1>About New Test</h1>\n<p>We have been doing this since 2019.</p>\n</main>\n<footer><p>Copyright 2026 New Test</p></footer>\n</body>\n</html>\n"
+  },
+  "https://new.test/thanks": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Thank you — New Test</title>\n<meta name=\"description\" content=\"Your message reached a person, and somebody will answer it today.\">\n<link rel=\"canonical\" href=\"https://new.test/thanks\">\n<script async src=\"https://www.googletagmanager.com/gtag/js?id=G-ABC123\"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-ABC123')</script>\n</head>\n<body>\n<header><nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/thanks\">Thanks</a></nav></header>\n<main>\n<h1>Thank you</h1>\n<p>Your message reached a person.</p>\n</main>\n<footer><p>Copyright 2026 New Test</p></footer>\n</body>\n</html>\n"
+  },
+  "https://new.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n\nSitemap: https://new.test/sitemap.xml\n"
+  },
+  "https://new.test/sitemap.xml": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n<url><loc>https://new.test/</loc><lastmod>2026-09-10</lastmod></url>\n<url><loc>https://new.test/about</loc><lastmod>2026-09-10</lastmod></url>\n<url><loc>https://new.test/thanks</loc><lastmod>2026-09-10</lastmod></url>\n</urlset>\n"
+  },
+  "https://new.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"><title>Page not found — New Test</title><meta name=\"robots\" content=\"noindex\"></head>\n<body>\n<h1>We could not find that page</h1>\n<p>It may have moved. Try one of these instead.</p>\n<nav><a href=\"/\">Home</a> <a href=\"/thanks\">Thanks</a></nav>\n</body>\n</html>\n"
+  },
+  "https://new.test/llms.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "not found"
+  },
+  "http://new.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>New Test</title></head><body><h1>New Test</h1></body></html>",
+    "finalUrl": "https://new.test/",
+    "chain": [
+      {
+        "url": "http://new.test/",
+        "status": 301,
+        "location": "https://new.test/"
+      }
+    ]
+  },
+  "https://www.new.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>New Test</title></head><body><h1>New Test</h1></body></html>",
+    "finalUrl": "https://new.test/",
+    "chain": [
+      {
+        "url": "https://www.new.test/",
+        "status": 301,
+        "location": "https://new.test/"
+      }
+    ]
+  },
+  "https://staging.new.test/": {
+    "status": 410,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "Gone. This staging host was retired at launch."
+  },
+  "https://staging.new.test/robots.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "not found"
+  },
+  "https://old.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>New Test</title></head><body><h1>New Test</h1></body></html>",
+    "finalUrl": "https://new.test/",
+    "chain": [
+      {
+        "url": "https://old.test/",
+        "status": 301,
+        "location": "https://new.test/"
+      }
+    ]
+  },
+  "https://old.test/robots.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "not found"
+  },
+  "https://old.test/about-us": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>About — New Test</title></head><body><h1>About New Test</h1></body></html>",
+    "finalUrl": "https://new.test/about",
+    "chain": [
+      {
+        "url": "https://old.test/about-us",
+        "status": 301,
+        "location": "https://new.test/about"
+      }
+    ]
+  },
+  "https://old.test/thanks": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Thank you — New Test</title></head><body><h1>Thank you</h1></body></html>",
+    "finalUrl": "https://new.test/thanks",
+    "chain": [
+      {
+        "url": "https://old.test/thanks",
+        "status": 301,
+        "location": "https://new.test/thanks"
+      }
+    ]
+  }
+}

@@ -18,7 +18,7 @@ const MANIFEST_NAME = 'manifest.json'
 // escape a leading `#`/`-`/`*`/`>`/`|` (each starts a block construct only at the very start of a
 // line) and any run of backticks anywhere in the string (a backtick can open an inline code span
 // from the middle of a line, not just the start).
-function inline(v) {
+export function inline(v) {
   let s = String(v ?? '')
   s = s.replace(/\s+/g, ' ').trim()
   s = s.replace(/`+/g, (run) => '\\' + run)
@@ -145,6 +145,19 @@ export function renderReport({ phase, target, generatedAt, findings = [], notCov
   for (const line of notCovered) lines.push(`- ${inline(line)}`)
 
   return lines.join('\n') + '\n'
+}
+
+// buildNotCovered ends with two unconditional lines — copy vs. source and pages vs. scope — that
+// have to stay last, because they are the two things no crawl can ever see and a reader should
+// leave the section on them. Anything an orchestrator words itself goes in just above them.
+export function insertBeforeFixed(lines, extra) {
+  if (extra.length === 0) return lines
+  const at = lines.findIndex((line) => line.startsWith('Copy vs. source documents'))
+  // Appending instead would put orchestrator lines *after* the two things no crawl can ever see,
+  // which is the one ordering this section must never lose. If the fixed lines are gone, the
+  // report contract is broken upstream and the run should say so rather than paper over it.
+  if (at === -1) throw new Error('Not covered is missing its fixed trailing lines')
+  return [...lines.slice(0, at), ...extra, ...lines.slice(at)]
 }
 
 function projectCrawl(crawl) {

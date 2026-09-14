@@ -1,0 +1,172 @@
+{
+  "https://new.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()",
+      "x-robots-tag": "noindex, nofollow"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Welcome to my new site</title>\n<meta name=\"description\" content=\"The new site, live and serving every url the old one did, on its own domain.\">\n<link rel=\"canonical\" href=\"https://new.test/\">\n<meta name=\"robots\" content=\"noindex, nofollow\">\n\n</head>\n<body>\n<header><nav><a href=\"/\">Home</a> <a href=\"/thanks\">Thanks</a></nav></header>\n<main>\n<h1>New Test</h1>\n<p>The new site is live. Everything you could reach before still resolves.</p>\n<form action=\"/subscribe\" method=\"post\">\n<label for=\"email\">Email address</label>\n<input id=\"email\" name=\"email\" type=\"email\" required>\n<button type=\"submit\">Subscribe</button>\n</form>\n</main>\n<footer><p>Copyright 2026 New Test</p></footer>\n</body>\n</html>\n"
+  },
+  "https://new.test/thanks": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Thank you — New Test</title>\n<meta name=\"description\" content=\"Your message reached a person, and somebody will answer it today.\">\n<link rel=\"canonical\" href=\"https://new.test/thank-you\">\n\n</head>\n<body>\n<header><nav><a href=\"/\">Home</a> <a href=\"/thanks\">Thanks</a></nav></header>\n<main>\n<h1>Thank you</h1>\n<p>Your message reached a person.</p>\n</main>\n<footer><p>Copyright 2026 New Test</p></footer>\n</body>\n</html>\n",
+    "finalUrl": "https://new.test/thank-you",
+    "chain": [
+      {
+        "url": "https://new.test/thanks",
+        "status": 302,
+        "location": "https://new.test/thank-you"
+      }
+    ]
+  },
+  "https://new.test/about": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"><title>Page not found — New Test</title><meta name=\"robots\" content=\"noindex\"></head>\n<body>\n<h1>We could not find that page</h1>\n<p>It may have moved. Try one of these instead.</p>\n<nav><a href=\"/\">Home</a> <a href=\"/thanks\">Thanks</a></nav>\n</body>\n</html>\n"
+  },
+  "https://new.test/subscribe": {
+    "status": 500,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "Internal Server Error"
+  },
+  "https://new.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n\nSitemap: https://staging.new.test/sitemap.xml\n"
+  },
+  "https://new.test/sitemap.xml": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"><title>Page not found — New Test</title><meta name=\"robots\" content=\"noindex\"></head>\n<body>\n<h1>We could not find that page</h1>\n<p>It may have moved. Try one of these instead.</p>\n<nav><a href=\"/\">Home</a> <a href=\"/thanks\">Thanks</a></nav>\n</body>\n</html>\n"
+  },
+  "https://new.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"><title>Page not found — New Test</title><meta name=\"robots\" content=\"noindex\"></head>\n<body>\n<h1>We could not find that page</h1>\n<p>It may have moved. Try one of these instead.</p>\n<nav><a href=\"/\">Home</a> <a href=\"/thanks\">Thanks</a></nav>\n</body>\n</html>\n"
+  },
+  "https://new.test/llms.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "not found"
+  },
+  "http://new.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Welcome to my new site</title></head><body><h1>New Test</h1></body></html>"
+  },
+  "https://www.new.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Welcome to my new site</title></head><body><h1>New Test</h1></body></html>"
+  },
+  "https://staging.new.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Staging — New Test</title></head><body><h1>New Test</h1></body></html>"
+  },
+  "https://staging.new.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://old.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Old Test — still here</title></head><body><h1>Old Test</h1><p>The old site is still serving pages.</p></body></html>"
+  },
+  "https://old.test/robots.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "not found"
+  },
+  "https://old.test/about-us": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=300",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Old Test</title></head><body><h1>Old Test</h1></body></html>",
+    "finalUrl": "https://old.test/company",
+    "chain": [
+      {
+        "url": "https://old.test/about-us",
+        "status": 302,
+        "location": "https://old.test/company"
+      }
+    ]
+  },
+  "https://old.test/thanks": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"><title>Page not found — New Test</title><meta name=\"robots\" content=\"noindex\"></head>\n<body>\n<h1>We could not find that page</h1>\n<p>It may have moved. Try one of these instead.</p>\n<nav><a href=\"/\">Home</a> <a href=\"/thanks\">Thanks</a></nav>\n</body>\n</html>\n"
+  }
+}

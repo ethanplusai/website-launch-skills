@@ -1,0 +1,3 @@
+old_url,status_on_new,final_url,recommendation,confidence,new_status
+https://old.test/about-us,redirect-200,https://new.test/about,already redirects to https://new.test/about,,200
+https://old.test/thanks,same-path-200,https://new.test/thanks,no redirect needed — the same path serves a page on the new site,,200

@@ -42,7 +42,7 @@ import { recordedNetFromPath, offlineDnsResolvers } from './lib/recorded-net.mjs
 import { createRegistry, SkipCheck } from './lib/registry.mjs'
 import { validateFinding, sortFindings, SEVERITIES } from './lib/findings.mjs'
 import { buildAuditContext } from './lib/checks/_ctx.mjs'
-import { buildNotCovered, renderReport, writeBundle, resolveOutDir } from './lib/report.mjs'
+import { buildNotCovered, insertBeforeFixed, renderReport, writeBundle, resolveOutDir } from './lib/report.mjs'
 import { makeBaseline, diffBaseline } from './lib/baseline.mjs'
 import { detectAnalytics } from './lib/detect/analytics.mjs'
 import { slugify } from './lib/slug.mjs'
@@ -273,18 +273,9 @@ export function buildOps(findings, unanswered = new Set()) {
 
 // ------------------------------------------------------------------------------- "Not covered"
 
-// buildNotCovered ends with two unconditional lines — copy vs. source and pages vs. scope — that
-// have to stay last, because they are the two things no crawl can ever see and a reader should
-// leave the section on them. Anything this orchestrator words itself goes in just above them.
-export function insertBeforeFixed(lines, extra) {
-  if (extra.length === 0) return lines
-  const at = lines.findIndex((line) => line.startsWith('Copy vs. source documents'))
-  // Appending instead would put orchestrator lines *after* the two things no crawl can ever see,
-  // which is the one ordering this section must never lose. If the fixed lines are gone, the
-  // report contract is broken upstream and the run should say so rather than paper over it.
-  if (at === -1) throw new Error('Not covered is missing its fixed trailing lines')
-  return [...lines.slice(0, at), ...extra, ...lines.slice(at)]
-}
+// The ordering rule that keeps the two fixed trailing lines last lives in report.mjs, beside the
+// function that writes them; it is re-exported here because this orchestrator's tests own it.
+export { insertBeforeFixed }
 
 // One line per capped probe set that actually dropped something, plus the one cap that is a skip
 // rather than a truncation (an --old-url on the origin being audited).

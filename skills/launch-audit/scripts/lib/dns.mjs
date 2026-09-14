@@ -8,9 +8,26 @@
 // strings (one per 255-byte chunk); each record's chunks are concatenated before matching, which
 // is what a long SPF or DKIM record needs.
 
+// resolveAcross(host) is the one lookup that deliberately does not use the machine's own resolver.
+// On cutover day the question is not "where does this host point" but "where does it point *yet*",
+// and the only way to see propagation is to ask several public resolvers separately and compare
+// their answers. Each one is a fresh node:dns Resolver with its servers set to that ip; the whole
+// thing is injectable through `makeResolver` so tests can make two resolvers disagree without a
+// socket.
+
 import { resolveTxt as nodeResolveTxt, resolve4 as nodeResolve4, resolve6 as nodeResolve6, resolveCname as nodeResolveCname } from 'node:dns/promises'
 
 export const DKIM_SELECTORS = ['default', 'google', 'selector1', 'selector2', 'k1', 's1', 's2']
+
+// Google, Cloudflare, Quad9, OpenDNS — the four the spec names, in that order.
+export const PUBLIC_RESOLVERS = ['8.8.8.8', '1.1.1.1', '9.9.9.9', '208.67.222.222']
+
+async function nodeResolverFor(ip) {
+  const { promises } = await import('node:dns')
+  const resolver = new promises.Resolver()
+  resolver.setServers([ip])
+  return resolver
+}
 
 const ABSENT_SPF = { present: false, record: null, includesCount: 0, hardFail: false }
 const ABSENT_DMARC = { present: false, record: null, policy: null }
@@ -21,6 +38,7 @@ export function createDns({
   resolve4 = nodeResolve4,
   resolve6 = nodeResolve6,
   resolveCname = nodeResolveCname,
+  makeResolver = nodeResolverFor,
 } = {}) {
   // Every record for `name`, each one already joined from its chunks. Never throws.
   async function txt(name) {
@@ -86,5 +104,42 @@ export function createDns({
     return { a, aaaa, cname, error: unresolved && codes.length > 0 ? codes[0] : null }
   }
 
-  return { spf, dmarc, dkim, addresses, txt }
+  // What each public resolver currently believes about `host`. One entry per resolver, in the
+  // order asked, and every entry is total the way `addresses` is: a resolver that refuses the
+  // connection, times out, or knows nothing reports the absent shape with its code in `error`,
+  // never a rejection. Mid-propagation the interesting result is precisely the one where two
+  // entries differ, so nothing here merges or de-duplicates the answers.
+  async function resolveAcross(host, resolvers = PUBLIC_RESOLVERS) {
+    return Promise.all(resolvers.map(async (ip) => {
+      const absent = { resolver: ip, a: [], aaaa: [], cname: null, error: null }
+      let resolver
+      try {
+        resolver = await makeResolver(ip)
+      } catch (error) {
+        return { ...absent, error: error?.code ?? String(error?.message ?? error) }
+      }
+
+      const codes = []
+      const attempt = async (fn) => {
+        if (typeof fn !== 'function') return []
+        try {
+          const value = await fn(host)
+          return Array.isArray(value) ? value : []
+        } catch (error) {
+          codes.push(error?.code ?? String(error?.message ?? error))
+          return []
+        }
+      }
+      const [a, aaaa, cnames] = await Promise.all([
+        attempt(resolver.resolve4?.bind(resolver)),
+        attempt(resolver.resolve6?.bind(resolver)),
+        attempt(resolver.resolveCname?.bind(resolver)),
+      ])
+      const cname = cnames.length > 0 ? String(cnames[0]) : null
+      const unresolved = a.length === 0 && aaaa.length === 0 && cname === null
+      return { resolver: ip, a, aaaa, cname, error: unresolved && codes.length > 0 ? codes[0] : null }
+    }))
+  }
+
+  return { spf, dmarc, dkim, addresses, txt, resolveAcross }
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createDns } from '../skills/launch-audit/scripts/lib/dns.mjs'
+import { createDns, PUBLIC_RESOLVERS } from '../skills/launch-audit/scripts/lib/dns.mjs'
 
 function resolverError(code) {
   const error = new Error(`${code} lookup failed`)
@@ -138,4 +138,82 @@ test('createDns() defaults to the node resolver and still answers', async () => 
   assert.equal(typeof dns.dmarc, 'function')
   assert.equal(typeof dns.dkim, 'function')
   assert.equal(typeof dns.addresses, 'function')
+})
+
+// ------------------------------------------------------------------ resolveAcross (propagation)
+
+// A fake `makeResolver`: one table of answers per resolver ip, so a test can make two public
+// resolvers disagree the way they do mid-propagation.
+const makeResolverFor = (table) => async (ip) => {
+  const answers = table[ip]
+  if (answers === undefined) throw resolverError('ECONNREFUSED')
+  return {
+    resolve4: async () => {
+      if (answers.a === undefined) throw resolverError('ENODATA')
+      return answers.a
+    },
+    resolve6: async () => {
+      if (answers.aaaa === undefined) throw resolverError('ENODATA')
+      return answers.aaaa
+    },
+    resolveCname: async () => {
+      if (answers.cname === undefined) throw resolverError('ENODATA')
+      return [answers.cname]
+    },
+  }
+}
+
+test('resolveAcross asks every resolver and reports each answer in list order', async () => {
+  const dns = createDns({
+    makeResolver: makeResolverFor({
+      '8.8.8.8': { a: ['203.0.113.10'] },
+      '1.1.1.1': { a: ['203.0.113.10'], aaaa: ['2001:db8::1'] },
+    }),
+  })
+  const answers = await dns.resolveAcross('example.test', ['8.8.8.8', '1.1.1.1'])
+  assert.deepEqual(answers.map((r) => r.resolver), ['8.8.8.8', '1.1.1.1'])
+  assert.deepEqual(answers[0], { resolver: '8.8.8.8', a: ['203.0.113.10'], aaaa: [], cname: null, error: null })
+  assert.deepEqual(answers[1].aaaa, ['2001:db8::1'])
+})
+
+test('resolveAcross reports a CNAME and no error when only A and AAAA are absent', async () => {
+  const dns = createDns({ makeResolver: makeResolverFor({ '9.9.9.9': { cname: 'edge.host.test' } }) })
+  const [answer] = await dns.resolveAcross('www.example.test', ['9.9.9.9'])
+  assert.deepEqual(answer, { resolver: '9.9.9.9', a: [], aaaa: [], cname: 'edge.host.test', error: null })
+})
+
+test('resolveAcross reports a resolver that answers nothing as an error and never throws', async () => {
+  const dns = createDns({ makeResolver: makeResolverFor({ '8.8.8.8': { a: ['203.0.113.10'] } }) })
+  const answers = await dns.resolveAcross('example.test', ['8.8.8.8', '203.0.113.99'])
+  assert.equal(answers[0].error, null)
+  assert.equal(answers[1].error, 'ECONNREFUSED')
+  assert.deepEqual(answers[1].a, [])
+})
+
+test('resolveAcross shows two resolvers disagreeing mid-propagation', async () => {
+  const dns = createDns({
+    makeResolver: makeResolverFor({
+      '8.8.8.8': { a: ['203.0.113.10'] },
+      '1.1.1.1': { a: ['198.51.100.7'] },
+    }),
+  })
+  const answers = await dns.resolveAcross('example.test', ['8.8.8.8', '1.1.1.1'])
+  assert.deepEqual(answers.map((r) => r.a), [['203.0.113.10'], ['198.51.100.7']])
+})
+
+test('resolveAcross defaults to the four public resolvers', async () => {
+  const asked = []
+  const dns = createDns({
+    makeResolver: async (ip) => {
+      asked.push(ip)
+      return { resolve4: async () => ['203.0.113.10'], resolve6: async () => [], resolveCname: async () => [] }
+    },
+  })
+  const answers = await dns.resolveAcross('example.test')
+  assert.deepEqual(asked.sort(), ['1.1.1.1', '208.67.222.222', '8.8.8.8', '9.9.9.9'])
+  assert.deepEqual(answers.map((r) => r.resolver), PUBLIC_RESOLVERS)
+})
+
+test('createDns() exposes resolveAcross with a node-backed resolver by default', async () => {
+  assert.equal(typeof createDns().resolveAcross, 'function')
 })
