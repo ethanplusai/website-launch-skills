@@ -1,0 +1,128 @@
+{
+  "https://small.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html>\n<head>\n<title>Small Test Home</title>\n<link rel=\"stylesheet\" href=\"/s.css\">\n<script src=\"/app.js\"></script>\n</head>\n<body>\n<a href=\"/about\">About</a>\n<a href=\"/contact\">Contact</a>\n<a href=\"/blog/\">Blog</a>\n<a href=\"/pricing\">Pricing</a>\n<a href=\"/missing\">Missing</a>\n<a href=\"https://ext.test/x\">External</a>\n<img src=\"/img/a.png\" alt=\"pic\">\n</body>\n</html>\n"
+  },
+  "https://small.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>About</title></head>\n<body>\n<a href=\"/team\">Team</a>\n</body>\n</html>\n"
+  },
+  "https://small.test/contact": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Contact</title></head>\n<body>\n<a href=\"/private\">Private</a>\n</body>\n</html>\n"
+  },
+  "https://small.test/blog/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Blog</title></head>\n<body>\n<a href=\"/blog/one\">One</a>\n<a href=\"/blog/two\">Two</a>\n<a href=\"/blog/three\">Three</a>\n</body>\n</html>\n"
+  },
+  "https://small.test/blog/one": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Blog One</title></head>\n<body>\nPost one.\n<a href=\"/unlisted#see-pricing\">See pricing</a>\n</body>\n</html>\n"
+  },
+  "https://small.test/blog/two": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Blog Two</title></head>\n<body>\nPost two.\n</body>\n</html>\n"
+  },
+  "https://small.test/blog/three": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Blog Three</title></head>\n<body>\nPost three.\n</body>\n</html>\n"
+  },
+  "https://small.test/pricing": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Pricing</title></head>\n<body>\n<a href=\"/unlisted\">Unlisted</a>\n</body>\n</html>\n"
+  },
+  "https://small.test/team": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Team</title></head>\n<body>\n<a href=\"/faq\">FAQ</a>\n</body>\n</html>\n"
+  },
+  "https://small.test/faq": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>FAQ</title></head>\n<body>\n<a href=\"/deep\">Deep</a>\n</body>\n</html>\n"
+  },
+  "https://small.test/deep": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Deep</title></head>\n<body>\nYou made it deep.\n</body>\n</html>\n"
+  },
+  "https://small.test/unlisted": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Unlisted</title></head>\n<body>\nNot in the sitemap.\n</body>\n</html>\n"
+  },
+  "https://small.test/orphan": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Orphan</title></head>\n<body>\nIn the sitemap, linked from nowhere.\n</body>\n</html>\n"
+  },
+  "https://small.test/private": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html>\n<html>\n<head><title>Private</title></head>\n<body>\nSecret area, disallowed by robots.\n</body>\n</html>\n"
+  },
+  "https://small.test/missing": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html><html><body>Not Found</body></html>"
+  },
+  "https://small.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nDisallow: /private\nSitemap: https://small.test/sitemap.xml\n"
+  },
+  "https://small.test/sitemap.xml": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n<url><loc>https://small.test/</loc></url>\n<url><loc>https://small.test/about</loc></url>\n<url><loc>https://small.test/contact</loc></url>\n<url><loc>https://small.test/blog/</loc></url>\n<url><loc>https://small.test/blog/one</loc></url>\n<url><loc>https://small.test/blog/two</loc></url>\n<url><loc>https://small.test/blog/three</loc></url>\n<url><loc>https://small.test/pricing</loc></url>\n<url><loc>https://small.test/team</loc></url>\n<url><loc>https://small.test/faq</loc></url>\n<url><loc>https://small.test/deep</loc></url>\n<url><loc>https://small.test/orphan</loc></url>\n</urlset>\n"
+  },
+  "https://ext.test/x": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html><html><head><title>External</title></head><body>External site</body></html>"
+  }
+}
