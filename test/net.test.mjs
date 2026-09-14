@@ -15,10 +15,23 @@ test('follows a redirect chain hop by hop and records it', async () => {
   const r = await net.get('http://a.test/')
   assert.equal(r.status, 200); assert.equal(r.finalUrl, 'https://www.a.test/'); assert.equal(r.chain.length, 2); assert.equal(r.chain[0].status, 301); assert.equal(r.body, 'hi')
 })
-test('a redirect loop stops at maxHops with an error', async () => {
+test('a redirect loop is detected by URL repeat and stops immediately', async () => {
   const net = createNet({ fetchImpl: fakeFetch({ 'https://l.test/a': { status: 302, headers: { location: '/b' } }, 'https://l.test/b': { status: 302, headers: { location: '/a' } } }) })
   const r = await net.get('https://l.test/a', { maxHops: 5 })
-  assert.equal(r.status, 0); assert.match(r.error, /redirect loop|too many redirects/); assert.equal(r.chain.length, 5)
+  assert.equal(r.status, 0); assert.match(r.error, /redirect loop/); assert.equal(r.chain.length, 2)
+})
+test('six distinct hops with no repeat exceeds maxHops with "too many redirects"', async () => {
+  const net = createNet({ fetchImpl: fakeFetch({
+    'https://m.test/1': { status: 302, headers: { location: '/2' } },
+    'https://m.test/2': { status: 302, headers: { location: '/3' } },
+    'https://m.test/3': { status: 302, headers: { location: '/4' } },
+    'https://m.test/4': { status: 302, headers: { location: '/5' } },
+    'https://m.test/5': { status: 302, headers: { location: '/6' } },
+    'https://m.test/6': { status: 302, headers: { location: '/7' } },
+    'https://m.test/7': { status: 200 },
+  }) })
+  const r = await net.get('https://m.test/1', { maxHops: 5 })
+  assert.equal(r.status, 0); assert.match(r.error, /too many redirects/); assert.equal(r.chain.length, 5)
 })
 test('relative Location headers resolve against the hop url', async () => {
   const net = createNet({ fetchImpl: fakeFetch({ 'https://r.test/old': { status: 301, headers: { location: '/new' } }, 'https://r.test/new': { status: 200 } }) })

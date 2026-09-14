@@ -78,6 +78,7 @@ export function createNet({
     const reqHeaders = { 'user-agent': userAgent, ...headers }
     let currentUrl = url
     const chain = []
+    const visited = new Set([url])
     for (let hops = 0; ; hops++) {
       if (hops >= maxHops) {
         return {
@@ -95,8 +96,16 @@ export function createNet({
       const status = response.status
       const location = response.headers.get('location')
       if (REDIRECT_STATUSES.has(status) && location) {
+        const nextUrl = new URL(location, currentUrl).href
         chain.push({ url: currentUrl, status, location })
-        currentUrl = new URL(location, currentUrl).href
+        if (visited.has(nextUrl)) {
+          return {
+            url, finalUrl: nextUrl, status: 0, ok: false, headers: {}, body: null, bodyBytes: null,
+            chain, error: 'redirect loop', timedOut: false, bytes: 0, truncated: false,
+          }
+        }
+        visited.add(nextUrl)
+        currentUrl = nextUrl
         continue
       }
       const { body, bodyBytes, bytes, truncated } = await readBody(response, maxBytes)
