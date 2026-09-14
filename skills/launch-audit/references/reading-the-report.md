@@ -15,7 +15,7 @@ how to treat **Not covered**, and how to phrase all of it to somebody who paid f
     manifest.json    exactly which files this run wrote
     redirects.csv    one row per old url (only with --old-url)
     screenshots/     desktop, tablet and mobile, per rendered page (browser tier only)
-    lighthouse/      the full Lighthouse result per rendered page and form factor (browser tier)
+    lighthouse/      the scores and metrics Lighthouse measured, per rendered page and form factor
 
 Read `report.md`. Open `crawl.json` when you need to know whether a page was reached at all, and
 `redirects.csv` when you are handing a redirect map to whoever owns the server. Open a

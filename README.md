@@ -109,10 +109,12 @@ Each run writes a bundle under `./website-launch/`. `--out` puts it somewhere el
 | `launch-audit` | `report.md`, `findings.json`, `crawl.json`, `baseline.json`, `manifest.json`, `redirects.csv` (with `--old-url`), `screenshots/` and `lighthouse/` (browser tier) | **0** always · **2** usage error, or `--browser on` with no browser |
 | `post-launch` | `report.md`, `findings.json`, `crawl.json`, `baseline.json`, `manifest.json`, `baseline-diff.json` (with `--baseline`), and `plan.json` + `watch.json` in watch mode | **0** always, however bad the cutover is · **2** usage or IO error |
 
-Every `report.md` ends with **Not covered**: the caps that fired, the checks that were skipped and
-why, the inputs nobody supplied, and the two things no checker can ever reach — whether the copy on
-the pages matches the signed-off copy, and whether the pages that exist are the pages that were
-agreed.
+Every `report.md` carries a **Not covered** section: the caps that fired, the checks that were
+skipped and why, the inputs nobody supplied, and the two things no checker can ever reach — whether
+the copy on the pages matches the signed-off copy, and whether the pages that exist are the pages
+that were agreed. Those last two are always its final two lines. It is the last section of an
+audit and a post-launch report; in the gate it is followed by the human checklist, which is the one
+thing that outranks it.
 
 ## How a launch runs
 

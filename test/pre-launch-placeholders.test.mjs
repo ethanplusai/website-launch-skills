@@ -106,7 +106,14 @@ test('a repository with no recognised source directory says so rather than imply
     const { join } = await import('node:path')
     renameSync(join(dir, 'src'), join(dir, 'assembled-by-hand'))
     const map = await group(checks, await ctxFor(dir))
-    assert.match(map.get('placeholders.copy').notCovered[0], /no known source directory is present/)
+    // The line is read out loud to a person, so it has to be a sentence. The smoke run against a
+    // real repository printed "source scan limited to (no known source directory is present…)",
+    // which says the scan was limited to a parenthesis.
+    const line = map.get('placeholders.copy').notCovered[0]
+    assert.match(line, /^placeholders: no source directory was scanned — this repository has none of /)
+    assert.match(line, /src, content, pages, app/)
+    assert.match(line, /so only the build output was searched$/)
+    assert.ok(!line.includes('limited to ('), 'the line must not say the scan was limited to a parenthesis')
   } finally { cleanup() }
 })
 

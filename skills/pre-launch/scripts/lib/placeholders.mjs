@@ -68,7 +68,10 @@ const presentSourceDirs = (ctx) => SOURCE_DIRS.filter((name) => existsSync(join(
 // it; the runner de-duplicates, so the reader sees it once.
 export function sourceScanNote(ctx) {
   const present = presentSourceDirs(ctx)
-  return `placeholders: source scan limited to ${present.length === 0 ? '(no known source directory is present; only the build output was scanned)' : present.join(', ')}`
+  if (present.length > 0) return `placeholders: source scan limited to ${present.join(', ')}`
+  // A whole sentence, because somebody reads this line out loud. It names every directory the scan
+  // knows, which is also the answer to "then where should mine be?".
+  return `placeholders: no source directory was scanned — this repository has none of ${SOURCE_DIRS.join(', ')}, so only the build output was searched`
 }
 
 // Every text file under the source directories this repository actually has, as
