@@ -1,0 +1,160 @@
+{
+  "https://good.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "content-encoding": "gzip",
+      "cache-control": "public, max-age=600",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()",
+      "cross-origin-opener-policy": "same-origin",
+      "cross-origin-resource-policy": "same-origin",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>Good Site</title>\n<link rel=\"canonical\" href=\"https://good.test/\">\n<link rel=\"stylesheet\" href=\"/s.css\">\n<script src=\"/app.js\"></script>\n<link rel=\"alternate\" hreflang=\"en\" href=\"https://good.test/\">\n<link rel=\"alternate\" hreflang=\"fr\" href=\"https://good.test/fr\">\n<link rel=\"alternate\" hreflang=\"x-default\" href=\"https://good.test/\">\n</head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/fr\">Francais</a></nav>\n<h1>Good Site</h1>\n<img src=\"/img/a.png\" alt=\"A picture\">\n</body></html>"
+  },
+  "https://good.test/about": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "content-encoding": "gzip",
+      "cache-control": "public, max-age=600",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()",
+      "cross-origin-opener-policy": "same-origin",
+      "cross-origin-resource-policy": "same-origin",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>About</title>\n<link rel=\"canonical\" href=\"https://good.test/about\">\n<link rel=\"stylesheet\" href=\"/s.css\">\n<script src=\"/app.js\"></script>\n\n</head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/fr\">Francais</a></nav>\n<h1>About</h1>\n<img src=\"/img/a.png\" alt=\"A picture\">\n</body></html>"
+  },
+  "https://good.test/fr": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "content-encoding": "gzip",
+      "cache-control": "public, max-age=600",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()",
+      "cross-origin-opener-policy": "same-origin",
+      "cross-origin-resource-policy": "same-origin",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>Bonjour</title>\n<link rel=\"canonical\" href=\"https://good.test/fr\">\n<link rel=\"stylesheet\" href=\"/s.css\">\n<script src=\"/app.js\"></script>\n<link rel=\"alternate\" hreflang=\"en\" href=\"https://good.test/\">\n<link rel=\"alternate\" hreflang=\"fr\" href=\"https://good.test/fr\">\n<link rel=\"alternate\" hreflang=\"x-default\" href=\"https://good.test/\">\n</head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/fr\">Francais</a></nav>\n<h1>Bonjour</h1>\n<img src=\"/img/a.png\" alt=\"A picture\">\n</body></html>"
+  },
+  "http://good.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "content-encoding": "gzip",
+      "cache-control": "public, max-age=600",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()",
+      "cross-origin-opener-policy": "same-origin",
+      "cross-origin-resource-policy": "same-origin",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>Good Site</title>\n<link rel=\"canonical\" href=\"https://good.test/\">\n<link rel=\"stylesheet\" href=\"/s.css\">\n<script src=\"/app.js\"></script>\n<link rel=\"alternate\" hreflang=\"en\" href=\"https://good.test/\">\n<link rel=\"alternate\" hreflang=\"fr\" href=\"https://good.test/fr\">\n<link rel=\"alternate\" hreflang=\"x-default\" href=\"https://good.test/\">\n</head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/fr\">Francais</a></nav>\n<h1>Good Site</h1>\n<img src=\"/img/a.png\" alt=\"A picture\">\n</body></html>",
+    "finalUrl": "https://good.test/",
+    "chain": [
+      {
+        "url": "http://good.test/",
+        "status": 301,
+        "location": "https://good.test/"
+      }
+    ]
+  },
+  "https://www.good.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "content-encoding": "gzip",
+      "cache-control": "public, max-age=600",
+      "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'self'; frame-ancestors 'none'; base-uri 'self'",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), camera=()",
+      "cross-origin-opener-policy": "same-origin",
+      "cross-origin-resource-policy": "same-origin",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>Good Site</title>\n<link rel=\"canonical\" href=\"https://good.test/\">\n<link rel=\"stylesheet\" href=\"/s.css\">\n<script src=\"/app.js\"></script>\n<link rel=\"alternate\" hreflang=\"en\" href=\"https://good.test/\">\n<link rel=\"alternate\" hreflang=\"fr\" href=\"https://good.test/fr\">\n<link rel=\"alternate\" hreflang=\"x-default\" href=\"https://good.test/\">\n</head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/fr\">Francais</a></nav>\n<h1>Good Site</h1>\n<img src=\"/img/a.png\" alt=\"A picture\">\n</body></html>",
+    "finalUrl": "https://good.test/",
+    "chain": [
+      {
+        "url": "https://www.good.test/",
+        "status": 301,
+        "location": "https://good.test/"
+      }
+    ]
+  },
+  "https://good.test/s.css": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/css",
+      "cache-control": "public, max-age=31536000, immutable"
+    },
+    "body": "/* asset */"
+  },
+  "https://good.test/app.js": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/javascript",
+      "cache-control": "public, max-age=31536000, immutable"
+    },
+    "body": "/* asset */"
+  },
+  "https://good.test/img/a.png": {
+    "status": 200,
+    "headers": {
+      "content-type": "image/png",
+      "cache-control": "public, max-age=31536000, immutable"
+    },
+    "body": "/* asset */"
+  },
+  "https://good.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n\nSitemap: https://good.test/sitemap.xml\n"
+  },
+  "https://good.test/sitemap.xml": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n<url><loc>https://good.test/</loc><lastmod>2026-01-02</lastmod></url>\n<url><loc>https://good.test/about</loc><lastmod>2026-01-02</lastmod></url>\n<url><loc>https://good.test/fr</loc><lastmod>2026-01-02</lastmod></url>\n</urlset>\n"
+  },
+  "https://good.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Page not found</title></head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a> <a href=\"/blog\">Blog</a></nav>\n<h1>We could not find that page</h1>\n<p>The address you asked for has moved or never existed. Use the navigation above, or head back to the home page to find what you were after. If a link brought you here, tell us and we will repair it.</p>\n</body></html>"
+  },
+  "https://good.test/llms.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "# Good Site\n\n> A friendly site used as an audit fixture.\n\n## Docs\n\n- [About](https://good.test/about)\n"
+  }
+}

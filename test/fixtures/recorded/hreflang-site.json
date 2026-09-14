@@ -1,0 +1,37 @@
+{
+  "https://hl.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>Home</title>\n<link rel=\"canonical\" href=\"https://hl.test/\">\n<link rel=\"alternate\" hreflang=\"en\" href=\"https://hl.test/\">\n<link rel=\"alternate\" hreflang=\"de\" href=\"https://hl.test/de\">\n<link rel=\"alternate\" hreflang=\"en_US\" href=\"https://hl.test/us\">\n</head><body><nav><a href=\"/\">Home</a> <a href=\"/de\">DE</a> <a href=\"/us\">US</a></nav><h1>Home</h1></body></html>"
+  },
+  "https://hl.test/de": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>Startseite</title>\n<link rel=\"canonical\" href=\"https://hl.test/de\">\n<link rel=\"alternate\" hreflang=\"de\" href=\"https://hl.test/de\">\n</head><body><nav><a href=\"/\">Home</a> <a href=\"/de\">DE</a> <a href=\"/us\">US</a></nav><h1>Startseite</h1></body></html>"
+  },
+  "https://hl.test/us": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head>\n<title>US</title>\n<link rel=\"canonical\" href=\"https://hl.test/us\">\n\n</head><body><nav><a href=\"/\">Home</a> <a href=\"/de\">DE</a> <a href=\"/us\">US</a></nav><h1>US</h1></body></html>"
+  },
+  "https://hl.test/robots.txt": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "nope"
+  },
+  "https://hl.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Page not found</title></head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a> <a href=\"/blog\">Blog</a></nav>\n<h1>We could not find that page</h1>\n<p>The address you asked for has moved or never existed. Use the navigation above, or head back to the home page to find what you were after. If a link brought you here, tell us and we will repair it.</p>\n</body></html>"
+  }
+}

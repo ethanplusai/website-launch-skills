@@ -1,0 +1,143 @@
+// The audit context every launch-audit check reads.
+//
+// buildAuditContext(net, dns, options) does all of the fetching for the launch-audit phase, once,
+// and hands the result to the check modules as a frozen-in-spirit `ctx`. Checks are pure over it:
+// a check never fetches, so everything a check could want is probed here, in this order:
+//
+//   1. robots.txt          — parsed when it 200s, `parsed: null` otherwise (a 404 is not a parse)
+//   2. sitemaps            — discovery, then one-level expansion of the FIRST sitemap found
+//   3. crawl               — seeded with the start url and every expanded sitemap loc
+//   4. root variants       — http://host/, https://host/, and the www/apex counterparts, plus the
+//                            trailing-slash variant of the start path when it isn't "/"
+//   5. notFound            — /this-page-should-not-exist-<random>, for soft-404 detection
+//   6. llms.txt            — presence and shape
+//   7. static asset sample — up to two stylesheets, scripts and images the crawl actually saw
+//   8. cert                — net.cert(host)
+//
+// The 404 probe's random suffix comes from `options.random`, which defaults to crypto randomness;
+// tests pin it (`random: () => 'deadbeef'`) so a recorded fixture can hold that exact path. Time
+// is pinned the same way through `options.now`, so "is this lastmod in the future" never drifts.
+//
+// `ctx.dns` is the adapter from dns.mjs, not resolved records: nothing in the launch-audit phase
+// resolves DNS eagerly, and the dimensions that do need it own the host list they care about.
+
+import { randomBytes } from 'node:crypto'
+import { parseRobots } from '../robots.mjs'
+import { discoverSitemaps, expandSitemap } from '../sitemap.mjs'
+import { crawlSite } from '../crawl.mjs'
+
+const EMPTY_EXPANSION = { urls: [], children: [], errors: [], failedClosed: false }
+const ASSET_SAMPLE_PER_KIND = 2
+
+function sampleAssets(assets, origin) {
+  const picked = []
+  for (const kind of ['styles', 'scripts', 'images']) {
+    const set = assets?.[kind]
+    if (!set) continue
+    let taken = 0
+    for (const url of set) {
+      if (taken >= ASSET_SAMPLE_PER_KIND) break
+      let parsed
+      try {
+        parsed = new URL(url)
+      } catch {
+        continue
+      }
+      if (parsed.origin !== origin) continue
+      picked.push({ url, kind })
+      taken++
+    }
+  }
+  return picked
+}
+
+export async function buildAuditContext(net, dns, options = {}) {
+  if (!options || typeof options.url !== 'string' || options.url === '') throw new Error('buildAuditContext: options.url is required')
+  const start = new URL(options.url)
+  const url = start.href
+  const origin = start.origin
+  const host = start.hostname
+  const apex = host.replace(/^www\./i, '')
+  const www = `www.${apex}`
+  const random = typeof options.random === 'function' ? options.random : () => randomBytes(4).toString('hex')
+  const now = options.now === undefined ? new Date() : new Date(options.now)
+
+  const target = {
+    url,
+    origin,
+    host,
+    apex,
+    www,
+    staging: options.staging === true,
+    devHosts: [...(options.devHosts ?? [])],
+  }
+
+  // 1. robots.txt
+  const robotsUrl = `${origin}/robots.txt`
+  const robotsResponse = await net.get(robotsUrl)
+  const robotsText = robotsResponse.status === 200 && typeof robotsResponse.body === 'string' ? robotsResponse.body : null
+  const robots = {
+    url: robotsUrl,
+    status: robotsResponse.status,
+    text: robotsText,
+    parsed: robotsText === null ? null : parseRobots(robotsText),
+    response: robotsResponse,
+  }
+
+  // 2. sitemaps
+  const { candidates, found } = await discoverSitemaps(net, origin, robots.parsed)
+  const expanded = found.length > 0 ? await expandSitemap(net, found[0].url) : { ...EMPTY_EXPANSION }
+  const sitemaps = { candidates, found, expanded, urls: expanded.urls.map((entry) => entry.loc) }
+
+  // 3. crawl
+  const crawl = await crawlSite(net, {
+    url,
+    maxPages: options.maxPages ?? 200,
+    maxDepth: options.maxDepth ?? 4,
+    ignoreRobots: options.ignoreRobots === true,
+    robots: robots.parsed,
+    sitemapUrls: sitemaps.urls,
+  })
+
+  // 4. root variants
+  const variantUrls = [
+    `http://${host}/`,
+    `https://${host}/`,
+    `${start.protocol}//${www}/`,
+    `${start.protocol}//${apex}/`,
+  ]
+  const slashPath = start.pathname === '/'
+    ? null
+    : (start.pathname.endsWith('/') ? start.pathname.slice(0, -1) : `${start.pathname}/`)
+  const slashUrl = slashPath === null ? null : `${origin}${slashPath}${start.search}`
+
+  // 5/6. the 404 probe and llms.txt
+  const notFoundUrl = `${origin}/this-page-should-not-exist-${random()}`
+  const llmsUrl = `${origin}/llms.txt`
+
+  const probeUrls = [...variantUrls, ...(slashUrl === null ? [] : [slashUrl]), notFoundUrl, llmsUrl]
+  const probeResponses = await net.map(probeUrls, (probeUrl) => net.get(probeUrl))
+  const at = (probeUrl) => probeResponses[probeUrls.indexOf(probeUrl)]
+
+  // 7. a sample of the static assets the crawl actually saw
+  const assetPicks = sampleAssets(crawl.assets, origin)
+  const fetchAsset = typeof net.head === 'function' ? (u) => net.head(u) : (u) => net.get(u)
+  const assetResponses = await net.map(assetPicks.map((a) => a.url), fetchAsset)
+  const assets = assetPicks.map((pick, i) => ({ ...pick, response: assetResponses[i] }))
+
+  const probes = {
+    httpRoot: at(variantUrls[0]),
+    httpsRoot: at(variantUrls[1]),
+    wwwRoot: at(variantUrls[2]),
+    apexRoot: at(variantUrls[3]),
+    slashVariant: slashUrl === null ? null : at(slashUrl),
+    notFound: { url: notFoundUrl, response: at(notFoundUrl) },
+    llmsTxt: at(llmsUrl),
+    assets,
+  }
+
+  // 8. cert
+  const cert = typeof net.cert === 'function' ? await net.cert(host) : null
+
+  return { target, crawl, robots, sitemaps, probes, cert, dns, net, options, now }
+}

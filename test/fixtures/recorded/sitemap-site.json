@@ -1,0 +1,80 @@
+{
+  "https://sm.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Home</title>\n<link rel=\"canonical\" href=\"https://sm.test/\">\n</head><body><nav><a href=\"/\">Home</a></nav><h1>Home</h1></body></html>"
+  },
+  "https://sm.test/gone": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Page not found</title></head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a> <a href=\"/blog\">Blog</a></nav>\n<h1>We could not find that page</h1>\n<p>The address you asked for has moved or never existed. Use the navigation above, or head back to the home page to find what you were after. If a link brought you here, tell us and we will repair it.</p>\n</body></html>"
+  },
+  "https://sm.test/noindexed": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Noindexed</title>\n<link rel=\"canonical\" href=\"https://sm.test/noindexed\">\n<meta name=\"robots\" content=\"noindex\">\n</head><body><nav><a href=\"/\">Home</a></nav><h1>Noindexed</h1></body></html>"
+  },
+  "https://sm.test/hdr-noindex": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "x-robots-tag": "noindex, nofollow"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Header noindex</title><link rel=\"canonical\" href=\"https://sm.test/hdr-noindex\"></head><body><h1>Header noindex</h1></body></html>"
+  },
+  "https://sm.test/blocked": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Blocked</title>\n<link rel=\"canonical\" href=\"https://sm.test/blocked\">\n</head><body><nav><a href=\"/\">Home</a></nav><h1>Blocked</h1></body></html>"
+  },
+  "https://sm.test/future": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Future</title>\n<link rel=\"canonical\" href=\"https://sm.test/future\">\n</head><body><nav><a href=\"/\">Home</a></nav><h1>Future</h1></body></html>"
+  },
+  "https://sm.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nDisallow: /blocked\n\nSitemap: https://other.test/sitemap.xml\nSitemap: https://sm.test/sitemap.xml\n"
+  },
+  "https://sm.test/sitemap.xml": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n<sitemap><loc>https://sm.test/sitemap-a.xml</loc></sitemap>\n<sitemap><loc>https://sm.test/sitemap-bad.xml</loc></sitemap>\n</sitemapindex>\n"
+  },
+  "https://sm.test/sitemap-a.xml": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/xml"
+    },
+    "body": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n<url><loc>https://sm.test/</loc></url>\n<url><loc>https://sm.test/gone</loc></url>\n<url><loc>https://sm.test/noindexed</loc></url>\n<url><loc>https://sm.test/hdr-noindex</loc></url>\n<url><loc>https://sm.test/blocked</loc></url>\n<url><loc>https://other.test/page</loc></url>\n<url><loc>https://sm.test/future</loc><lastmod>2099-01-01</lastmod></url>\n</urlset>\n"
+  },
+  "https://sm.test/sitemap-bad.xml": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/xml"
+    },
+    "body": "<html><body>not a sitemap</body></html>"
+  },
+  "https://sm.test/this-page-should-not-exist-deadbeef": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html><html lang=\"en\"><head><title>Page not found</title></head><body>\n<nav><a href=\"/\">Home</a> <a href=\"/about\">About</a> <a href=\"/contact\">Contact</a> <a href=\"/blog\">Blog</a></nav>\n<h1>We could not find that page</h1>\n<p>The address you asked for has moved or never existed. Use the navigation above, or head back to the home page to find what you were after. If a link brought you here, tell us and we will repair it.</p>\n</body></html>"
+  }
+}
