@@ -1,0 +1,12 @@
+---
+// The standard contact form. The id comes from site.forms; the last fallback is the starter's stand-in.
+import { site } from '../lib/site'
+
+const { form = 'contact', formId } = Astro.props
+const resolvedFormId = formId || site.forms[form] || 'REPLACE_WITH_FORM_ID'
+const endpoint = `/api/submit/${resolvedFormId}`
+---
+<form class="contact-form" data-endpoint={endpoint}>
+  <label>Email <input type="email" name="email" required></label>
+  <button type="submit">Send</button>
+</form>

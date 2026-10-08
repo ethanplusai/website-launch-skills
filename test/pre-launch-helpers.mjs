@@ -17,9 +17,13 @@ import { fixturePath } from './helpers.mjs'
 
 export const PASSING = fixturePath('passing-site')
 export const FAILING = fixturePath('failing-site')
+// A site exactly as a starter template leaves it: the sample blog post, the tokens a person is meant
+// to replace, and a canonical and an image still pointing at the documentation host.
+export const STARTER = fixturePath('starter-site')
 
 export const PASSING_URL = 'https://passing.test'
 export const FAILING_URL = 'https://failing.test'
+export const STARTER_URL = 'https://starter.test'
 
 // A directory outside this repository, so a gate run that shells out to git finds no work tree at
 // all rather than this one. `test/tmp` is inside the repo and would not do.

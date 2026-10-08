@@ -1,0 +1,11 @@
+[
+  {
+    "slug": "sample-post",
+    "path": "/blog/sample-post/",
+    "title": "Sample Post — Delete Me",
+    "description": "A placeholder post so the blog routes render out of the box. Delete it before launch.",
+    "date": "2026-01-01",
+    "ogImage": "https://pub-0123456789abcdef.r2.dev/example.com/assets/img/blog/sample-post/og-1024.webp",
+    "category": "General"
+  }
+]

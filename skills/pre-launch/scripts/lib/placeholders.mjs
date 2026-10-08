@@ -19,7 +19,7 @@ import { readFileSync, existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineCheck, SkipCheck } from '../../../launch-audit/scripts/lib/registry.mjs'
 import { walk } from '../../../launch-audit/scripts/lib/fs-util.mjs'
-import { PLACEHOLDER_TEXT, PLACEHOLDER_IDS, DEV_HOSTS, scanText } from '../../../launch-audit/scripts/lib/detect/placeholders.mjs'
+import { PLACEHOLDER_TEXT, PLACEHOLDER_IDS, PLACEHOLDER_URLS, DEV_HOSTS, scanText } from '../../../launch-audit/scripts/lib/detect/placeholders.mjs'
 
 const PHASE = 'pre-launch'
 const DIMENSION = 'placeholders'
@@ -43,6 +43,10 @@ const TEXT_EXTENSIONS = new Set([
   '.md', '.mdx', '.markdown', '.json', '.txt', '.xml', '.css', '.scss', '.yaml', '.yml',
   '.njk', '.liquid', '.hbs', '.ejs', '.pug', '.php', '.webmanifest',
 ])
+
+// The build files whose markup carries `href` and `src`. A url is only a placeholder in the attribute
+// that holds it, so PLACEHOLDER_URLS is read from these and never from rendered text.
+const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 
 const extensionOf = (name) => {
   const dot = name.lastIndexOf('.')
@@ -175,7 +179,7 @@ const formId = check({
 const copy = check({
   id: 'placeholders.copy',
   title: 'Placeholder copy in the site',
-  catches: 'lorem ipsum, TODO markers and unreplaced template tokens shipping as page content',
+  catches: 'lorem ipsum, TODO markers, unreplaced template tokens, a sample post and links to example.com shipping as page content',
   run(ctx) {
     const sources = sourceFiles(ctx)
     // The build's *rendered* text and its head, rather than its markup: a `{{ }}` in a compiled
@@ -186,13 +190,18 @@ const copy = check({
       rendered.push({ label: `${ctx.buildDirName}/${rel}`, body: parts.join('\n') })
     }
     const notCovered = [sourceScanNote(ctx)]
-    const hits = hitsIn([...sources, ...rendered], PLACEHOLDER_TEXT)
+    const hits = [
+      ...hitsIn([...sources, ...rendered], PLACEHOLDER_TEXT),
+      // The one list that is read from markup. A link to example.com is a defect in the `href` and
+      // ordinary in a `placeholder="you@example.com"` hint, and rendered text cannot tell them apart.
+      ...hitsIn([...sources, ...buildFiles(ctx, HTML_EXTENSIONS)], PLACEHOLDER_URLS),
+    ]
     if (hits.length === 0) return { findings: [], notCovered }
     return {
       notCovered,
       findings: [this.mk({
         title: 'Placeholder copy in the site',
-        detail: `${summarise(hits, 'placeholder string')}; a visitor would read them`,
+        detail: `${summarise(hits, 'placeholder string')}; a visitor would read or follow them`,
         evidence: evidenceFor(hits),
         fix: 'Replace each with the real copy, or delete the block it is in if the section was never meant to ship.',
       })],

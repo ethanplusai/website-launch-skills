@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { SIGNATURES, detectAnalytics, COLLECTOR_HOSTS, COOKIE_SETTING_TOOLS, isCollectorUrl } from '../skills/launch-audit/scripts/lib/detect/analytics.mjs'
 import {
-  PLACEHOLDER_TEXT, PLACEHOLDER_IDS, DEV_HOSTS, SECRETS, scanText,
+  PLACEHOLDER_TEXT, PLACEHOLDER_IDS, PLACEHOLDER_URLS, DEV_HOSTS, SECRETS, scanText,
 } from '../skills/launch-audit/scripts/lib/detect/placeholders.mjs'
 
 // A planted string per pattern, so no pattern can rot into one that never fires. Each entry is
@@ -16,6 +16,9 @@ const TEXT_PROOFS = [
   ['TODO', 'TODO: write this', 'todos are a kind of list'],
   ['FIXME', 'FIXME before launch', 'fixmen are not a word'],
   ['REPLACE_ME', 'replace_me', 'replaced the tile'],
+  ['REPLACE_WITH_ token', 'forms: { contact: \'REPLACE_WITH_FORM_ID\' }', 'replace_with_care() is a function name'],
+  ['Sample Post', 'Sample Post — Delete Me', 'a sample posting of the rota'],
+  ['Delete Me', 'Sample Post — Delete Me', 'ask us to delete me from the list'],
 ]
 
 const ID_PROOFS = [
@@ -24,6 +27,12 @@ const ID_PROOFS = [
   ['UA-123-4', 'UA-123456-1', 'UA-thing'],
   ['formspree placeholder', 'https://formspree.io/f/your-form-id', 'https://formspree.io/f/mabcdefg'],
   ['GTM-XXXX', 'GTM-XXXXXX', 'GTM-ABC1234'],
+]
+
+// The one list that has to be read from markup: the host is a defect only as the value of an href or
+// src. The near-miss is the hint on every contact form, which is why a bare-host pattern would not do.
+const URL_PROOFS = [
+  ['example.com in an href or src', '<a href="https://example.com/book">Book</a>', '<input type="email" placeholder="you@example.com">'],
 ]
 
 const HOST_PROOFS = [
@@ -48,6 +57,7 @@ const SECRET_PROOFS = [
 const proofTable = [
   ['PLACEHOLDER_TEXT', PLACEHOLDER_TEXT, TEXT_PROOFS],
   ['PLACEHOLDER_IDS', PLACEHOLDER_IDS, ID_PROOFS],
+  ['PLACEHOLDER_URLS', PLACEHOLDER_URLS, URL_PROOFS],
   ['DEV_HOSTS', DEV_HOSTS, HOST_PROOFS],
   ['SECRETS', SECRETS, SECRET_PROOFS],
 ]
@@ -61,6 +71,74 @@ for (const [name, patterns, proofs] of proofTable) {
     })
   })
 }
+
+// The strings a starter template ships with, plus REPLACE_ME and lorem ipsum, which were already
+// caught, so the whole set is proved in one place. Each has to fire on the exact text it appears as,
+// and none may fire on the same words in ordinary use.
+test('the starter placeholders are each caught as written', () => {
+  const caught = (text) => scanText(text, PLACEHOLDER_TEXT).map((hit) => hit.match)
+  assert.deepEqual(caught('contact: REPLACE_WITH_FORM_ID'), ['REPLACE_WITH_FORM_ID'])
+  assert.deepEqual(caught("publicBase: 'REPLACE_WITH_THIS_SITES_BUCKET_URL',"), ['REPLACE_WITH_THIS_SITES_BUCKET_URL'])
+  assert.deepEqual(caught('<h1>Sample Post — Delete Me</h1>'), ['Sample Post', 'Delete Me'])
+  assert.deepEqual(caught('Sample Posts'), ['Sample Posts'])
+  assert.deepEqual(caught('REPLACE_ME'), ['REPLACE_ME'])
+  assert.deepEqual(caught('Lorem ipsum dolor sit amet'), ['Lorem ipsum'])
+})
+
+test('ordinary uses of the same words are not placeholders', () => {
+  for (const fine of [
+    'You can ask us to delete me and my records from the list.',
+    'Please delete my data.',
+    'A sample of our work, in a post about aftercare.',
+    'replace_with_care()',
+    'REPLACE_WITH', // no token after it
+    'Replace with a calmer shade.',
+  ]) {
+    assert.deepEqual(scanText(fine, PLACEHOLDER_TEXT), [], fine)
+  }
+})
+
+// A link to the documentation host, read the way a check reads it: raw markup, one match per
+// pattern, and the match is the attribute so the evidence line is something a person can find.
+test('PLACEHOLDER_URLS fires on example.com as the value of an href or src, however it is written', () => {
+  const hits = [
+    ['<a href="https://example.com/book">Book</a>', 'href="https://example.com/book'],
+    ["<a href='https://www.example.com/'>", "href='https://www.example.com/"],
+    ['<a href=https://example.com>', 'href=https://example.com'],
+    ['<a HREF = "https://EXAMPLE.COM/x">', 'HREF = "https://EXAMPLE.COM/x'],
+    ['<a href="mailto:hello@example.com">Email</a>', 'href="mailto:hello@example.com'],
+    ['<link rel="canonical" href="https://example.com/">', 'href="https://example.com/'],
+    ['<img src="https://pub-1.r2.dev/example.com/assets/img/blog/sample-post/og-1024.webp" alt="">', 'src="https://pub-1.r2.dev/example.com/assets/img/blog/sample-post/og-1024.webp'],
+    ['<img data-src="//example.com/lazy.png">', 'src="//example.com/lazy.png'],
+    ['<iframe src="https://example.com:8443/embed"></iframe>', 'src="https://example.com:8443/embed'],
+  ]
+  for (const [markup, match] of hits) {
+    const found = scanText(markup, PLACEHOLDER_URLS)
+    assert.equal(found.length, 1, markup)
+    assert.equal(found[0].match, match, markup)
+  }
+})
+
+test('PLACEHOLDER_URLS leaves the hint, the sentence and every other host alone', () => {
+  for (const fine of [
+    '<input type="email" placeholder="you@example.com">',
+    '<input type="url" placeholder="https://example.com" name="website">',
+    '<p>Write to you@example.com or visit https://example.com for an example.</p>',
+    '<a href="https://notexample.com/">x</a>',
+    '<a href="https://my-example.com/">x</a>',
+    '<a href="https://example.community/">x</a>',
+    '<a href="https://example.com.au/">x</a>',
+    '<a href="/about" title="see example.com">x</a>',
+    '<a href="https://example.org/">x</a>',
+    '<img srcset="https://example.com/a.png 1x" alt="">',
+  ]) {
+    assert.deepEqual(scanText(fine, PLACEHOLDER_URLS), [], fine)
+  }
+})
+
+test('PLACEHOLDER_URLS finds nothing in visible text, which is why it is never run over it', () => {
+  assert.deepEqual(scanText('Book at example.com today', PLACEHOLDER_URLS), [])
+})
 
 test('scanText reports the pattern, the matched text and where it was found', () => {
   const found = scanText('All good here. TODO: write the copy.', PLACEHOLDER_TEXT)

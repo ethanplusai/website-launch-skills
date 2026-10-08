@@ -1,0 +1,37 @@
+{
+  "https://starter.test/robots.txt": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "body": "User-agent: *\nAllow: /\n"
+  },
+  "https://starter.test/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Harbour Skin Clinic — medical aesthetics in Kirkwall</title>\n  <meta name=\"description\" content=\"Harbour Skin Clinic offers medical aesthetics in Kirkwall, with every treatment planned in a consultation first.\">\n  <link rel=\"canonical\" href=\"https://starter.test/\">\n</head>\n<body>\n  <header><a href=\"/\">Harbour Skin Clinic</a> <nav><a href=\"/blog/\">Blog</a> <a href=\"/contact/\">Contact</a></nav></header>\n  <main>\n    <h1>Medical aesthetics in Kirkwall</h1>\n    <p>Every treatment starts with a consultation, so the plan fits the person and not the menu.</p>\n  </main>\n</body>\n</html>\n"
+  },
+  "https://starter.test/blog/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Blog | Harbour Skin Clinic</title>\n  <meta name=\"description\" content=\"Notes from the clinic on treatments, aftercare and what to expect.\">\n  <link rel=\"canonical\" href=\"https://starter.test/blog/\">\n</head>\n<body>\n  <main>\n    <h1>Blog</h1>\n    <ul><li><a href=\"/blog/sample-post/\">Sample Post — Delete Me</a></li></ul>\n  </main>\n</body>\n</html>\n"
+  },
+  "https://starter.test/blog/sample-post/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Sample Post — Delete Me | Harbour Skin Clinic</title>\n  <meta name=\"description\" content=\"A placeholder post so the blog routes render out of the box. Delete it before launch.\">\n  <link rel=\"canonical\" href=\"https://example.com/blog/sample-post/\">\n</head>\n<body>\n  <main>\n    <article>\n      <h1>Sample Post — Delete Me</h1>\n      <p>This is a placeholder post so the blog routes render out of the box.</p>\n      <p><img src=\"https://pub-0123456789abcdef.r2.dev/example.com/assets/img/blog/sample-post/inline-1024.webp\" alt=\"Example R2-hosted image\" /></p>\n    </article>\n  </main>\n</body>\n</html>\n"
+  },
+  "https://starter.test/contact/": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=utf-8"
+    },
+    "body": "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>Contact | Harbour Skin Clinic</title>\n  <meta name=\"description\" content=\"Tell us what you are after and we will reply within a working day.\">\n  <link rel=\"canonical\" href=\"https://starter.test/contact/\">\n</head>\n<body>\n  <main>\n    <h1>Contact the practice</h1>\n    <p>Tell us what you are after and we will reply within a working day.</p>\n    <label>Your website <input type=\"url\" name=\"website\" placeholder=\"https://example.com\"></label>\n    <label>Your email <input type=\"email\" name=\"reply\" placeholder=\"you@example.com\"></label>\n    <form class=\"contact-form\" data-endpoint=\"/api/submit/f_7c2e91a4\">\n      <label>Email <input type=\"email\" name=\"email\" required></label>\n      <button type=\"submit\">Send</button>\n    </form>\n  </main>\n</body>\n</html>\n"
+  }
+}
