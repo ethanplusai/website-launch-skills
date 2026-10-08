@@ -33,8 +33,9 @@ export const PLACEHOLDER_TEXT = [
   /REPLACE_WITH_[A-Z0-9_]+/,
   // The sample blog post a starter ships so its blog routes render, "Sample Post — Delete Me". Title
   // case on purpose: "delete me" in lower case is ordinary English (a privacy page says it), and a
-  // gate that blocks a launch over a sentence like that is a gate people learn to ignore.
-  /\bSample Posts?\b/,
+  // gate that blocks a launch over a sentence like that is a gate people learn to ignore. A hyphen
+  // after "Post" is a different phrase: "Sample Post-Op Instructions" is a clinical handout.
+  /\bSample Posts?\b(?!-)/,
   /\bDelete Me\b/,
 ]
 

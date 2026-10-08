@@ -11,7 +11,8 @@ export const site = {
     prefix: 'example.com',
   },
 
-  // Forms post to `${base}/api/submit/{formId}`; paste each form's id here.
+  // Forms post to `${formsBase}/api/submit/{formId}`; paste each form's id here.
+  formsBase: 'https://forms.starter.test',
   forms: {
     contact: 'REPLACE_WITH_FORM_ID',
   } as Record<string, string>,

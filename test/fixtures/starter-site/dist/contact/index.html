@@ -13,8 +13,10 @@
     <p>Tell us what you are after and we will reply within a working day.</p>
     <label>Your website <input type="url" name="website" placeholder="https://example.com"></label>
     <label>Your email <input type="email" name="reply" placeholder="you@example.com"></label>
-    <form class="contact-form" data-endpoint="/api/submit/f_7c2e91a4">
-      <label>Email <input type="email" name="email" required></label>
+    <form class="lead-form" data-endpoint="https://forms.starter.test/api/submit/REPLACE_WITH_FORM_ID" data-honeypot="_gotcha">
+      <label><span>Name *</span><input type="text" name="name" required></label>
+      <label><span>Email *</span><input type="email" name="email" required></label>
+      <label><span>Message</span><textarea name="message" rows="5"></textarea></label>
       <button type="submit">Send</button>
     </form>
   </main>

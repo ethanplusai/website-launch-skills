@@ -203,7 +203,7 @@ const copy = check({
         title: 'Placeholder copy in the site',
         detail: `${summarise(hits, 'placeholder string')}; a visitor would read or follow them`,
         evidence: evidenceFor(hits),
-        fix: 'Replace each with the real copy, or delete the block it is in if the section was never meant to ship.',
+        fix: 'Replace each with the real copy, or delete the block it is in if the section was never meant to ship. A REPLACE_WITH_ token that code keeps as a fallback should make the build fail instead, so the site never has to carry it.',
       })],
     }
   },

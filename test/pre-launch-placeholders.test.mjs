@@ -58,7 +58,7 @@ test('a site left exactly as the starter ships it fails placeholders.copy, and n
 
   // The template tokens, one per file: the first of a pattern in a file is the one that is reported.
   assert.ok(has(/^src\/lib\/site\.ts:\d+ — REPLACE_WITH_THIS_SITES_BUCKET_URL$/), lines.join('\n'))
-  assert.ok(has(/^src\/components\/ContactForm\.astro:\d+ — REPLACE_WITH_FORM_ID$/), lines.join('\n'))
+  assert.ok(has(/^src\/components\/SiteForm\.astro:\d+ — REPLACE_WITH_FORM_ID$/), lines.join('\n'))
   // The sample post, in the data it ships, in the page it renders, and in the build output.
   assert.ok(has(/^src\/data\/blog\.json:\d+ — Sample Post$/), lines.join('\n'))
   assert.ok(has(/^src\/data\/blog\.json:\d+ — Delete Me$/), lines.join('\n'))
@@ -97,18 +97,71 @@ test('placeholders.copy passes on a finished site that has a contact form with e
   } finally { cleanup() }
 })
 
-test('the same site with the placeholders replaced passes placeholders.copy', async () => {
-  const { dir, cleanup } = copyFixture(STARTER, 'starter-finished')
+// What finishing a starter site means: the one per-site file, src/lib/site.ts, is filled; the sample
+// post is deleted; nothing else is edited. In particular not the form component, which is the
+// starter's code and not the site's. An earlier version of this test rewrote the component's fallback
+// as well, which hid that a correctly configured starter still carried a REPLACE_WITH_ literal.
+function finishStarter(dir) {
+  const swap = (rel, edit) => writeFileSync(join(dir, rel), edit(readFileSync(join(dir, rel), 'utf8')))
+  swap('src/lib/site.ts', (t) => t
+    .replace('REPLACE_WITH_THIS_SITES_BUCKET_URL', 'https://pub-1.r2.dev')
+    .replace('REPLACE_WITH_FORM_ID', 'f_7c2e91a4'))
+  // The build output a rebuild would write.
+  swap('dist/contact/index.html', (t) => t.replace('REPLACE_WITH_FORM_ID', 'f_7c2e91a4'))
+  for (const rel of ['src/data/blog.json', 'src/data/blog-pages/post-sample-post.html', 'dist/blog/index.html', 'dist/blog/sample-post/index.html']) {
+    rmSync(join(dir, rel))
+  }
+}
+
+// The form component as the starter ships it today, with a literal stand-in as the last fallback.
+// The fix is for the component to stop carrying one: no fallback, and a build that stops when the
+// form has no id. Its guard compares against the prefix REPLACE_, which is not itself a token.
+const STOCK_FALLBACK = "const resolvedFormId = formId || site.forms[form] || 'REPLACE_WITH_FORM_ID';"
+const THROWING = [
+  'const resolvedFormId = formId || site.forms[form];',
+  "if (!resolvedFormId || resolvedFormId.startsWith('REPLACE_')) {",
+  '  throw new Error(`[forms] No form id for "${form}". Fill in site.forms.${form} in src/lib/site.ts.`);',
+  '}',
+].join('\n')
+
+const FORM_COMPONENT = 'src/components/SiteForm.astro'
+const useThrowingForm = (dir) => {
+  const file = join(dir, FORM_COMPONENT)
+  const source = readFileSync(file, 'utf8')
+  assert.ok(source.includes(STOCK_FALLBACK), 'the fixture should carry the starter\'s stock fallback line, so the swap means something')
+  writeFileSync(file, source.replace(STOCK_FALLBACK, THROWING))
+}
+
+test('a filled site.ts is not enough while the form component keeps its stock REPLACE_WITH_ fallback', async () => {
+  const { dir, cleanup } = copyFixture(STARTER, 'starter-stock-fallback')
   try {
-    const swap = (rel, edit) => writeFileSync(join(dir, rel), edit(readFileSync(join(dir, rel), 'utf8')))
-    // Replace the tokens, delete the sample post and point the canonical at the real host.
-    swap('src/lib/site.ts', (t) => t.replace('REPLACE_WITH_THIS_SITES_BUCKET_URL', 'https://pub-1.r2.dev').replace('REPLACE_WITH_FORM_ID', 'f_7c2e91a4'))
-    swap('src/components/ContactForm.astro', (t) => t.replace("'REPLACE_WITH_FORM_ID'", "'f_7c2e91a4'"))
-    for (const rel of ['src/data/blog.json', 'src/data/blog-pages/post-sample-post.html', 'dist/blog/index.html', 'dist/blog/sample-post/index.html']) {
-      rmSync(join(dir, rel))
-    }
-    const map = await group(checks, await ctxFor(dir, { productionUrl: STARTER_URL }))
-    assertStatus(map, 'placeholders.copy', 'pass', assert)
+    finishStarter(dir)
+    const found = assertStatus(await group(checks, await ctxFor(dir, { productionUrl: STARTER_URL })), 'placeholders.copy', 'fail', assert)
+    // The one thing left to name is the fallback itself. That is why the starter throws instead of keeping it:
+    // a literal in the component would fail every correctly configured site.
+    const lines = evidenceOf(found)
+    assert.equal(lines.length, 1, lines.join('\n'))
+    assert.match(lines[0], /^src\/components\/SiteForm\.astro:\d+ — REPLACE_WITH_FORM_ID$/)
+  } finally { cleanup() }
+})
+
+test('a filled site.ts and a form component that throws instead of falling back pass placeholders.copy', async () => {
+  const { dir, cleanup } = copyFixture(STARTER, 'starter-throwing-form')
+  try {
+    finishStarter(dir)
+    useThrowingForm(dir)
+    assertStatus(await group(checks, await ctxFor(dir, { productionUrl: STARTER_URL })), 'placeholders.copy', 'pass', assert)
+  } finally { cleanup() }
+})
+
+test('a form component that throws does not hide a site.ts that is still unfilled', async () => {
+  const { dir, cleanup } = copyFixture(STARTER, 'starter-throwing-unfilled')
+  try {
+    useThrowingForm(dir)
+    const found = assertStatus(await group(checks, await ctxFor(dir, { productionUrl: STARTER_URL })), 'placeholders.copy', 'fail', assert)
+    const lines = evidenceOf(found)
+    assert.ok(lines.some((l) => /^src\/lib\/site\.ts:\d+ — REPLACE_WITH_THIS_SITES_BUCKET_URL$/.test(l)), lines.join('\n'))
+    assert.ok(!lines.some((l) => l.startsWith(FORM_COMPONENT)), lines.join('\n'))
   } finally { cleanup() }
 })
 

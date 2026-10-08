@@ -17,7 +17,7 @@ const TEXT_PROOFS = [
   ['FIXME', 'FIXME before launch', 'fixmen are not a word'],
   ['REPLACE_ME', 'replace_me', 'replaced the tile'],
   ['REPLACE_WITH_ token', 'forms: { contact: \'REPLACE_WITH_FORM_ID\' }', 'replace_with_care() is a function name'],
-  ['Sample Post', 'Sample Post — Delete Me', 'a sample posting of the rota'],
+  ['Sample Post', 'Sample Post — Delete Me', 'Sample Post-Op Instructions'],
   ['Delete Me', 'Sample Post — Delete Me', 'ask us to delete me from the list'],
 ]
 
@@ -90,6 +90,9 @@ test('ordinary uses of the same words are not placeholders', () => {
     'You can ask us to delete me and my records from the list.',
     'Please delete my data.',
     'A sample of our work, in a post about aftercare.',
+    'Sample Post-Op Instructions',
+    'Download our sample post-op instructions',
+    'a sample posting of the rota',
     'replace_with_care()',
     'REPLACE_WITH', // no token after it
     'Replace with a calmer shade.',
