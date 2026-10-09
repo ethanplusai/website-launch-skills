@@ -113,9 +113,10 @@ function finishStarter(dir) {
   }
 }
 
-// The form component as the starter ships it today, with a literal stand-in as the last fallback.
-// The fix is for the component to stop carrying one: no fallback, and a build that stops when the
-// form has no id. Its guard compares against the prefix REPLACE_, which is not itself a token.
+// The form component as the starter shipped it before it was fixed, with a literal stand-in as the
+// last fallback. The fix was for the component to stop carrying one: no fallback, and a launch build
+// that stops when the form has no id (any other build renders the form disabled). Its guard compares
+// against the prefix REPLACE_, which is not itself a token. THROWING is a reduced version of that guard.
 const STOCK_FALLBACK = "const resolvedFormId = formId || site.forms[form] || 'REPLACE_WITH_FORM_ID';"
 const THROWING = [
   'const resolvedFormId = formId || site.forms[form];',
