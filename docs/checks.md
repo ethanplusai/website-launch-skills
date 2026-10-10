@@ -31,7 +31,7 @@ Runs against the repository and its build output before a deploy. Any `fail` exi
 | id | severity | tier | title | catches |
 |---|---|---|---|---|
 | `placeholders.analytics-id` | blocker | repo | A placeholder analytics id | a measurement id nobody replaced, so the launch collects no data and nobody notices for a month |
-| `placeholders.copy` | blocker | repo | Placeholder copy in the site | lorem ipsum, TODO markers and unreplaced template tokens shipping as page content |
+| `placeholders.copy` | blocker | repo | Placeholder copy in the site | lorem ipsum, TODO markers, unreplaced template tokens, a sample post and links to example.com shipping as page content |
 | `placeholders.dev-host` | blocker | repo | A development or staging host in the build output | a localhost or preview-deploy url shipped to production, where it is a dead link or a duplicate-content copy |
 | `placeholders.form-id` | blocker | repo | A placeholder form endpoint | a contact form posting to an example endpoint, so every enquiry is lost silently |
 | `placeholders.required-env` | blocker | repo | A required environment variable is not set | a production build interpolating an undefined variable into the page as an empty string |
@@ -292,7 +292,7 @@ Crawls a staging or live url and reports. It always exits 0 — it reports, it d
 | `content.mixed-spelling` | info | http | The site uses two spellings of the same word | American and British spellings of one word across the site — two writers who never agreed. |
 | `content.past-dated-promo` | medium | http | A promotion advertises a date that has passed | "Ends Aug 31" still on the page in September — an offer the site is still making and can no longer honour. |
 | `content.phone-variants` | medium | http | The site publishes more than one phone number | An old number left on one page and the new one on another, so half the calls go nowhere. |
-| `content.placeholder-text` | high | http | A page still carries placeholder copy | Lorem ipsum, "coming soon", a TODO, an unrendered {{ template }} or an [INSERT] left in the copy. |
+| `content.placeholder-text` | high | http | A page still carries placeholder copy | Lorem ipsum, "coming soon", a TODO, an unrendered {{ template }}, an [INSERT], a REPLACE_WITH_ token, a sample post or a link to example.com left in the page. |
 
 ### redirects (8)
 
