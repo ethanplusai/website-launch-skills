@@ -12,7 +12,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
 import { defineCheck, SkipCheck } from '../../../launch-audit/scripts/lib/registry.mjs'
 import { SECRETS, scanText } from '../../../launch-audit/scripts/lib/detect/placeholders.mjs'
-import { lockfilesIn } from './context.mjs'
+import { isIgnoredPath, lockfilesIn } from './context.mjs'
 
 const PHASE = 'pre-launch'
 const DIMENSION = 'hygiene'
@@ -104,8 +104,9 @@ const MAX_DEPTH = 6
 
 // Every directory named `.git` below the root, excluding the root's own and anything vendored.
 // A nested repository is a directory whose contents the outer repository does not actually track,
-// which means what you deploy and what you pushed are two different things.
-export function nestedGitDirs(root) {
+// which means what you deploy and what you pushed are two different things. `ignoreDirs` are the
+// folders the operator named with --ignore-dir, as paths relative to the root.
+export function nestedGitDirs(root, { ignoreDirs = [] } = {}) {
   const found = []
   const visit = (dir, depth) => {
     if (depth > MAX_DEPTH) return
@@ -123,6 +124,7 @@ export function nestedGitDirs(root) {
         continue
       }
       if (SKIP_DIRS.has(entry.name)) continue
+      if (isIgnoredPath(relative(root, full).split(sep).join('/'), ignoreDirs)) continue
       visit(full, depth + 1)
     }
   }
@@ -197,7 +199,7 @@ const nestedGit = check({
   title: 'A nested git repository below the root',
   catches: 'a directory whose contents the outer repository does not track and a deploy therefore cannot carry',
   run(ctx) {
-    const nested = nestedGitDirs(ctx.dir)
+    const nested = nestedGitDirs(ctx.dir, { ignoreDirs: ctx.config.ignoreDirs })
     if (nested.length === 0) return []
     return [this.mk({
       title: 'A nested git repository below the root',
@@ -268,6 +270,7 @@ const secretsCommitted = check({
     for (const rel of ctx.git.tracked) {
       const name = rel.split('/').pop()
       if (LOCKFILE_NAMES.has(name) || rel.includes('node_modules/')) continue
+      if (isIgnoredPath(rel, ctx.config.ignoreDirs)) continue
       const full = join(ctx.dir, rel)
       let stat
       try {

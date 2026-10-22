@@ -20,7 +20,7 @@
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { join, relative, sep } from 'node:path'
+import { join, posix, relative, sep } from 'node:path'
 
 import { walk } from '../../../launch-audit/scripts/lib/fs-util.mjs'
 import { parseHtml } from '../../../launch-audit/scripts/lib/html.mjs'
@@ -48,6 +48,43 @@ export function createExec() {
 
 // ------------------------------------------------------------------------------------- options
 
+// `--ignore-dir` names folders relative to --dir, written however a person types them (`capture`,
+// `./capture/`, `docs\capture`, `capture//raw`). They are compared as normalised forward-slash
+// paths with no leading `./` and no trailing slash, and one that climbs out of --dir is dropped, so `capture` means the top-level `capture/` and nothing else: a folder called
+// `capture` somewhere under `src/` is still scanned unless it is named by its own path.
+export function normalizeIgnoreDirs(raw) {
+  if (!Array.isArray(raw)) return []
+  const out = []
+  for (const entry of raw) {
+    const raw = String(entry).trim().split('\\').join('/')
+    if (raw === '') continue
+    const path = posix.normalize(raw).replace(/^(\.\/)+/, '').replace(/\/+$/, '')
+    if (path === '' || path === '.' || path === '..' || path.startsWith('../') || path.startsWith('/')) continue
+    if (!out.includes(path)) out.push(path)
+  }
+  return out
+}
+
+// Whether a path relative to --dir is inside one of the ignored folders. Only the repository scans
+// ask this; nothing asks it of the build output, which is what deploys.
+export const isIgnoredPath = (rel, ignoreDirs) =>
+  ignoreDirs.some((dir) => rel === dir || rel.startsWith(`${dir}/`))
+
+// The build folder is what deploys, and `hygiene.secrets-committed` is the only check that looks
+// for credentials in it when it is committed (`public/` for Hugo or GitHub Pages). An ignored
+// folder that is the build folder, holds it, or sits inside it would switch that scan off for the
+// very files that ship, so it is refused outright rather than reported.
+export function assertIgnoreClearOfBuild(ignoreDirs, buildDirName) {
+  if (buildDirName === null || buildDirName === undefined) return
+  const [build] = normalizeIgnoreDirs([buildDirName])
+  if (build === undefined) return
+  for (const dir of ignoreDirs) {
+    if (isIgnoredPath(build, [dir]) || isIgnoredPath(dir, [build])) {
+      throw new Error(`--ignore-dir ${dir} overlaps the build folder ${build}; the build output is what deploys and is always scanned`)
+    }
+  }
+}
+
 export function normalizeOptions(raw = {}) {
   return {
     productionUrl: raw.productionUrl ?? null,
@@ -55,6 +92,7 @@ export function normalizeOptions(raw = {}) {
     buildDir: raw.buildDir ?? null,
     requiredEnv: Array.isArray(raw.requiredEnv) ? raw.requiredEnv : [],
     devHosts: Array.isArray(raw.devHosts) ? raw.devHosts : [],
+    ignoreDirs: normalizeIgnoreDirs(raw.ignoreDirs),
     strict: raw.strict === true,
     skipBuild: raw.skipBuild === true,
     out: raw.out ?? null,
@@ -344,12 +382,17 @@ export async function buildGateContext({ dir, options: rawOptions, exec, net = n
   const redirects = parseRedirects(dir)
   const git = gitState(exec, dir)
 
+  // Refused before the build runs, against whatever build folder can already be named, and again
+  // after it, against the one the build actually wrote.
+  assertIgnoreClearOfBuild(config.ignoreDirs, config.buildDir ?? resolveBuildDir(dir, config, framework).name ?? framework?.buildDirGuess ?? null)
+
   // The build first, then the output it wrote. Reversing these two lines is how a gate starts
   // passing a stale dist.
   const build = runBuild({ dir, pm, options: config, exec })
 
   const { name: buildDirName, note: buildDirNote } = resolveBuildDir(dir, config, framework)
   const buildDir = buildDirName === null ? null : join(dir, buildDirName)
+  assertIgnoreClearOfBuild(config.ignoreDirs, buildDirName)
 
   const files = []
   const html = new Map()

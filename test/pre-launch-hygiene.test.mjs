@@ -6,11 +6,15 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { Buffer } from 'node:buffer'
 import { join } from 'node:path'
 import { checks, satisfiesRange } from '../skills/pre-launch/scripts/lib/hygiene.mjs'
-import { PASSING, FAILING, cleanGit, dirtyGit, noGit, execFake, copyFixture, GIT_STATUS, GIT_FILES, GIT_AHEAD, GIT_UPSTREAM, GIT_TOPLEVEL } from './pre-launch-helpers.mjs'
+import { checks as placeholderChecks, sourceScanNote } from '../skills/pre-launch/scripts/lib/placeholders.mjs'
+import { normalizeIgnoreDirs } from '../skills/pre-launch/scripts/lib/context.mjs'
+import { runGate } from '../skills/pre-launch/scripts/lib/gate.mjs'
+import { args as preLaunchArgs } from '../skills/pre-launch/scripts/pre-launch.mjs'
+import { PASSING, PASSING_URL, FAILING, cleanGit, dirtyGit, noGit, execFake, copyFixture, outsideRepoDir, GIT_STATUS, GIT_FILES, GIT_AHEAD, GIT_UPSTREAM, GIT_TOPLEVEL } from './pre-launch-helpers.mjs'
 import { ctxFor, group, assertStatus } from './pre-launch-check-helpers.mjs'
 
 test('a clean, pushed, lockfiled repository passes every hygiene check', async () => {
@@ -180,4 +184,151 @@ test('a gated directory that is the repository root says nothing extra', async (
   const map = await group(checks, await ctxFor(PASSING, { exec: dirtyGit() }))
   const tree = assertStatus(map, 'hygiene.clean-tree', 'fail', assert)
   assert.ok(!tree.evidence.some((e) => /repository rooted at/.test(e.value)))
+})
+
+// ------------------------------------------------------------------------------- --ignore-dir
+
+// A conversion commits the old site's raw HTML as evidence (`capture/`). That folder is not the
+// site: it is somebody else's markup, frozen, and it is full of the old site's lorem ipsum, its
+// dev hosts and its embedded tokens. `--ignore-dir` keeps the repository scans out of it, and the
+// report says so under Not covered. It never touches the build output, which is what deploys.
+
+const CAPTURED = [
+  '<p>Lorem ipsum dolor sit amet.</p>',
+  '<a href="http://localhost:3000/about">About</a>',
+  '<script>window.token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.c2lnbmF0dXJlLXNpZ25hdHVyZQ"</script>',
+].join('\n')
+
+function captureRepo(name) {
+  const fixture = copyFixture(PASSING, name)
+  mkdirSync(join(fixture.dir, 'capture', 'vendor-checkout', '.git'), { recursive: true })
+  writeFileSync(join(fixture.dir, 'capture', 'vendor-checkout', '.git', 'HEAD'), 'ref: refs/heads/main\n')
+  writeFileSync(join(fixture.dir, 'capture', 'raw.html'), CAPTURED)
+  return fixture
+}
+
+const captureGit = () => cleanGit({ [GIT_FILES]: { code: 0, stdout: 'package.json\nsrc/index.html\ncapture/raw.html\n', stderr: '' } })
+const failingIds = (map) => [...map.values()].filter((c) => c.status === 'fail').map((c) => c.id).sort()
+
+test('--ignore-dir capture keeps hygiene and placeholders out of a captured evidence folder', async () => {
+  const { dir, cleanup } = captureRepo('ignore-capture')
+  try {
+    const all = [...checks, ...placeholderChecks]
+    const without = await group(all, await ctxFor(dir, { exec: captureGit() }))
+    assert.deepEqual(failingIds(without), ['hygiene.nested-git', 'hygiene.secrets-committed'])
+    assert.ok(without.get('hygiene.secrets-committed').evidence.some((e) => e.value.startsWith('capture/raw.html:')))
+
+    const ignored = await group(all, await ctxFor(dir, { exec: captureGit(), ignoreDirs: ['capture'] }))
+    assert.deepEqual(failingIds(ignored), [])
+    assertStatus(ignored, 'hygiene.nested-git', 'pass', assert)
+    assertStatus(ignored, 'hygiene.secrets-committed', 'pass', assert)
+    assertStatus(ignored, 'placeholders.copy', 'pass', assert)
+    assertStatus(ignored, 'placeholders.dev-host', 'pass', assert)
+  } finally { cleanup() }
+})
+
+test('the gate fails without --ignore-dir, passes with it, and names the folder under Not covered', async () => {
+  const { dir, cleanup } = captureRepo('ignore-gate')
+  const { dir: out, cleanup: cleanOut } = outsideRepoDir('ignore-bundle')
+  try {
+    const run = (extra) => runGate({
+      dir,
+      options: { skipBuild: true, productionUrl: PASSING_URL, out: join(out, extra.name), ...extra.options },
+      exec: captureGit(),
+      now: new Date('2026-09-14T00:00:00Z'),
+      cwd: out,
+      env: { NODE_VERSION_OVERRIDE: 'v22.0.0' },
+    })
+    const without = await run({ name: 'without', options: {} })
+    assert.equal(without.gate, 'fail')
+    assert.ok(!without.notCovered.some((line) => line.startsWith('ignored by request')))
+
+    const ignored = await run({ name: 'with', options: { ignoreDirs: ['capture'] } })
+    assert.equal(ignored.gate, 'pass', JSON.stringify(ignored.checks.filter((c) => c.status === 'fail')))
+    assert.ok(ignored.notCovered.includes('ignored by request: capture'), JSON.stringify(ignored.notCovered))
+    const report = readFileSync(join(out, 'with', 'report.md'), 'utf8')
+    const section = report.slice(report.indexOf('## Not covered'), report.indexOf('## Human checklist'))
+    assert.match(section, /ignored by request: capture/)
+  } finally { cleanup(); cleanOut() }
+})
+
+test('an ignored folder inside a source directory is left out of the source scan, and nowhere else', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'ignore-source')
+  try {
+    mkdirSync(join(dir, 'src', 'legacy'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'legacy', 'raw.html'), '<p>Lorem ipsum dolor sit amet.</p>')
+    const without = await group(placeholderChecks, await ctxFor(dir, { exec: cleanGit() }))
+    assertStatus(without, 'placeholders.copy', 'fail', assert)
+
+    const ignored = await group(placeholderChecks, await ctxFor(dir, { exec: cleanGit(), ignoreDirs: ['src/legacy/'] }))
+    assertStatus(ignored, 'placeholders.copy', 'pass', assert)
+    // The rest of src is still read: the same string one directory up still fails.
+    writeFileSync(join(dir, 'src', 'stray.html'), '<p>Lorem ipsum dolor sit amet.</p>')
+    const stray = await group(placeholderChecks, await ctxFor(dir, { exec: cleanGit(), ignoreDirs: ['src/legacy'] }))
+    const found = assertStatus(stray, 'placeholders.copy', 'fail', assert)
+    assert.ok(found.evidence.every((e) => !e.value.includes('src/legacy/')), JSON.stringify(found.evidence))
+  } finally { cleanup() }
+})
+
+test('--ignore-dir never reaches the build output, which is what deploys', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'ignore-build')
+  try {
+    mkdirSync(join(dir, 'dist', 'capture'), { recursive: true })
+    writeFileSync(join(dir, 'dist', 'capture', 'raw.html'), '<html><head><title>x</title></head><body><a href="http://localhost:3000/">x</a></body></html>')
+    const map = await group(placeholderChecks, await ctxFor(dir, { exec: cleanGit(), ignoreDirs: ['capture'] }))
+    const found = assertStatus(map, 'placeholders.dev-host', 'fail', assert)
+    assert.ok(found.evidence.some((e) => e.value.includes('dist/capture/raw.html')))
+  } finally { cleanup() }
+})
+
+test('--ignore-dir is repeatable and accepts a comma list, like --dev-host', () => {
+  const { values, errors } = preLaunchArgs.parse(['--ignore-dir', 'capture', '--ignore-dir', 'review,baseline'])
+  assert.deepEqual(errors, [])
+  assert.deepEqual(values['ignore-dir'], ['capture', 'review', 'baseline'])
+  assert.deepEqual(preLaunchArgs.parse([]).values['ignore-dir'], [])
+})
+
+// Review fix round 1.
+
+test('ignoring every source folder that exists says so, rather than that there are none', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'ignore-all-source')
+  try {
+    const ctx = await ctxFor(dir, { exec: cleanGit(), ignoreDirs: ['src'] })
+    const note = sourceScanNote(ctx)
+    assert.equal(note, 'placeholders: no source directory was scanned — src was ignored by request, so only the build output was searched')
+    assert.doesNotMatch(note, /has none of/)
+    const map = await group(placeholderChecks, ctx)
+    assert.ok(map.get('placeholders.copy').notCovered.includes(note))
+  } finally { cleanup() }
+})
+
+test('an --ignore-dir that is, holds, or sits inside the build folder is refused, because secrets in what deploys must be scanned', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'ignore-build-dir')
+  try {
+    for (const ignoreDirs of [['dist'], ['./dist/'], ['dist/assets']]) {
+      await assert.rejects(ctxFor(dir, { exec: cleanGit(), ignoreDirs }), /--ignore-dir .* overlaps the build folder dist/, JSON.stringify(ignoreDirs))
+    }
+    const { renameSync } = await import('node:fs')
+    renameSync(join(dir, 'dist'), join(dir, 'public'))
+    await assert.rejects(ctxFor(dir, { exec: cleanGit(), buildDir: 'public', ignoreDirs: ['public'] }), /overlaps the build folder public/)
+    mkdirSync(join(dir, 'site'))
+    renameSync(join(dir, 'public'), join(dir, 'site', 'public'))
+    await assert.rejects(ctxFor(dir, { exec: cleanGit(), buildDir: 'site/public', ignoreDirs: ['site'] }), /overlaps the build folder site\/public/)
+    // A folder beside the build folder is fine.
+    await ctxFor(dir, { exec: cleanGit(), buildDir: 'site/public', ignoreDirs: ['capture'] })
+  } finally { cleanup() }
+})
+
+test('ignored paths are normalised, and one that is not there is marked under Not covered', async () => {
+  assert.deepEqual(normalizeIgnoreDirs(['capture/./raw', 'capture//x', './capture/', 'a/../b', '..', 'x/../..']), ['capture/raw', 'capture/x', 'capture', 'b'])
+  const { dir, cleanup } = captureRepo('ignore-missing')
+  const { dir: out, cleanup: cleanOut } = outsideRepoDir('ignore-missing-bundle')
+  try {
+    const results = await runGate({
+      dir,
+      options: { skipBuild: true, productionUrl: PASSING_URL, out: join(out, 'b'), ignoreDirs: ['capture', 'reviw'] },
+      exec: captureGit(), now: new Date('2026-09-14T00:00:00Z'), cwd: out, env: { NODE_VERSION_OVERRIDE: 'v22.0.0' },
+    })
+    assert.ok(results.notCovered.includes('ignored by request: capture, reviw (not present)'), JSON.stringify(results.notCovered))
+  } finally { cleanup(); cleanOut() }
 })

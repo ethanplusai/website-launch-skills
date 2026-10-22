@@ -27,7 +27,7 @@ import { join } from 'node:path'
 
 import { defineArgs } from '../../launch-audit/scripts/lib/args.mjs'
 import { createNet } from '../../launch-audit/scripts/lib/net.mjs'
-import { createExec, normalizeOptions } from './lib/context.mjs'
+import { createExec, normalizeIgnoreDirs, normalizeOptions } from './lib/context.mjs'
 import { runGate } from './lib/gate.mjs'
 import { HUMAN_ITEM_IDS, confirmItem, humanItemsFor, readProgress, resetProgress } from './lib/human.mjs'
 
@@ -53,6 +53,7 @@ export const args = defineArgs({
     'build-dir': { type: 'string', help: 'the build output directory (auto-detected: dist, out, build, _site, public)' },
     'required-env': { type: 'list', help: 'an environment variable the production build needs (repeatable)' },
     'dev-host': { type: 'list', help: 'a staging or dev hostname that must not appear in the build (repeatable)' },
+    'ignore-dir': { type: 'list', help: 'a folder under --dir, such as captured evidence, that is not the site; the repository scans skip it and Not covered names it (repeatable)' },
     strict: { type: 'boolean', default: false, help: 'raise placeholders.source-maps from advisory to blocker' },
     'skip-build': { type: 'boolean', default: false, help: 'do not run the build; inspect the output already on disk' },
     progress: { type: 'boolean', default: false, help: 'print the human checklist with its confirmations and exit' },
@@ -224,6 +225,17 @@ async function runCli(argv, { cwd, now, env }) {
     }
   }
 
+  // An ignored folder is a path inside the repository being gated. One that points outside it, or
+  // at the whole of it, is not a folder this flag can mean.
+  for (const entry of values['ignore-dir']) {
+    const path = String(entry).trim().split('\\').join('/')
+    if (path.startsWith('/') || /^[A-Za-z]:/.test(path) || path.split('/').includes('..')) {
+      errors.push(`--ignore-dir must be a folder inside --dir, relative to it: ${entry}`)
+    } else if (normalizeIgnoreDirs([path]).length === 0) {
+      errors.push(`--ignore-dir cannot name --dir itself: ${entry}`)
+    }
+  }
+
   if (errors.length > 0) {
     usageError(errors, help)
     return
@@ -235,6 +247,7 @@ async function runCli(argv, { cwd, now, env }) {
     buildDir: values['build-dir'] ?? null,
     requiredEnv: values['required-env'],
     devHosts: values['dev-host'],
+    ignoreDirs: values['ignore-dir'],
     strict: values.strict === true,
     skipBuild: values['skip-build'] === true,
     out: values.out ?? null,
