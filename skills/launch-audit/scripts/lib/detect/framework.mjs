@@ -221,7 +221,13 @@ function fromVercel(text) {
   const list = Array.isArray(parsed?.redirects) ? parsed.redirects : []
   return list
     .filter((r) => typeof r?.source === 'string' && typeof r?.destination === 'string')
-    .map((r) => rule(r.source, r.destination, r.permanent === false ? 302 : 301))
+    .map((r) => {
+      const out = rule(r.source, r.destination, r.statusCode ?? (r.permanent === false ? 302 : 301))
+      // A rule with `has`/`missing` conditions (query, header, cookie, host) only fires when they
+      // match: `{ source: '/', has: [{ type: 'query', key: 'p' }] }` does not redirect the home page.
+      if ((Array.isArray(r.has) && r.has.length) || (Array.isArray(r.missing) && r.missing.length)) out.conditional = true
+      return out
+    })
 }
 
 // `[[redirects]]` blocks, read as a flat key scan between one header and the next. A TOML parser

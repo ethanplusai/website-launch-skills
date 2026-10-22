@@ -163,7 +163,7 @@ const redirectTargets = check({
     if (ctx.buildDir === null || ctx.buildDirNote !== null) {
       throw new SkipCheck(ctx.buildDirNote ?? 'there is no build output directory to resolve destinations against')
     }
-    const sources = new Set(ctx.redirects.rules.map((rule) => normalizePath(rule.from)))
+    const sources = new Set(ctx.redirects.rules.filter((rule) => !rule.conditional).map((rule) => normalizePath(rule.from)))
     const broken = []
     // A templated destination cannot be resolved without knowing what its capture matched, so it
     // is not checked — and a check that quietly drops rules is a check that reports coverage it

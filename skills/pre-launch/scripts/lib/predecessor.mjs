@@ -35,7 +35,7 @@ function requirePredecessor(ctx) {
 }
 
 const explicitSources = (ctx) => new Set(
-  ctx.redirects.rules.filter((rule) => !rule.wildcard).map((rule) => normalizePath(rule.from)),
+  ctx.redirects.rules.filter((rule) => !rule.wildcard && !rule.conditional).map((rule) => normalizePath(rule.from)),
 )
 
 const coverage = check({
@@ -137,7 +137,9 @@ const redirectChains = check({
     requirePredecessor(ctx)
     const byFrom = new Map()
     for (const rule of ctx.redirects.rules) {
-      if (rule.wildcard) continue
+      // Conditional rules (vercel.json `has`/`missing`) do not redirect their plain path, so they
+      // cannot be a hop in a chain through it.
+      if (rule.wildcard || rule.conditional) continue
       const from = normalizePath(rule.from)
       if (!byFrom.has(from)) byFrom.set(from, rule)
     }
