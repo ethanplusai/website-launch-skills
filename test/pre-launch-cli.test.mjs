@@ -50,11 +50,27 @@ test('a --production-url that is not a url is a usage error, exit 2', async () =
 })
 
 test('an --ignore-dir outside --dir, or naming --dir itself, is a usage error, exit 2', async () => {
-  for (const bad of ['../elsewhere', '/tmp/capture', 'capture/../..', '.', './']) {
+  const outside = /--ignore-dir must be a folder inside --dir, relative to it/
+  const itself = /--ignore-dir cannot name --dir itself/
+  for (const [bad, message] of [['../elsewhere', outside], ['/tmp/capture', outside], ['capture/../..', outside], ['.', itself], ['./', itself]]) {
     const { code, stderr } = await cli(['--dir', PASSING, '--production-url', PASSING_URL, '--skip-build', '--ignore-dir', bad])
     assert.equal(code, 2, `--ignore-dir ${bad}`)
-    assert.match(stderr, /--ignore-dir/)
+    assert.match(stderr, message)
   }
+})
+
+test('an --ignore-dir over the build folder exits 2, whether detected or passed with --build-dir', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'cli-ignore-build')
+  try {
+    const detected = await cli(['--dir', dir, '--production-url', PASSING_URL, '--skip-build', '--ignore-dir', 'dist'], { cwd: dir })
+    assert.equal(detected.code, 2)
+    assert.match(detected.stderr, /--ignore-dir dist overlaps the build folder dist/)
+    const { renameSync } = await import('node:fs')
+    renameSync(join(dir, 'dist'), join(dir, 'public'))
+    const passed = await cli(['--dir', dir, '--production-url', PASSING_URL, '--skip-build', '--build-dir', 'public', '--ignore-dir', 'public'], { cwd: dir })
+    assert.equal(passed.code, 2)
+    assert.match(passed.stderr, /--ignore-dir public overlaps the build folder public/)
+  } finally { cleanup() }
 })
 
 test('the passing fixture exits 0 and leads with the verdict', async () => {

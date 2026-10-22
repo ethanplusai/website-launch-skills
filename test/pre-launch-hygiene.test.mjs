@@ -10,7 +10,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { Buffer } from 'node:buffer'
 import { join } from 'node:path'
 import { checks, satisfiesRange } from '../skills/pre-launch/scripts/lib/hygiene.mjs'
-import { checks as placeholderChecks } from '../skills/pre-launch/scripts/lib/placeholders.mjs'
+import { checks as placeholderChecks, sourceScanNote } from '../skills/pre-launch/scripts/lib/placeholders.mjs'
+import { normalizeIgnoreDirs } from '../skills/pre-launch/scripts/lib/context.mjs'
 import { runGate } from '../skills/pre-launch/scripts/lib/gate.mjs'
 import { args as preLaunchArgs } from '../skills/pre-launch/scripts/pre-launch.mjs'
 import { PASSING, PASSING_URL, FAILING, cleanGit, dirtyGit, noGit, execFake, copyFixture, outsideRepoDir, GIT_STATUS, GIT_FILES, GIT_AHEAD, GIT_UPSTREAM, GIT_TOPLEVEL } from './pre-launch-helpers.mjs'
@@ -274,7 +275,7 @@ test('--ignore-dir never reaches the build output, which is what deploys', async
   try {
     mkdirSync(join(dir, 'dist', 'capture'), { recursive: true })
     writeFileSync(join(dir, 'dist', 'capture', 'raw.html'), '<html><head><title>x</title></head><body><a href="http://localhost:3000/">x</a></body></html>')
-    const map = await group(placeholderChecks, await ctxFor(dir, { exec: cleanGit(), ignoreDirs: ['capture', 'dist'] }))
+    const map = await group(placeholderChecks, await ctxFor(dir, { exec: cleanGit(), ignoreDirs: ['capture'] }))
     const found = assertStatus(map, 'placeholders.dev-host', 'fail', assert)
     assert.ok(found.evidence.some((e) => e.value.includes('dist/capture/raw.html')))
   } finally { cleanup() }
@@ -285,4 +286,49 @@ test('--ignore-dir is repeatable and accepts a comma list, like --dev-host', () 
   assert.deepEqual(errors, [])
   assert.deepEqual(values['ignore-dir'], ['capture', 'review', 'baseline'])
   assert.deepEqual(preLaunchArgs.parse([]).values['ignore-dir'], [])
+})
+
+// Review fix round 1.
+
+test('ignoring every source folder that exists says so, rather than that there are none', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'ignore-all-source')
+  try {
+    const ctx = await ctxFor(dir, { exec: cleanGit(), ignoreDirs: ['src'] })
+    const note = sourceScanNote(ctx)
+    assert.equal(note, 'placeholders: no source directory was scanned — src was ignored by request, so only the build output was searched')
+    assert.doesNotMatch(note, /has none of/)
+    const map = await group(placeholderChecks, ctx)
+    assert.ok(map.get('placeholders.copy').notCovered.includes(note))
+  } finally { cleanup() }
+})
+
+test('an --ignore-dir that is, holds, or sits inside the build folder is refused, because secrets in what deploys must be scanned', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'ignore-build-dir')
+  try {
+    for (const ignoreDirs of [['dist'], ['./dist/'], ['dist/assets']]) {
+      await assert.rejects(ctxFor(dir, { exec: cleanGit(), ignoreDirs }), /--ignore-dir .* overlaps the build folder dist/, JSON.stringify(ignoreDirs))
+    }
+    const { renameSync } = await import('node:fs')
+    renameSync(join(dir, 'dist'), join(dir, 'public'))
+    await assert.rejects(ctxFor(dir, { exec: cleanGit(), buildDir: 'public', ignoreDirs: ['public'] }), /overlaps the build folder public/)
+    mkdirSync(join(dir, 'site'))
+    renameSync(join(dir, 'public'), join(dir, 'site', 'public'))
+    await assert.rejects(ctxFor(dir, { exec: cleanGit(), buildDir: 'site/public', ignoreDirs: ['site'] }), /overlaps the build folder site\/public/)
+    // A folder beside the build folder is fine.
+    await ctxFor(dir, { exec: cleanGit(), buildDir: 'site/public', ignoreDirs: ['capture'] })
+  } finally { cleanup() }
+})
+
+test('ignored paths are normalised, and one that is not there is marked under Not covered', async () => {
+  assert.deepEqual(normalizeIgnoreDirs(['capture/./raw', 'capture//x', './capture/', 'a/../b', '..', 'x/../..']), ['capture/raw', 'capture/x', 'capture', 'b'])
+  const { dir, cleanup } = captureRepo('ignore-missing')
+  const { dir: out, cleanup: cleanOut } = outsideRepoDir('ignore-missing-bundle')
+  try {
+    const results = await runGate({
+      dir,
+      options: { skipBuild: true, productionUrl: PASSING_URL, out: join(out, 'b'), ignoreDirs: ['capture', 'reviw'] },
+      exec: captureGit(), now: new Date('2026-09-14T00:00:00Z'), cwd: out, env: { NODE_VERSION_OVERRIDE: 'v22.0.0' },
+    })
+    assert.ok(results.notCovered.includes('ignored by request: capture, reviw (not present)'), JSON.stringify(results.notCovered))
+  } finally { cleanup(); cleanOut() }
 })

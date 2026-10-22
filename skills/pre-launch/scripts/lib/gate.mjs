@@ -25,7 +25,7 @@
 // and that is the only severity any option may move, in the only direction it may move it.
 
 import { join } from 'node:path'
-import { writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 
 import { createRegistry, SkipCheck } from '../../../launch-audit/scripts/lib/registry.mjs'
 import { SEVERITIES, sortFindings, validateFinding } from '../../../launch-audit/scripts/lib/findings.mjs'
@@ -264,7 +264,9 @@ export async function runGate({ dir, options: rawOptions, exec, net = null, now 
   //
   // Folders the operator excluded with --ignore-dir are a bound on every repository scan at once,
   // so the gate names them itself rather than leaving it to whichever check happened to notice.
-  const ignored = options.ignoreDirs.length > 0 ? [`ignored by request: ${options.ignoreDirs.join(', ')}`] : []
+  // One that is not there is still named, and marked, so a typo cannot pass for a skip.
+  const named = options.ignoreDirs.map((d) => (existsSync(join(dir, d)) ? d : `${d} (not present)`))
+  const ignored = named.length > 0 ? [`ignored by request: ${named.join(', ')}`] : []
   const declared = [...new Set([...ignored, ...checks.flatMap((c) => c.notCovered ?? [])])]
   const notCovered = insertBeforeFixed(buildNotCovered({ skipped }), declared)
 
