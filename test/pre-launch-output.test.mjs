@@ -277,3 +277,51 @@ test('a > inside a quoted script attribute does not expose the script body to th
     assert.notEqual(found.status, 'fail', `output.internal-refs — ${found.detail}`)
   } finally { cleanup() }
 })
+
+// From the astro-conversion-kit fixture run: the feed is built at /feed/index.xml and served at
+// /feed/ by a rewrite, so a link to /feed/ is served. The host applies the rewrite when no file
+// answers the path, and the gate has to read it the same way: a rewrite to a file that exists in
+// the build counts as served, and a rewrite to a file that does not is still broken.
+const REWRITE_HEAD = '<meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Home</title><meta name="description" content="A description long enough to be a real one and not a stub of any kind at all.">'
+
+async function rewriteSite(name, files) {
+  const { dir, cleanup } = outsideRepoDir(name)
+  const { mkdirSync } = await import('node:fs')
+  writeFileSync(join(dir, 'package.json'), '{}')
+  mkdirSync(join(dir, 'dist', 'feed'), { recursive: true })
+  writeFileSync(join(dir, 'dist', 'index.html'), `<!doctype html><html lang="en"><head>${REWRITE_HEAD}</head><body><h1>Home</h1><a href="/feed/">Feed</a><a href="/news/">News</a></body></html>`)
+  writeFileSync(join(dir, 'dist', 'feed', 'index.xml'), '<?xml version="1.0"?><rss version="2.0"></rss>')
+  for (const [rel, body] of Object.entries(files)) writeFileSync(join(dir, rel), body)
+  return { dir, cleanup }
+}
+
+test('a path a vercel.json rewrite maps to a file in the build is served', async () => {
+  const { dir, cleanup } = await rewriteSite('vercel-rewrite', {
+    'vercel.json': JSON.stringify({
+      rewrites: [
+        { source: '/feed/', destination: '/feed/index.xml' },
+        { source: '/news/', destination: '/news/index.xml' },
+      ],
+    }),
+  })
+  try {
+    const map = await group(checks, await ctxFor(dir))
+    const found = assertStatus(map, 'output.internal-refs', 'fail', assert)
+    const values = found.evidence.map((e) => e.value).join(' | ')
+    assert.equal(values.includes('/feed'), false, `the rewritten /feed/ is served: ${values}`)
+    assert.match(values, /index\.html -> \/news/, 'a rewrite to a file the build lacks is still broken')
+  } finally { cleanup() }
+})
+
+test('a path a _redirects 200 rule maps to a file in the build is served', async () => {
+  const { dir, cleanup } = await rewriteSite('plain-rewrite', {
+    '_redirects': '/feed/  /feed/index.xml  200\n/news/  /news/index.xml  200\n',
+  })
+  try {
+    const map = await group(checks, await ctxFor(dir))
+    const found = assertStatus(map, 'output.internal-refs', 'fail', assert)
+    const values = found.evidence.map((e) => e.value).join(' | ')
+    assert.equal(values.includes('/feed'), false, `the rewritten /feed/ is served: ${values}`)
+    assert.match(values, /index\.html -> \/news/)
+  } finally { cleanup() }
+})

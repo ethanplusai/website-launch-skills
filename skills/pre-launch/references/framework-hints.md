@@ -103,6 +103,13 @@ rather than coverage.
 A rule whose only effect is adding or removing the trailing slash is a **slash rule**, and the
 predecessor checks leave it out of the wildcard and chain checks.
 
+**Rewrites** are read too: `vercel.json` `rewrites`, and a `200` status in `_redirects` or
+`netlify.toml`. A path an exact rewrite maps to a file in the build (`/feed/` to
+`/feed/index.xml`) counts as served — by `output.internal-refs`, `predecessor.coverage` and
+`framework.redirect-targets` alike. A file at the path itself still comes first, as it does on the
+host. A rewrite with a capture or a `has`/`missing` condition is not followed, so a catch-all
+(`/* /index.html 200`) never makes a missing path look served.
+
 `next.config.*` is JavaScript and may compute its redirects. The parser finds the literal pairs and
 nothing else, which is the honest limit — a rule built in a loop is not in the parsed set, and the
 checks report on what they parsed.

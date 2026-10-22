@@ -306,6 +306,58 @@ const REDIRECT_SOURCES = [
   { names: ['.htaccess', 'public/.htaccess'], parse: fromHtaccess },
 ]
 
+// --------------------------------------------------------------------------------- rewrite files
+
+// A rewrite serves another file's content at a path, with no redirect: vercel.json `rewrites`, and
+// a `200` status in `_redirects` or `netlify.toml`. Only exact rewrites are kept — a source with a
+// capture, or a rule with `has`/`missing` conditions, does not name the one path it serves, and a
+// catch-all (`/* /index.html 200`) would make every missing path look served.
+const exactRewrite = (from, to) => (
+  typeof from === 'string' && typeof to === 'string' && !WILDCARD.test(from) && !WILDCARD.test(to)
+    ? { from: from.trim(), to: to.trim() }
+    : null
+)
+
+function vercelRewrites(text) {
+  let parsed
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return []
+  }
+  const list = Array.isArray(parsed?.rewrites) ? parsed.rewrites : []
+  return list
+    .filter((r) => !(Array.isArray(r?.has) && r.has.length) && !(Array.isArray(r?.missing) && r.missing.length))
+    .map((r) => exactRewrite(r?.source, r?.destination))
+    .filter((r) => r !== null)
+}
+
+const status200 = (parse) => (text) => parse(text)
+  .filter((r) => r.status === 200)
+  .map((r) => exactRewrite(r.from, r.to))
+  .filter((r) => r !== null)
+
+const REWRITE_SOURCES = [
+  { names: ['vercel.json'], parse: vercelRewrites },
+  { names: ['netlify.toml'], parse: status200(fromNetlifyToml) },
+  { names: PLAIN_REDIRECT_PATHS, parse: status200(fromPlainRedirects) },
+]
+
+// The first file the repository has that declares rewrites, with them — first one wins, for the
+// same reason as `parseRedirects`.
+export function parseRewrites(dir) {
+  for (const source of REWRITE_SOURCES) {
+    const file = firstExisting(dir, source.names)
+    if (file === null) continue
+    const text = read(file)
+    if (text === null) continue
+    const rules = source.parse(text)
+    if (rules.length === 0) continue
+    return { file, rules }
+  }
+  return { file: null, rules: [] }
+}
+
 // The first redirect file the repository has, with its rules. One file wins: a repository with
 // both a vercel.json and an .htaccess is deploying to one host, and merging the two would invent
 // a rule set that never runs anywhere.
