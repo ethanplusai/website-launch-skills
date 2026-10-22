@@ -26,7 +26,7 @@ import { walk } from '../../../launch-audit/scripts/lib/fs-util.mjs'
 import { parseHtml } from '../../../launch-audit/scripts/lib/html.mjs'
 import { parseRobots } from '../../../launch-audit/scripts/lib/robots.mjs'
 import { discoverSitemaps, expandSitemap } from '../../../launch-audit/scripts/lib/sitemap.mjs'
-import { detectFramework, parseRedirects } from '../../../launch-audit/scripts/lib/detect/framework.mjs'
+import { detectFramework, parseRedirects, parseRewrites } from '../../../launch-audit/scripts/lib/detect/framework.mjs'
 
 const MAX_BUFFER = 16 * 1024 * 1024
 
@@ -232,14 +232,29 @@ export function pageUrlPath(rel) {
   return normalizePath(`/${posix}`)
 }
 
-// The build file that would serve a root-relative path, or null. The four candidate spellings are
-// the ones every static host tries, in the order they try them.
-export function resolveInBuild(ctx, path) {
-  const clean = normalizePath(path)
+// The build file at a root-relative path, or null. The four candidate spellings are the ones every
+// static host tries, in the order they try them.
+function fileInBuild(ctx, clean) {
   if (clean === '/') return ctx.fileSet.has('index.html') ? 'index.html' : null
   const bare = clean.slice(1)
   for (const candidate of [bare, `${bare}.html`, `${bare}/index.html`, `${bare}/index.htm`]) {
     if (ctx.fileSet.has(candidate)) return candidate
+  }
+  return null
+}
+
+// The build file that would serve a root-relative path, or null: the file at that path, or else
+// the file an exact rewrite maps it to (`/feed/` -> `/feed/index.xml`). A host applies a rewrite
+// when no file answers the path, so the file comes first. A rewrite's destination is looked up as
+// a file only; rewrites are not followed through each other.
+export function resolveInBuild(ctx, path) {
+  const clean = normalizePath(path)
+  const direct = fileInBuild(ctx, clean)
+  if (direct !== null) return direct
+  for (const rewrite of ctx.rewrites?.rules ?? []) {
+    if (normalizePath(rewrite.from) !== clean) continue
+    const target = fileInBuild(ctx, normalizePath(rewrite.to))
+    if (target !== null) return target
   }
   return null
 }
@@ -380,6 +395,7 @@ export async function buildGateContext({ dir, options: rawOptions, exec, net = n
   const pm = detectPackageManager(dir)
   const framework = detectFramework(dir, pkg)
   const redirects = parseRedirects(dir)
+  const rewrites = parseRewrites(dir)
   const git = gitState(exec, dir)
 
   // Refused before the build runs, against whatever build folder can already be named, and again
@@ -425,6 +441,7 @@ export async function buildGateContext({ dir, options: rawOptions, exec, net = n
     pm,
     framework,
     redirects,
+    rewrites,
     git,
     build,
     buildDir,

@@ -9,7 +9,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { detectFramework, parseRedirects } from '../skills/launch-audit/scripts/lib/detect/framework.mjs'
+import { detectFramework, parseRedirects, parseRewrites } from '../skills/launch-audit/scripts/lib/detect/framework.mjs'
 import { PASSING, FAILING, outsideRepoDir } from './pre-launch-helpers.mjs'
 
 function scratch(files) {
@@ -174,4 +174,22 @@ test('a repository with no redirect file answers with no file and no rules', () 
   try {
     assert.deepEqual(parseRedirects(dir), { file: null, rules: [] })
   } finally { cleanup() }
+})
+
+test('exact rewrites parse from vercel.json and from 200 lines; captures and conditions do not', () => {
+  const vercel = scratch({ 'vercel.json': JSON.stringify({
+    rewrites: [
+      { source: '/feed/', destination: '/feed/index.xml' },
+      { source: '/app/:path*', destination: '/app/index.html' },
+      { source: '/beta', has: [{ type: 'cookie', key: 'beta' }], destination: '/beta.html' },
+    ],
+  }) })
+  try {
+    assert.deepEqual(parseRewrites(vercel.dir).rules, [{ from: '/feed/', to: '/feed/index.xml' }])
+  } finally { vercel.cleanup() }
+
+  const plain = scratch({ '_redirects': '/old /new 301\n/feed/ /feed/index.xml 200\n/* /index.html 200\n' })
+  try {
+    assert.deepEqual(parseRewrites(plain.dir).rules, [{ from: '/feed/', to: '/feed/index.xml' }])
+  } finally { plain.cleanup() }
 })

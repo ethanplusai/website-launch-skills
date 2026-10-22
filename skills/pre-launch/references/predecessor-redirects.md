@@ -68,12 +68,24 @@ write once and correct forever.
 A wildcard is fine over a path space with no content: an old `/wp-admin/*`, a query-string handler,
 a language prefix that maps one-to-one.
 
+A **slash rule** is not a wildcard over content. The one rule a static host needs to add or remove
+the trailing slash on every path — `/:path((?:.*[^/]))` to `/:path/` in `vercel.json`, `/*` to
+`/:splat/` in `_redirects` — sends each url to the same page, so it hides no missing coverage. The
+check counts slash rules under Not covered and does not fail on them; a catch-all that sends paths
+anywhere else (`/old/*` to `/new/`) still fails.
+
 ### 5. No chains, no loops
 
 `predecessor.redirect-chains` fails when a rule's destination is itself another rule's source.
 Every extra hop costs latency and a little authority, and a chain assembled over two migrations
 usually ends in a loop nobody notices until the page serves nothing at all. Flatten every chain so
 each source points straight at its final destination.
+
+A redirect whose source and destination differ only by the trailing slash (`/about` to `/about/`)
+is a slash redirect: it leads to the same page, so it is never a hop in a chain or a loop. Nor is it
+a destination for an old url — `predecessor.coverage` still needs that page in the build. Whether
+redirect destinations are written in the configured slash form is `framework.trailing-slash`'s
+question.
 
 ### 6. Take the Search Console baseline before DNS moves
 
@@ -101,7 +113,7 @@ rankings. Deleting it slows the migration down for no benefit at all.
 
 ### `predecessor.coverage`
 **Means.** An old url exists neither at the same path in the build nor as an explicit
-non-wildcard redirect. Every leftover is listed, one per evidence line.
+non-wildcard redirect. A slash redirect (`/about` to `/about/`) is not a destination. Every leftover is listed, one per evidence line.
 **Fix.** Same path, or one explicit 301 to the closest equivalent. Work the list; do not
 generalise it into a pattern.
 **Cannot say.** Which new page is the right destination for a given old url. Only somebody who
@@ -111,10 +123,12 @@ knows the content can.
 **Means.** A catch-all rule stands in for urls that need their own destinations. The rule is
 quoted, with the old urls it swallows.
 **Fix.** Replace it with one rule per url. Keep the wildcard only over paths that had no content.
+A slash rule (one that only adds or removes the trailing slash) is not reported; the count of them
+appears under Not covered.
 
 ### `predecessor.redirect-chains`
 **Means.** A rule's destination is another rule's source (a chain), or the walk returned to where
-it started (a loop).
+it started (a loop). A slash redirect (`/about` to `/about/`) is neither.
 **Fix.** Point each source directly at its final destination. Break the loop.
 
 ---

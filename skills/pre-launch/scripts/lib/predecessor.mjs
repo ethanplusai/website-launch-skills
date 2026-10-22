@@ -15,6 +15,11 @@
 //   every old article with the homepage, which search engines treat as a soft 404 and drop.
 // - A **chain** costs a hop each time and loses a little authority at each one; a cycle serves
 //   nothing at all.
+//
+// Both leave out a **slash rule**: one whose only effect is to add or remove the trailing slash
+// (`/about -> /about/`, or the catch-all `/:path((?:.*[^/])) -> /:path/` a static host needs).
+// It sends a url to the same page, so it is not a wildcard over content, not a hop, and not a
+// destination for an old url either.
 
 import { defineCheck, SkipCheck } from '../../../launch-audit/scripts/lib/registry.mjs'
 import { normalizePath, resolveInBuild } from './context.mjs'
@@ -34,8 +39,46 @@ function requirePredecessor(ctx) {
   return ctx.predecessor
 }
 
+// A rule's source or destination with its captures named the same way: a vercel `:path`, with or
+// without a `(regex)` and a `*`/`+`/`?` modifier, and a `_redirects` `*` (which the destination
+// spells `:splat`) all become `{name}`, so the two sides of one rule can be compared as templates.
+function template(side, { source }) {
+  let out = ''
+  for (let i = 0; i < side.length; i++) {
+    const ch = side[i]
+    if (source && ch === '*') { out += '{splat}'; continue }
+    if (ch !== ':') { out += ch; continue }
+    const name = /^\w+/.exec(side.slice(i + 1))
+    if (name === null) { out += ch; continue }
+    out += `{${name[0]}}`
+    i += name[0].length
+    if (source && side[i + 1] === '(') {
+      // skip the capture's regex, nested groups and escapes included
+      let depth = 0
+      for (i += 1; i < side.length; i++) {
+        if (side[i] === '\\') { i++; continue }
+        if (side[i] === '(') depth++
+        else if (side[i] === ')' && --depth === 0) break
+      }
+    }
+    if ('*+?'.includes(side[i + 1] ?? '')) i++
+  }
+  return out
+}
+
+// A rule whose only effect is adding or removing the trailing slash: its two sides are the same
+// template once a trailing slash is dropped from each, and differ before.
+export function isSlashRule(rule) {
+  if (rule.conditional || !rule.from.startsWith('/') || !rule.to.startsWith('/')) return false
+  const from = template(rule.from, { source: true })
+  const to = template(rule.to, { source: false })
+  if (from === to) return false
+  const bare = (t) => (t.length > 1 ? t.replace(/\/+$/, '') : t)
+  return bare(from) === bare(to)
+}
+
 const explicitSources = (ctx) => new Set(
-  ctx.redirects.rules.filter((rule) => !rule.wildcard && !rule.conditional).map((rule) => normalizePath(rule.from)),
+  ctx.redirects.rules.filter((rule) => !rule.wildcard && !rule.conditional && !isSlashRule(rule)).map((rule) => normalizePath(rule.from)),
 )
 
 const coverage = check({
@@ -93,8 +136,13 @@ const wildcardRedirects = check({
   catches: 'a catch-all rule that answers every old article with one page, which search engines read as a soft 404',
   run(ctx) {
     const predecessor = requirePredecessor(ctx)
-    const wildcards = ctx.redirects.rules.filter((rule) => rule.wildcard)
-    if (wildcards.length === 0) return []
+    const wildcards = ctx.redirects.rules.filter((rule) => rule.wildcard && !isSlashRule(rule))
+    // Counted, not judged: a slash rule only adds or removes the trailing slash.
+    const slash = ctx.redirects.rules.filter((rule) => rule.wildcard && isSlashRule(rule)).length
+    const notCovered = slash === 0
+      ? []
+      : [`predecessor.wildcard-redirects: ${slash} trailing-slash rule${slash === 1 ? '' : 's'} not treated as wildcard${slash === 1 ? '' : 's'}`]
+    if (wildcards.length === 0) return { findings: [], notCovered }
 
     const problems = []
     for (const rule of wildcards) {
@@ -103,13 +151,16 @@ const wildcardRedirects = check({
       if (covered.length === 0) continue
       problems.push(`"${rule.from} -> ${rule.to}" covers ${covered.length} old content url${covered.length === 1 ? '' : 's'}: ${covered.slice(0, 5).join(', ')}${covered.length > 5 ? ', …' : ''}`)
     }
-    if (problems.length === 0) return []
-    return [this.mk({
-      title: 'A wildcard redirect swallows old content urls',
-      detail: `${problems.length} wildcard rule${problems.length === 1 ? '' : 's'} stand in for urls that need their own destinations`,
-      evidence: problems.slice(0, MAX_LISTED).map(text),
-      fix: 'Replace the wildcard with one explicit rule per old url, each pointing at the page that replaces it. Keep the wildcard only for paths with no content, if at all.',
-    })]
+    if (problems.length === 0) return { findings: [], notCovered }
+    return {
+      notCovered,
+      findings: [this.mk({
+        title: 'A wildcard redirect swallows old content urls',
+        detail: `${problems.length} wildcard rule${problems.length === 1 ? '' : 's'} stand in for urls that need their own destinations`,
+        evidence: problems.slice(0, MAX_LISTED).map(text),
+        fix: 'Replace the wildcard with one explicit rule per old url, each pointing at the page that replaces it. Keep the wildcard only for paths with no content, if at all.',
+      })],
+    }
   },
 })
 
@@ -139,7 +190,8 @@ const redirectChains = check({
     for (const rule of ctx.redirects.rules) {
       // Conditional rules (vercel.json `has`/`missing`) do not redirect their plain path, so they
       // cannot be a hop in a chain through it.
-      if (rule.wildcard || rule.conditional) continue
+      // A slash rule leads to the same page; normalised, it would read as a loop onto itself.
+      if (rule.wildcard || rule.conditional || isSlashRule(rule)) continue
       const from = normalizePath(rule.from)
       if (!byFrom.has(from)) byFrom.set(from, rule)
     }
