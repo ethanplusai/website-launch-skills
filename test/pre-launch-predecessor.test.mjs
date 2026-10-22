@@ -125,3 +125,99 @@ test('no sitemap at all on the predecessor fails rather than reporting full cove
   const found = assertStatus(map, 'predecessor.coverage', 'fail', assert)
   assert.match(found.detail, /sitemap/i)
 })
+
+// From the astro-conversion-kit fixture run: a static host needs one rule that adds (or removes)
+// the trailing slash on every path, and that rule is written as a catch-all. It sends `/about` to
+// `/about/`, the same page, so it hides no missing coverage and is not the wildcard this check is
+// for. It is counted under Not covered, and a real catch-all beside it still fails.
+const SLASH_SITEMAP = () => sitemap('predecessor-covered.xml')
+
+test('the vercel.json trailing-slash rule is a slash rule, not a wildcard over content', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'vercel-slash-rule')
+  try {
+    const { writeFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    writeFileSync(join(dir, 'vercel.json'), JSON.stringify({
+      redirects: [
+        { source: '/old-about', destination: '/about', permanent: true },
+        { source: '/:path((?:.*[^/]))', destination: '/:path/', statusCode: 308 },
+      ],
+    }, null, 2))
+    const ctx = await ctxFor(dir, { predecessorUrl: OLD, net: netWith(SLASH_SITEMAP()) })
+    const map = await group(checks, ctx)
+    const found = assertStatus(map, 'predecessor.wildcard-redirects', 'pass', assert)
+    assert.match(found.notCovered.join(' | '), /predecessor\.wildcard-redirects: 1 trailing-slash rule/)
+  } finally { cleanup() }
+})
+
+test('the _redirects trailing-slash rules are slash rules, and a real catch-all beside them still fails', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'plain-slash-rule')
+  try {
+    const { writeFileSync, rmSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    rmSync(join(dir, 'vercel.json'))
+    writeFileSync(join(dir, '_redirects'), [
+      '/old-about  /about  301',
+      '/*/  /:splat  308',
+      '/*  /:splat/  308',
+    ].join('\n') + '\n')
+    const clean = await group(checks, await ctxFor(dir, { predecessorUrl: OLD, net: netWith(SLASH_SITEMAP()) }))
+    const found = assertStatus(clean, 'predecessor.wildcard-redirects', 'pass', assert)
+    assert.match(found.notCovered.join(' | '), /2 trailing-slash rules/)
+
+    writeFileSync(join(dir, '_redirects'), [
+      '/legacy/*  /new/  301',
+      '/*  /:splat/  308',
+    ].join('\n') + '\n')
+    const old = '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://old.test/</loc></url><url><loc>https://old.test/legacy/pricing</loc></url></urlset>'
+    const dirty = await group(checks, await ctxFor(dir, { predecessorUrl: OLD, net: netWith(old) }))
+    const failed = assertStatus(dirty, 'predecessor.wildcard-redirects', 'fail', assert)
+    const text = failed.evidence.map((e) => e.value).join(' | ')
+    assert.match(text, /\/legacy\/\* -> \/new\//)
+    assert.equal(text.includes(':splat/'), false, `the slash rule is not quoted as a wildcard: ${text}`)
+  } finally { cleanup() }
+})
+
+// Also from the kit run: `/about -> /about/` was read as a loop, because the chain walk compares
+// normalised paths and normalising strips the slash. A rule that only adds or removes the trailing
+// slash leads to the same page; it is neither a hop in a chain nor a loop.
+test('a redirect that only adds or removes the trailing slash is not a chain or a loop', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'slash-redirect')
+  try {
+    const { writeFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    writeFileSync(join(dir, 'vercel.json'), JSON.stringify({
+      redirects: [
+        { source: '/about', destination: '/about/', statusCode: 308 },
+        { source: '/contact/', destination: '/contact', statusCode: 308 },
+        { source: '/old-about', destination: '/about', permanent: true },
+      ],
+    }, null, 2))
+    const ctx = await ctxFor(dir, { predecessorUrl: OLD, net: netWith(sitemap('predecessor-covered.xml')) })
+    const map = await group(checks, ctx)
+    assertStatus(map, 'predecessor.redirect-chains', 'pass', assert)
+  } finally { cleanup() }
+})
+
+// The other side of the same rule: a slash redirect sends an old url to itself, so it is not a
+// destination for it. An old page the build does not have is still uncovered.
+test('a slash redirect does not count as coverage for an old url the build does not have', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'slash-not-coverage')
+  try {
+    const { writeFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    writeFileSync(join(dir, 'vercel.json'), JSON.stringify({
+      redirects: [
+        { source: '/old-about', destination: '/about', permanent: true },
+        { source: '/contact', destination: '/contact/', statusCode: 308 },
+        { source: '/pricing', destination: '/pricing/', statusCode: 308 },
+      ],
+    }, null, 2))
+    const old = '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://old.test/contact</loc></url><url><loc>https://old.test/pricing</loc></url></urlset>'
+    const map = await group(checks, await ctxFor(dir, { predecessorUrl: OLD, net: netWith(old) }))
+    const found = assertStatus(map, 'predecessor.coverage', 'fail', assert)
+    const values = found.evidence.map((e) => e.value).join(' | ')
+    assert.match(values, /\/pricing has no destination/)
+    assert.equal(values.includes('/contact'), false, '/contact is in the build')
+  } finally { cleanup() }
+})

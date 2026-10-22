@@ -100,6 +100,8 @@ invent a configuration that runs nowhere.
 A rule is a **wildcard** when its source contains `*`, `:`, `(` or `.*`. That is the field that
 matters most: see `predecessor-redirects.md` for why a wildcard over content urls is a failure
 rather than coverage.
+A rule whose only effect is adding or removing the trailing slash is a **slash rule**, and the
+predecessor checks leave it out of the wildcard and chain checks.
 
 `next.config.*` is JavaScript and may compute its redirects. The parser finds the literal pairs and
 nothing else, which is the honest limit — a rule built in a loop is not in the parsed set, and the
