@@ -1,6 +1,6 @@
 ---
 name: launch-audit
-description: Audit a live or staging website and report what would go wrong at launch — crawl and inventory, indexability, redirects for a domain cutover, links, images, forms, accessibility, performance, analytics, content sanity, and full-page screenshots for a visual pass. Use before or right after a site launch, when asked to QA, audit, or review a website, when a site is moving to a new domain, or when somebody asks whether a site is ready to go live. Read-only: it never submits a form, clicks a control, or edits anything.
+description: "Audit a live or staging website and report what would go wrong at launch — crawl and inventory, indexability, redirects for a domain cutover, links, images, forms, accessibility, performance, analytics, content sanity, and full-page screenshots for a visual pass. Use before or right after a site launch, when asked to QA, audit, or review a website, when a site is moving to a new domain, or when somebody asks whether a site is ready to go live. Read-only: it never submits a form, clicks a control, or edits anything."
 ---
 
 # launch-audit
