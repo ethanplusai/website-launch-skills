@@ -19,7 +19,7 @@ import { readFileSync, existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineCheck, SkipCheck } from '../../../launch-audit/scripts/lib/registry.mjs'
 import { walk } from '../../../launch-audit/scripts/lib/fs-util.mjs'
-import { PLACEHOLDER_TEXT, PLACEHOLDER_IDS, DEV_HOSTS, scanText } from '../../../launch-audit/scripts/lib/detect/placeholders.mjs'
+import { PLACEHOLDER_TEXT, PLACEHOLDER_IDS, PLACEHOLDER_URLS, DEV_HOSTS, scanText } from '../../../launch-audit/scripts/lib/detect/placeholders.mjs'
 import { isIgnoredPath } from './context.mjs'
 
 const PHASE = 'pre-launch'
