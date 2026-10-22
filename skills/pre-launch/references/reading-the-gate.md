@@ -50,7 +50,8 @@ The order is a dependency order, not a ranking.
 - **hygiene** — the repository. Is what you are about to deploy in a commit, pushed, on the right
   Node, with no secrets and one lockfile?
 - **placeholders** — the unfinished bits. Placeholder analytics ids, placeholder form endpoints,
-  lorem ipsum, unset environment variables, dev hosts, source maps.
+  lorem ipsum, `REPLACE_WITH_` tokens, a starter's sample post, links to `example.com`, unset
+  environment variables, dev hosts, source maps.
 - **build** — the build ran, and it produced a directory with a homepage in it. **This runs before
   anything reads the output**, so a stale `dist` is never what the gate inspects.
 - **output** — the files themselves: the 404 page, the references, the icons, the social card,

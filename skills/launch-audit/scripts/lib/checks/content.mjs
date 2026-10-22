@@ -20,7 +20,7 @@
 // would make the check useless on every site that formats a number for humans and for phones.
 
 import { defineCheck } from '../registry.mjs'
-import { PLACEHOLDER_TEXT, scanText } from '../detect/placeholders.mjs'
+import { PLACEHOLDER_TEXT, PLACEHOLDER_URLS, scanText } from '../detect/placeholders.mjs'
 
 const PHASE = 'launch-audit'
 const DIMENSION = 'content'
@@ -126,18 +126,21 @@ export const placeholderText = define({
   id: 'content.placeholder-text',
   severity: 'high',
   title: 'A page still carries placeholder copy',
-  catches: 'Lorem ipsum, "coming soon", a TODO, an unrendered {{ template }} or an [INSERT] left in the copy.',
+  catches: 'Lorem ipsum, "coming soon", a TODO, an unrendered {{ template }}, an [INSERT], a REPLACE_WITH_ token, a sample post or a link to example.com left in the page.',
   run(ctx) {
     const out = []
     for (const entry of htmlPages(ctx)) {
       const sources = [
-        { where: 'body text', value: entry.page.text },
-        { where: 'title', value: entry.page.head.title },
-        { where: 'meta description', value: entry.page.head.metaByName.get('description') ?? null },
+        { where: 'body text', value: entry.page.text, patterns: PLACEHOLDER_TEXT },
+        { where: 'title', value: entry.page.head.title, patterns: PLACEHOLDER_TEXT },
+        { where: 'meta description', value: entry.page.head.metaByName.get('description') ?? null, patterns: PLACEHOLDER_TEXT },
+        // A link to example.com is a defect in the `href` or `src` and ordinary in a form's
+        // `placeholder="you@example.com"` hint, so this one is read from the markup the server sent.
+        { where: 'markup', value: entry.response?.body ?? null, patterns: PLACEHOLDER_URLS },
       ]
       const hits = []
       for (const source of sources) {
-        for (const hit of scanText(source.value, PLACEHOLDER_TEXT)) hits.push({ ...source, match: hit.match })
+        for (const hit of scanText(source.value, source.patterns)) hits.push({ where: source.where, match: hit.match })
       }
       if (hits.length === 0) continue
       out.push(emit(placeholderText, {

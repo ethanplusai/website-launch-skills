@@ -45,6 +45,10 @@ const TEXT_EXTENSIONS = new Set([
   '.njk', '.liquid', '.hbs', '.ejs', '.pug', '.php', '.webmanifest',
 ])
 
+// The build files whose markup carries `href` and `src`. A url is only a placeholder in the attribute
+// that holds it, so PLACEHOLDER_URLS is read from these and never from rendered text.
+const HTML_EXTENSIONS = new Set(['.html', '.htm'])
+
 const extensionOf = (name) => {
   const dot = name.lastIndexOf('.')
   return dot === -1 ? '' : name.slice(dot).toLowerCase()
@@ -186,7 +190,7 @@ const formId = check({
 const copy = check({
   id: 'placeholders.copy',
   title: 'Placeholder copy in the site',
-  catches: 'lorem ipsum, TODO markers and unreplaced template tokens shipping as page content',
+  catches: 'lorem ipsum, TODO markers, unreplaced template tokens, a sample post and links to example.com shipping as page content',
   run(ctx) {
     const sources = sourceFiles(ctx)
     // The build's *rendered* text and its head, rather than its markup: a `{{ }}` in a compiled
@@ -197,15 +201,20 @@ const copy = check({
       rendered.push({ label: `${ctx.buildDirName}/${rel}`, body: parts.join('\n') })
     }
     const notCovered = [sourceScanNote(ctx)]
-    const hits = hitsIn([...sources, ...rendered], PLACEHOLDER_TEXT)
+    const hits = [
+      ...hitsIn([...sources, ...rendered], PLACEHOLDER_TEXT),
+      // The one list that is read from markup. A link to example.com is a defect in the `href` and
+      // ordinary in a `placeholder="you@example.com"` hint, and rendered text cannot tell them apart.
+      ...hitsIn([...sources, ...buildFiles(ctx, HTML_EXTENSIONS)], PLACEHOLDER_URLS),
+    ]
     if (hits.length === 0) return { findings: [], notCovered }
     return {
       notCovered,
       findings: [this.mk({
         title: 'Placeholder copy in the site',
-        detail: `${summarise(hits, 'placeholder string')}; a visitor would read them`,
+        detail: `${summarise(hits, 'placeholder string')}; a visitor would read or follow them`,
         evidence: evidenceFor(hits),
-        fix: 'Replace each with the real copy, or delete the block it is in if the section was never meant to ship.',
+        fix: 'Replace each with the real copy, or delete the block it is in if the section was never meant to ship. A REPLACE_WITH_ token that code keeps as a fallback should make the build fail instead, so the site never has to carry it.',
       })],
     }
   },

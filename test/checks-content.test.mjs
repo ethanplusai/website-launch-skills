@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { checks } from '../skills/launch-audit/scripts/lib/checks/content.mjs'
 import { findingsFor, has, of, allEvidence, evidenceText } from './checks-helpers.mjs'
+import { readFixture } from './helpers.mjs'
 
 const run = (fixture, options) => findingsFor(checks, `recorded/${fixture}`, options)
 // One phone, one address, one email, one spelling, this year's copyright: the negative case.
@@ -35,6 +36,50 @@ test('content.placeholder-text fires on lorem ipsum in the body and a TODO in th
   assert.match(evidence, /Lorem ipsum/i)
   assert.match(evidence, /TODO/)
   assert.match(evidence, /title/)
+  assert.ok(!has(await good(), 'content.placeholder-text'))
+})
+
+// A site exactly as a starter leaves it, recorded: the sample blog post, and a canonical and an image
+// still on example.com. Its contact page carries `placeholder="you@example.com"` hints and nothing
+// else wrong, so it is the page that must stay quiet.
+const starter = () => run('content-starter-site.json', { url: 'https://starter.test/' })
+
+test('content.placeholder-text names the starter\'s sample post on the blog index and on the post', async () => {
+  const found = of(await starter(), 'content.placeholder-text')
+  const byPage = new Map(found.map((f) => [f.page, f]))
+  const index = byPage.get('https://starter.test/blog/')
+  assert.ok(index, 'the blog index lists the sample post and should be flagged')
+  assert.equal(index.severity, 'high')
+  assert.match(evidenceText(index), /body text: Sample Post/)
+  assert.match(evidenceText(index), /body text: Delete Me/)
+  const post = byPage.get('https://starter.test/blog/sample-post/')
+  assert.ok(post, 'the sample post itself should be flagged')
+  const evidence = evidenceText(post)
+  assert.match(evidence, /title: Sample Post/)
+  assert.match(evidence, /body text: Sample Post/)
+  assert.match(evidence, /body text: Delete Me/)
+})
+
+test('content.placeholder-text reads a link to example.com from the markup: a canonical first, then the image', async () => {
+  const url = 'https://starter.test/blog/sample-post/'
+  const post = of(await starter(), 'content.placeholder-text').find((f) => f.page === url)
+  assert.ok(post)
+  // One markup hit per pattern, and the first in the document is the canonical in the head.
+  assert.match(evidenceText(post), /markup: href="https:\/\/example\.com\/blog\/sample-post\//)
+  assert.match(post.detail, /in the markup/)
+
+  // With the canonical put right, the image the sample post ships is what is left to name.
+  const record = JSON.parse(readFixture('recorded/content-starter-site.json'))[url]
+  const body = record.body.replace('https://example.com/blog/sample-post/', 'https://starter.test/blog/sample-post/')
+  const fixed = await run('content-starter-site.json', { url: 'https://starter.test/', records: { [url]: { ...record, body } } })
+  const image = of(fixed, 'content.placeholder-text').find((f) => f.page === url)
+  assert.match(evidenceText(image), /markup: src="https:\/\/pub-0123456789abcdef\.r2\.dev\/example\.com\//)
+  assert.ok(!evidenceText(image).includes('markup: href='))
+})
+
+test('content.placeholder-text leaves example.com hints in a form, and finished pages, alone', async () => {
+  const pages = of(await starter(), 'content.placeholder-text').map((f) => f.page).sort()
+  assert.deepEqual(pages, ['https://starter.test/blog/', 'https://starter.test/blog/sample-post/'])
   assert.ok(!has(await good(), 'content.placeholder-text'))
 })
 

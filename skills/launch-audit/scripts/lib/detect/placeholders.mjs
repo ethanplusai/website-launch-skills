@@ -1,16 +1,19 @@
-// The unfinished-site detectors: text nobody meant to ship, ids nobody replaced, hosts only the
-// developer can reach, and credentials nobody meant to publish.
+// The unfinished-site detectors: text nobody meant to ship, ids nobody replaced, links nobody
+// finished, hosts only the developer can reach, and credentials nobody meant to publish.
 //
-// Four pattern lists and one scanner, deliberately separated from the checks that use them, so the
+// Five pattern lists and one scanner, deliberately separated from the checks that use them, so the
 // same list drives the launch-audit content and forms dimensions and the pre-launch gate without
 // either one re-deriving it. Every pattern is proved by a planted string in test/detect.test.mjs:
 // the proof table has one entry per pattern and fails if a pattern is added without one, which is
 // what keeps a silently-broken regex from reading as a clean site.
 //
-// Two conventions matter to callers:
+// Three conventions matter to callers:
 //
 // - These are matchers, not validators. `scanText` reports what it saw and where; deciding whether
 //   a `TODO` in a code sample is a defect is the check's job, not this module's.
+// - Each list says what it may be read against. PLACEHOLDER_TEXT is for words a reader sees, so a
+//   check runs it over rendered text. PLACEHOLDER_URLS is for the attribute that carries a url, so
+//   a check has to run it over raw markup: in rendered text there is nothing for it to match.
 // - `extraHosts` (the operator's own `--dev-host` list) is escaped and anchored to host segments
 //   before it joins DEV_HOSTS, so `dev` never matches `devices.example.test` and a host containing
 //   regex punctuation is matched literally rather than as a pattern.
@@ -24,6 +27,16 @@ export const PLACEHOLDER_TEXT = [
   /\bTODO\b/,
   /\bFIXME\b/,
   /REPLACE[_ ]ME/i,
+  // A token a template ships with, so the one file that needs a real value cannot be missed:
+  // REPLACE_WITH_FORM_ID, REPLACE_WITH_THIS_SITES_BUCKET_URL. Upper case only, because that is how a
+  // token is written and `replace_with_care()` is code.
+  /REPLACE_WITH_[A-Z0-9_]+/,
+  // The sample blog post a starter ships so its blog routes render, "Sample Post — Delete Me". Title
+  // case on purpose: "delete me" in lower case is ordinary English (a privacy page says it), and a
+  // gate that blocks a launch over a sentence like that is a gate people learn to ignore. A hyphen
+  // after "Post" is a different phrase: "Sample Post-Op Instructions" is a clinical handout.
+  /\bSample Posts?\b(?!-)/,
+  /\bDelete Me\b/,
 ]
 
 export const PLACEHOLDER_IDS = [
@@ -32,6 +45,18 @@ export const PLACEHOLDER_IDS = [
   /UA-\d+-\d+/,
   /formspree\.io\/f\/(your-form-id|xxxx+|REPLACE)/i,
   /GTM-XXXX+/i,
+]
+
+// A url that is a placeholder only as the value of an `href` or `src`: a link or an asset that points
+// at the documentation host, so the visitor lands on a page that has nothing to do with the site.
+// The same host is ordinary everywhere else somebody writes it for a reader. `placeholder="you@example.com"`
+// is the hint on nearly every contact form, and an address written out in a paragraph is an example
+// someone chose, so a pattern that matched the bare host would block every launch that has a form.
+// This list therefore only works over raw markup. The host has to be a whole host name, which is why
+// `my-example.com`, `notexample.com`, `example.community` and `example.com.au` are not hits. The match
+// runs to the end of the value, so the evidence reads as the attribute and not as half of one.
+export const PLACEHOLDER_URLS = [
+  /\b(?:href|src)\s*=\s*["']?\s*[^"'\s>]*(?<![A-Za-z0-9-])example\.com(?![A-Za-z0-9-]|\.[A-Za-z0-9])[^"'\s>]*/i,
 ]
 
 export const DEV_HOSTS = [

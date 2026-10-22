@@ -15,15 +15,19 @@ address — to a person, with the evidence collected in one place.
 ## Placeholders and staleness
 
 ### `content.placeholder-text` — high
-**Means.** Lorem ipsum, "coming soon", a `TODO`, an unrendered `{{ template }}` or an `[INSERT]`
-left in visible copy.
+**Means.** Lorem ipsum, "coming soon", a `TODO`, an unrendered `{{ template }}`, an `[INSERT]`,
+a `REPLACE_WITH_` token or the starter's "Sample Post" and "Delete Me" left in visible copy, the
+title or the meta description. It also means a link or an image whose `href` or `src` still points
+at `example.com`, which is read from the page's markup because the text a reader sees cannot show it.
 **At launch.** The clearest possible signal that a page shipped unfinished, and it is usually on
-the page nobody re-read because it "was done weeks ago".
+the page nobody re-read because it "was done weeks ago". A sample blog post that went live is
+indexed within days.
 **Fix.** Write the copy, or remove the section. A page that says "coming soon" should usually not
-be linked from the navigation at all.
+be linked from the navigation at all. Delete the sample post and its entry in the blog index.
 *Any CMS:* an unrendered `{{ }}` or `${ }` in the output means a template variable reached the
 content layer — check the field name, not the copy.
 **Cannot say.** Whether placeholder-*looking* text is deliberate. Read the evidence before acting.
+An address like `you@example.com` as the hint inside a form field is ordinary and is not reported.
 
 ### `content.copyright-year-stale` — low
 **Means.** The footer year is behind the current one.

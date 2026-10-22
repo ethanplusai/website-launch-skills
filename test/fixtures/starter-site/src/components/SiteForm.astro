@@ -1,0 +1,50 @@
+---
+// Standard contact/lead form. Submits to the site's form service, Formspree-style:
+//   POST {formsBase}/api/submit/{formId}
+//
+// Pass the logical form name (mapped to a formId in site.ts), or a raw formId.
+import { site } from '../lib/site';
+
+interface Field {
+  name: string;
+  label: string;
+  type?: string;        // text | email | tel | textarea
+  required?: boolean;
+}
+
+interface Props {
+  /** A key in site.forms (e.g. "contact") or a raw formId. */
+  form?: string;
+  formId?: string;
+  fields?: Field[];
+  submitLabel?: string;
+  /** Honeypot field name. */
+  honeypot?: string;
+}
+
+const {
+  form = 'contact',
+  formId,
+  submitLabel = 'Send',
+  honeypot = '_gotcha',
+  fields = [
+    { name: 'name', label: 'Name', type: 'text', required: true },
+    { name: 'email', label: 'Email', type: 'email', required: true },
+    { name: 'message', label: 'Message', type: 'textarea' },
+  ],
+} = Astro.props as Props;
+
+const resolvedFormId = formId || site.forms[form] || 'REPLACE_WITH_FORM_ID';
+const endpoint = `${site.formsBase}/api/submit/${resolvedFormId}`;
+---
+<form class="lead-form" data-endpoint={endpoint} data-honeypot={honeypot}>
+  {fields.map((f) => (
+    <label>
+      <span>{f.label}{f.required && ' *'}</span>
+      {f.type === 'textarea'
+        ? <textarea name={f.name} required={f.required} rows="5"></textarea>
+        : <input type={f.type ?? 'text'} name={f.name} required={f.required} />}
+    </label>
+  ))}
+  <button type="submit">{submitLabel}</button>
+</form>
