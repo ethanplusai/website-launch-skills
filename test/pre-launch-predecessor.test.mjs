@@ -89,6 +89,24 @@ test('a redirect cycle fails as a cycle, not as a long chain', async () => {
   } finally { cleanup() }
 })
 
+test('a query-conditional vercel rule on / is not a hop: /old -> / is one hop, not a chain', async () => {
+  const { dir, cleanup } = copyFixture(PASSING, 'conditional-redirect')
+  try {
+    const { writeFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    writeFileSync(join(dir, 'vercel.json'), JSON.stringify({
+      redirects: [
+        { source: '/old', destination: '/', statusCode: 301 },
+        // WordPress shortlink: only /?p=10 redirects, never the home page itself
+        { source: '/', has: [{ type: 'query', key: 'p', value: '^10$' }], destination: '/blog/', statusCode: 301 },
+      ],
+    }, null, 2))
+    const ctx = await ctxFor(dir, { predecessorUrl: OLD, net: netWith(sitemap('predecessor-covered.xml')) })
+    const map = await group(checks, ctx)
+    assertStatus(map, 'predecessor.redirect-chains', 'pass', assert)
+  } finally { cleanup() }
+})
+
 test('an unfetchable child sitemap fails closed and names the child', async () => {
   const index = '<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://old.test/sitemap-posts.xml</loc></sitemap></sitemapindex>'
   const net = fakeNet({
