@@ -48,6 +48,25 @@ export function createExec() {
 
 // ------------------------------------------------------------------------------------- options
 
+// `--ignore-dir` names folders relative to --dir, written however a person types them (`capture`,
+// `./capture/`, `docs\capture`). They are compared as forward-slash paths with no leading `./` and
+// no trailing slash, so `capture` means the top-level `capture/` and nothing else: a folder called
+// `capture` somewhere under `src/` is still scanned unless it is named by its own path.
+export function normalizeIgnoreDirs(raw) {
+  if (!Array.isArray(raw)) return []
+  const out = []
+  for (const entry of raw) {
+    const path = String(entry).trim().split('\\').join('/').replace(/^(\.\/)+/, '').replace(/\/+$/, '')
+    if (path !== '' && path !== '.' && !out.includes(path)) out.push(path)
+  }
+  return out
+}
+
+// Whether a path relative to --dir is inside one of the ignored folders. Only the repository scans
+// ask this; nothing asks it of the build output, which is what deploys.
+export const isIgnoredPath = (rel, ignoreDirs) =>
+  ignoreDirs.some((dir) => rel === dir || rel.startsWith(`${dir}/`))
+
 export function normalizeOptions(raw = {}) {
   return {
     productionUrl: raw.productionUrl ?? null,
@@ -55,6 +74,7 @@ export function normalizeOptions(raw = {}) {
     buildDir: raw.buildDir ?? null,
     requiredEnv: Array.isArray(raw.requiredEnv) ? raw.requiredEnv : [],
     devHosts: Array.isArray(raw.devHosts) ? raw.devHosts : [],
+    ignoreDirs: normalizeIgnoreDirs(raw.ignoreDirs),
     strict: raw.strict === true,
     skipBuild: raw.skipBuild === true,
     out: raw.out ?? null,

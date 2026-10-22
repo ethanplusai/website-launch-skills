@@ -65,8 +65,14 @@ directory**, not under `--dir` and not next to the skill: without `--out` it lan
 skill's own directory. Write the bundle wherever the work lives with `--out`.
 
 Other flags: `--predecessor-url <url>`, `--build-dir <dir>`, `--required-env <NAME>` (repeatable),
-`--dev-host <host>` (repeatable), `--strict`, `--skip-build`, `--out <dir>`, `--config <path>`,
-`--json`, `--help`.
+`--dev-host <host>` (repeatable), `--ignore-dir <dir>` (repeatable), `--strict`, `--skip-build`,
+`--out <dir>`, `--config <path>`, `--json`, `--help`.
+
+`--ignore-dir` is for a folder committed alongside the site that is not the site, such as the raw
+HTML captured from the old site during a conversion (`--ignore-dir capture`). The path is relative
+to `--dir`. The repository scans (nested git, committed secrets, placeholder source) skip it, the
+build output is still scanned in full, and **Not covered** says `ignored by request: <dirs>`. It is
+never a way to quiet a finding about the site itself: see "Never suppress" below.
 
 It runs the project's build first, so the output it inspects is never stale. Use `--skip-build`
 only when you have just built and nothing has changed since.

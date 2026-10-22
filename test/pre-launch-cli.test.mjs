@@ -30,7 +30,7 @@ async function cli(args, { cwd } = {}) {
 test('--help lists every flag and the testing hooks, and exits 0', async () => {
   const { code, stdout } = await cli(['--help'])
   assert.equal(code, 0)
-  for (const flag of ['--dir', '--production-url', '--predecessor-url', '--build-dir', '--required-env', '--dev-host', '--strict', '--skip-build', '--confirm', '--progress', '--reset-progress', '--out', '--json', '--config']) {
+  for (const flag of ['--dir', '--production-url', '--predecessor-url', '--build-dir', '--required-env', '--dev-host', '--ignore-dir', '--strict', '--skip-build', '--confirm', '--progress', '--reset-progress', '--out', '--json', '--config']) {
     assert.ok(stdout.includes(flag), `--help does not mention ${flag}`)
   }
   assert.match(stdout, /NODE_VERSION_OVERRIDE/)
@@ -47,6 +47,14 @@ test('a --production-url that is not a url is a usage error, exit 2', async () =
   const { code, stderr } = await cli(['--dir', PASSING, '--production-url', 'passing.test', '--skip-build'])
   assert.equal(code, 2)
   assert.match(stderr, /url/i)
+})
+
+test('an --ignore-dir outside --dir, or naming --dir itself, is a usage error, exit 2', async () => {
+  for (const bad of ['../elsewhere', '/tmp/capture', 'capture/../..', '.', './']) {
+    const { code, stderr } = await cli(['--dir', PASSING, '--production-url', PASSING_URL, '--skip-build', '--ignore-dir', bad])
+    assert.equal(code, 2, `--ignore-dir ${bad}`)
+    assert.match(stderr, /--ignore-dir/)
+  }
 })
 
 test('the passing fixture exits 0 and leads with the verdict', async () => {

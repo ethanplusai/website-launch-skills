@@ -261,7 +261,11 @@ export async function runGate({ dir, options: rawOptions, exec, net = null, now 
     .map((c) => ({ check: c.id, reason: c.detail }))
   // A check's own coverage lines go after the skips and before the two fixed trailing lines: the
   // last thing a reader sees in this section must stay the two things no checker can ever reach.
-  const declared = [...new Set(checks.flatMap((c) => c.notCovered ?? []))]
+  //
+  // Folders the operator excluded with --ignore-dir are a bound on every repository scan at once,
+  // so the gate names them itself rather than leaving it to whichever check happened to notice.
+  const ignored = options.ignoreDirs.length > 0 ? [`ignored by request: ${options.ignoreDirs.join(', ')}`] : []
+  const declared = [...new Set([...ignored, ...checks.flatMap((c) => c.notCovered ?? [])])]
   const notCovered = insertBeforeFixed(buildNotCovered({ skipped }), declared)
 
   const humanItems = humanItemsFor({ pkg: ctx.pkg, config: options, confirmed: readProgress(dir).confirmed })

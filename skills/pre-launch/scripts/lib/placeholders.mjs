@@ -20,6 +20,7 @@ import { join } from 'node:path'
 import { defineCheck, SkipCheck } from '../../../launch-audit/scripts/lib/registry.mjs'
 import { walk } from '../../../launch-audit/scripts/lib/fs-util.mjs'
 import { PLACEHOLDER_TEXT, PLACEHOLDER_IDS, DEV_HOSTS, scanText } from '../../../launch-audit/scripts/lib/detect/placeholders.mjs'
+import { isIgnoredPath } from './context.mjs'
 
 const PHASE = 'pre-launch'
 const DIMENSION = 'placeholders'
@@ -61,8 +62,11 @@ function readIfText(full) {
 
 // The source directories this repository actually has. A repository that keeps its content
 // somewhere unlisted is scanned only through its build output, and the check says which
-// directories it did look at rather than implying it looked everywhere.
-const presentSourceDirs = (ctx) => SOURCE_DIRS.filter((name) => existsSync(join(ctx.dir, name)))
+// directories it did look at rather than implying it looked everywhere. A source directory the
+// operator ignored with --ignore-dir is not one it looked at, so it is not named as one.
+const presentSourceDirs = (ctx) => SOURCE_DIRS
+  .filter((name) => existsSync(join(ctx.dir, name)))
+  .filter((name) => !isIgnoredPath(name, ctx.config.ignoreDirs))
 
 // One line naming the bound, for "Not covered". Every placeholders check that reads source emits
 // it; the runner de-duplicates, so the reader sees it once.
@@ -87,9 +91,11 @@ function sourceFiles(ctx) {
       continue
     }
     for (const full of entries) {
+      const label = full.slice(ctx.dir.length + 1).split('\\').join('/')
+      if (isIgnoredPath(label, ctx.config.ignoreDirs)) continue
       const body = readIfText(full)
       if (body === null) continue
-      out.push({ label: full.slice(ctx.dir.length + 1).split('\\').join('/'), body })
+      out.push({ label, body })
     }
   }
   return out
