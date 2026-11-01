@@ -133,6 +133,12 @@ test('createExec never throws: a non-zero command comes back as a code', () => {
   assert.notEqual(missing.code, 0)
 })
 
+test('createExec starts npm, which is a .cmd file on Windows', () => {
+  const result = createExec()('npm', ['--version'])
+  assert.equal(result.code, 0, result.stderr)
+  assert.match(result.stdout, /^\d+\.\d+\.\d+/)
+})
+
 test('env names come from the process env and from .env files on disk', async () => {
   const { dir, cleanup } = copyFixture(PASSING, 'envnames')
   try {
