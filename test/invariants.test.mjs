@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { REPO_ROOT } from './helpers.mjs'
 import { walk } from '../skills/launch-audit/scripts/lib/fs-util.mjs'
 
@@ -28,7 +28,7 @@ test('vendor detector fires on a planted line', () => {
 })
 
 test('the walk reaches package.json and this test', () => {
-  const rel = walk(REPO_ROOT, { skipDirs: SKIP }).map((f) => f.slice(REPO_ROOT.length + 1))
+  const rel = walk(REPO_ROOT, { skipDirs: SKIP }).map((f) => f.slice(REPO_ROOT.length + 1).split(sep).join('/'))
   assert.ok(rel.includes('package.json'))
   assert.ok(rel.includes('test/invariants.test.mjs'))
 })
@@ -38,7 +38,7 @@ test('the walk reaches package.json and this test', () => {
 // names sat in the plan the whole time, in a file the release ships. The scan is only worth
 // running over everything it can reach, so the file that hid is named here by hand.
 test('the walk reaches the tracked plan under docs/superpowers/', () => {
-  const rel = walk(REPO_ROOT, { skipDirs: SKIP }).map((f) => f.slice(REPO_ROOT.length + 1))
+  const rel = walk(REPO_ROOT, { skipDirs: SKIP }).map((f) => f.slice(REPO_ROOT.length + 1).split(sep).join('/'))
   assert.ok(rel.includes('docs/superpowers/plans/2026-09-13-website-launch-skill.md'))
   assert.ok(rel.includes('docs/superpowers/specs/2026-09-13-website-launch-skill-design.md'))
 })
