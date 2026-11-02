@@ -91,3 +91,42 @@ test('a framework with no site url configured skips rather than inventing one', 
     assertStatus(map, 'framework.trailing-slash', 'skip', assert)
   } finally { cleanup() }
 })
+
+// A WordPress migration redirects `/favicon.ico`, `/sitemap.xml` and old upload urls to files. A
+// file path has no page form, so the trailing-slash policy has nothing to say about it.
+function alwaysSite(redirects) {
+  const { dir, cleanup } = outsideRepoDir('slash-files')
+  writeFileSync(join(dir, 'package.json'), '{}')
+  writeFileSync(join(dir, 'astro.config.mjs'), "export default { site: 'https://slash.test', trailingSlash: 'always' }\n")
+  writeFileSync(join(dir, 'vercel.json'), JSON.stringify({ redirects }))
+  mkdirSync(join(dir, 'dist'))
+  writeFileSync(join(dir, 'dist', 'index.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title></head><body><h1>h</h1><a href="/about/">About</a><a href="/team/">Team</a></body></html>')
+  return { dir, cleanup }
+}
+
+test('redirects whose source or destination is a file are outside the trailing-slash policy', async () => {
+  const { dir, cleanup } = alwaysSite([
+    { source: '/favicon.ico', destination: '/favicon.svg', permanent: true },
+    { source: '/sitemap.xml', destination: '/sitemap_index.xml', permanent: true },
+    { source: '/old-logo/', destination: '/wp-content/uploads/2020/05/logo.png', permanent: true },
+    { source: '/icon', destination: '/images/site.ico', permanent: true },
+  ])
+  try {
+    const map = await group(checks, await ctxFor(dir, { productionUrl: 'https://slash.test' }))
+    assertStatus(map, 'framework.trailing-slash', 'pass', assert)
+  } finally { cleanup() }
+})
+
+test('a page redirect in the losing form still fails under an always policy', async () => {
+  const { dir, cleanup } = alwaysSite([
+    { source: '/favicon.ico', destination: '/favicon.svg', permanent: true },
+    { source: '/old-about/', destination: '/about', permanent: true },
+  ])
+  try {
+    const map = await group(checks, await ctxFor(dir, { productionUrl: 'https://slash.test' }))
+    const found = assertStatus(map, 'framework.trailing-slash', 'fail', assert)
+    const values = found.detail + ' ' + found.evidence.map((e) => e.value).join(' ')
+    assert.match(values, /\/old-about\/ -> \/about /)
+    assert.equal(/favicon/.test(values), false)
+  } finally { cleanup() }
+})

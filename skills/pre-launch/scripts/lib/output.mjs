@@ -489,7 +489,24 @@ const llmsTxt = check({
   },
 })
 
-const UTILITY_PATH = /thank|thanks|confirm|success|demo|preview|test/i
+// Utility pages are recognised by whole words in the path, never by substring: `/testimonials`
+// contains "test", `/success-stories` contains "success" and `/contest` contains "test", and all
+// three are real content. A path segment is split on `-`, `_` and `.` into words; a segment is a
+// utility page when one of them is a utility word. "success" only counts as the last word
+// (`/success`, `/payment-success`), because `/success-stories` is a page people want found.
+const UTILITY_WORDS = new Set([
+  'thank', 'thanks', 'thankyou', 'confirm', 'confirmed', 'confirmation',
+  'demo', 'preview', 'test', 'testing', 'staging',
+])
+
+export function isUtilityPath(path) {
+  for (const segment of String(path).toLowerCase().split('/')) {
+    const words = segment.replace(/\.[a-z0-9]+$/, '').split(/[-_.]+/).filter((w) => w !== '')
+    if (words.some((word) => UTILITY_WORDS.has(word))) return true
+    if (words.length > 0 && words[words.length - 1] === 'success') return true
+  }
+  return false
+}
 
 const noindexUtility = check({
   id: 'output.noindex-utility-pages',
@@ -498,7 +515,7 @@ const noindexUtility = check({
   run(ctx) {
     requireBuild(ctx)
     const indexable = pages(ctx)
-      .filter((page) => UTILITY_PATH.test(page.path))
+      .filter((page) => isUtilityPath(page.path))
       .filter((page) => !isNoindex(page.page))
       .map((page) => `${page.rel} (${page.path}) has no noindex`)
     if (indexable.length === 0) return []
@@ -575,7 +592,11 @@ const canonical = check({
 
 // Title and description differ in where the value lives and in nothing else, so one factory makes
 // both: present on every page, and distinct across the indexable ones.
-function uniqueHeadField({ id, label, title, catches, valueOf, fix }) {
+//
+// `exemptFromMissing(page)` names pages that need not carry the field at all. They are not passed
+// silently: how many were skipped is declared in Not covered, because a description that nobody
+// checked on 116 pages is a different claim from a description on 116 pages.
+function uniqueHeadField({ id, label, title, catches, valueOf, fix, exemptFromMissing = null }) {
   return check({
     id,
     title,
@@ -584,9 +605,11 @@ function uniqueHeadField({ id, label, title, catches, valueOf, fix }) {
       requireBuild(ctx)
       const problems = []
       const byValue = new Map()
+      let exempt = 0
       for (const page of pages(ctx)) {
         const value = valueOf(page.page)
         if (typeof value !== 'string' || value.trim() === '') {
+          if (exemptFromMissing !== null && exemptFromMissing(page)) { exempt++; continue }
           problems.push(`${page.rel} has no ${label}`)
           continue
         }
@@ -599,13 +622,19 @@ function uniqueHeadField({ id, label, title, catches, valueOf, fix }) {
         if (used.length < 2) continue
         problems.push(`${used.join(', ')} share the ${label} "${written}"`)
       }
-      if (problems.length === 0) return []
-      return [this.mk({
-        title,
-        detail: `${problems.length} ${label} problem${problems.length === 1 ? '' : 's'} across ${ctx.html.size} page${ctx.html.size === 1 ? '' : 's'}`,
-        evidence: listed(problems, html),
-        fix,
-      })]
+      const notCovered = exempt > 0
+        ? [`${id}: ${exempt} noindex or 404 page${exempt === 1 ? '' : 's'} with no ${label} not checked`]
+        : []
+      if (problems.length === 0) return { findings: [], notCovered }
+      return {
+        notCovered,
+        findings: [this.mk({
+          title,
+          detail: `${problems.length} ${label} problem${problems.length === 1 ? '' : 's'} across ${ctx.html.size} page${ctx.html.size === 1 ? '' : 's'}`,
+          evidence: listed(problems, html),
+          fix,
+        })],
+      }
     },
   })
 }
@@ -626,6 +655,10 @@ const descriptions = uniqueHeadField({
   catches: 'pages with no description, or a template sharing one, so search engines write their own',
   valueOf: (page) => page.head.metaByName.get('description'),
   fix: 'Write a description per page: one sentence about what is on that page.',
+  // A description is a search snippet. A page that asks not to be indexed, and the 404 page, never
+  // appear in results, so a missing one costs nothing. Duplicates are still judged on indexable
+  // pages only.
+  exemptFromMissing: (page) => isNoindex(page.page) || FOUR_OH_FOUR.includes(page.rel),
 })
 
 // The four per-page facts that are either there or not. Each is one line of HTML, and each breaks
