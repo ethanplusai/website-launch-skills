@@ -325,3 +325,95 @@ test('a path a _redirects 200 rule maps to a file in the build is served', async
     assert.match(values, /index\.html -> \/news/)
   } finally { cleanup() }
 })
+
+// Gate false positives found running the gate on a real WordPress -> Astro migration.
+async function siteWith(name, pages) {
+  const { mkdirSync } = await import('node:fs')
+  const { dir, cleanup } = outsideRepoDir(name)
+  writeFileSync(join(dir, 'package.json'), '{}')
+  mkdirSync(join(dir, 'dist'), { recursive: true })
+  for (const [rel, { description, robots, title = rel }] of Object.entries(pages)) {
+    const head = '<meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+      + `<title>${title}</title>`
+      + (description === undefined ? '' : `<meta name="description" content="${description}">`)
+      + (robots === undefined ? '' : `<meta name="robots" content="${robots}">`)
+    mkdirSync(join(dir, 'dist', rel, '..'), { recursive: true })
+    writeFileSync(join(dir, 'dist', rel), `<!doctype html><html lang="en"><head>${head}</head><body><h1>${title}</h1></body></html>`)
+  }
+  return { dir, cleanup }
+}
+
+test('noindex pages and the 404 page need no meta description, and the skip is counted in Not covered', async () => {
+  const { dir, cleanup } = await siteWith('desc-noindex', {
+    'index.html': { description: 'The home page of a small care provider.', title: 'Home' },
+    'category/news/index.html': { robots: 'noindex, follow', title: 'News' },
+    'tag/care/index.html': { robots: 'noindex,follow', title: 'Care' },
+    'thank-you/index.html': { robots: 'noindex', title: 'Thanks' },
+    '404.html': { title: 'Not found' },
+  })
+  try {
+    const map = await group(checks, await ctxFor(dir))
+    const found = assertStatus(map, 'output.descriptions', 'pass', assert)
+    assert.match(found.notCovered.join(' | '), /output\.descriptions: 4 noindex or 404 pages/)
+  } finally { cleanup() }
+})
+
+test('an indexable page with no description still fails, and noindex pages are not listed beside it', async () => {
+  const { dir, cleanup } = await siteWith('desc-indexable', {
+    'index.html': { description: 'The home page of a small care provider.', title: 'Home' },
+    'about/index.html': { title: 'About' },
+    'category/news/index.html': { robots: 'noindex, follow', title: 'News' },
+  })
+  try {
+    const map = await group(checks, await ctxFor(dir))
+    const found = assertStatus(map, 'output.descriptions', 'fail', assert)
+    const values = found.evidence.map((e) => e.value).join(' | ')
+    assert.match(values, /about/)
+    assert.equal(/category/.test(values), false)
+    assert.match(found.notCovered.join(' | '), /1 noindex or 404 page /)
+  } finally { cleanup() }
+})
+
+test('a description shared by two indexable pages still fails; sharing it with a noindex page does not', async () => {
+  const same = 'One sentence shared by more than one page.'
+  const { dir, cleanup } = await siteWith('desc-dupes', {
+    'index.html': { description: same, title: 'Home' },
+    'about/index.html': { description: same, title: 'About' },
+    'tag/x/index.html': { description: same, robots: 'noindex, follow', title: 'X' },
+  })
+  try {
+    const found = assertStatus(await group(checks, await ctxFor(dir)), 'output.descriptions', 'fail', assert)
+    const values = found.evidence.map((e) => e.value).join(' | ')
+    assert.match(values, /share the meta description/)
+    assert.equal(/tag/.test(values), false)
+  } finally { cleanup() }
+})
+
+test('real-content pages whose path merely contains a utility substring are not utility pages', async () => {
+  const page = { description: 'A real page with a real description.', title: 'Real' }
+  const { dir, cleanup } = await siteWith('utility-real', {
+    'index.html': { ...page, title: 'Home' },
+    'testimonials/index.html': page,
+    'success-stories/index.html': page,
+    'contest/index.html': page,
+    'latest-news/index.html': page,
+    'demographics/index.html': page,
+  })
+  try {
+    assertStatus(await group(checks, await ctxFor(dir)), 'output.noindex-utility-pages', 'pass', assert)
+  } finally { cleanup() }
+})
+
+test('indexable confirmation, preview, demo, test and staging pages are still flagged', async () => {
+  const page = { description: 'A page.', title: 'P' }
+  const names = ['thank-you', 'thanks', 'order-confirmation', 'payment-success', 'success', 'preview', 'demo', 'test', 'staging']
+  const { dir, cleanup } = await siteWith('utility-flagged', {
+    'index.html': { ...page, title: 'Home' },
+    ...Object.fromEntries(names.map((n) => [`${n}/index.html`, page])),
+  })
+  try {
+    const found = assertStatus(await group(checks, await ctxFor(dir)), 'output.noindex-utility-pages', 'fail', assert)
+    const values = found.evidence.map((e) => e.value).join(' | ')
+    for (const n of names) assert.match(values, new RegExp(`\\(/${n}\\)`), `${n} should be flagged`)
+  } finally { cleanup() }
+})

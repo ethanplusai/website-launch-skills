@@ -103,13 +103,18 @@ function linkForms(ctx) {
       const href = (found[1] ?? found[2] ?? found[3] ?? '').trim()
       if (!href.startsWith('/') || href.startsWith('//')) continue
       const path = href.split(/[?#]/)[0]
-      if (path === '/' || /\.[a-z0-9]{2,5}$/i.test(path)) continue
+      if (path === '/' || isFilePath(path)) continue
       if (path.endsWith('/')) withSlash++
       else withoutSlash++
     }
   }
   return { withSlash, withoutSlash }
 }
+
+// A path whose last segment has a file extension (`/favicon.ico`, `/sitemap_index.xml`,
+// `/wp-content/uploads/2024/01/a.png`) names a file, and the trailing-slash policy is about pages.
+const FILE_EXTENSION = /\.[a-z0-9]{2,5}$/i
+const isFilePath = (path) => FILE_EXTENSION.test(String(path).split(/[?#]/)[0])
 
 const trailingSlash = check({
   id: 'framework.trailing-slash',
@@ -137,6 +142,7 @@ const trailingSlash = check({
     // a loop: a rule whose destination is in the losing form sends every request round again.
     for (const rule of ctx.redirects.rules) {
       if (rule.wildcard || !rule.to.startsWith('/') || rule.to === '/') continue
+      if (isFilePath(rule.to) || isFilePath(rule.from)) continue
       const form = rule.to.endsWith('/') ? 'always' : 'never'
       if (form !== policy) problems.push(`the redirect ${rule.from} -> ${rule.to} uses the ${form} form against a ${policy} policy`)
     }

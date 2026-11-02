@@ -67,6 +67,9 @@ weaker for crawlers, and duplicated in analytics. A redirect destination in the 
 turn the hop into a loop.
 **Fix.** Pick one form. Set it in the generator config, regenerate so the links match, and write
 every redirect destination in that form. Which one you pick matters much less than picking.
+**Ignores.** Paths whose last segment has a file extension (`/favicon.ico`, `/sitemap_index.xml`,
+`/wp-content/uploads/2024/01/logo.png`), as redirect sources, redirect destinations or links. A file
+has no page form, so the policy has nothing to say about it.
 **Skips when.** No framework was detected, no policy is configured, the policy is `ignore`, or the
 build contains no internal page links to compare against.
 
