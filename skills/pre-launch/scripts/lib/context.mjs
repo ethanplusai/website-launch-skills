@@ -18,7 +18,7 @@
 // `createExec` is the real one. It returns a non-zero `code` where a shell would, instead of
 // throwing, because "the build failed" is a finding and a stack trace is not.
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, posix, relative, sep } from 'node:path'
 
@@ -30,13 +30,21 @@ import { detectFramework, parseRedirects, parseRewrites } from '../../../launch-
 
 const MAX_BUFFER = 16 * 1024 * 1024
 
+// On Windows npm, npx, pnpm, yarn and an npm-installed bun are .cmd files, which Node starts only
+// through a shell. The gate gives them fixed tokens (`run build`), so there the command and its
+// arguments are joined into one command line.
+const VIA_SHELL_ON_WINDOWS = /^(npm|npx|pnpm|yarn|bun)$/
+
 export function createExec() {
   return function exec(cmd, args = [], { cwd, env } = {}) {
     try {
-      const stdout = execFileSync(cmd, args, {
+      const options = {
         cwd, env: env ?? process.env, encoding: 'utf8', maxBuffer: MAX_BUFFER,
         stdio: ['ignore', 'pipe', 'pipe'],
-      })
+      }
+      const stdout = process.platform === 'win32' && VIA_SHELL_ON_WINDOWS.test(cmd)
+        ? execSync([cmd, ...args].join(' '), options)
+        : execFileSync(cmd, args, options)
       return { code: 0, stdout: stdout ?? '', stderr: '' }
     } catch (error) {
       const code = typeof error?.status === 'number' ? error.status : 1
